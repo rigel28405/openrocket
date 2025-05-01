@@ -7,7 +7,7 @@ import net.sf.openrocket.simulation.extension.AbstractSimulationExtensionProvide
 public class JavaCodeProvider extends AbstractSimulationExtensionProvider {
 	
 	public JavaCodeProvider() {
-		super(JavaCode.class, "Scripts", "Java listeners");
+		super(JavaCode.class, "User code", "Java code");
 	}
 	
 }

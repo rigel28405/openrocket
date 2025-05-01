@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import net.sf.openrocket.rocketcomponent.ComponentChangeEvent;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.InputSource;
@@ -39,7 +37,7 @@ public class OpenRocketLoader extends AbstractRocketLoader {
 	
 	
 	@Override
-	public void loadFromStream(DocumentLoadingContext context, InputStream source, String fileName) throws RocketLoadException,
+	public void loadFromStream(DocumentLoadingContext context, InputStream source) throws RocketLoadException,
 			IOException {
 		log.info("Loading .ork file");
 		
@@ -55,15 +53,11 @@ public class OpenRocketLoader extends AbstractRocketLoader {
 			throw new RocketLoadException("Malformed XML in input.", e);
 		}
 		
-		// load the stage activeness
-		for (FlightConfiguration config : doc.getRocket().getFlightConfigurations()) {
-			config.applyPreloadedStageActiveness();
-		}
+		doc.getDefaultConfiguration().setAllStages();
 		
-		// If we saved data for a simulation before, we'll use that as our default option this time
-		// Also, updaet all the sims' modIDs to agree with flight config
+		// Deduce suitable time skip
+		double timeSkip = StorageOptions.SIMULATION_DATA_NONE;
 		for (Simulation s : doc.getSimulations()) {
-			s.syncModID();		// The config's modID can be out of sync with the simulation's after the whole loading process
 			if (s.getStatus() == Simulation.Status.EXTERNAL ||
 					s.getStatus() == Simulation.Status.NOT_SIMULATED)
 				continue;
@@ -77,10 +71,16 @@ public class OpenRocketLoader extends AbstractRocketLoader {
 			List<Double> list = branch.get(FlightDataType.TYPE_TIME);
 			if (list == null)
 				continue;
-
-			doc.getDefaultStorageOptions().setSaveSimulationData(true);
+				
+			double previousTime = Double.NaN;
+			for (double time : list) {
+				if (time - previousTime < timeSkip)
+					timeSkip = time - previousTime;
+				previousTime = time;
+			}
 		}
-
+		timeSkip = Math.rint(timeSkip * 100) / 100;
+		doc.getDefaultStorageOptions().setSimulationTimeSkip(timeSkip);
 		doc.getDefaultStorageOptions().setExplicitlySet(false);
 		doc.getDefaultStorageOptions().setFileType(FileType.OPENROCKET);
 		

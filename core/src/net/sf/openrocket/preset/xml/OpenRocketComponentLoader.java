@@ -34,7 +34,9 @@ public class OpenRocketComponentLoader  implements Loader<ComponentPreset> {
 			presets = (new OpenRocketComponentSaver().unmarshalFromOpenRocketComponent( new InputStreamReader (stream))).asComponentPresets();
 			log.debug("ComponentPreset file " + filename + " contained " + presets.size() + " presets");
 			return presets;
-		} catch (JAXBException | InvalidComponentPresetException e) {
+		} catch (JAXBException e) {
+			throw new BugException("Unable to parse file: "+ filename, e);
+		} catch (InvalidComponentPresetException e) {
 			throw new BugException("Unable to parse file: "+ filename, e);
 		}
 

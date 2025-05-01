@@ -5,17 +5,16 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.script.ScriptEngineFactory;
+import javax.script.ScriptEngineManager;
 
 import org.fife.ui.rsyntaxtextarea.TokenMakerFactory;
-
-import net.sf.openrocket.scripting.ScriptEngineManagerRedux;
 
 public class Scripting {
 	
 	public static void main(String[] args) {
 		System.out.println("Scripting APIs:");
 		
-		ScriptEngineManagerRedux manager = new ScriptEngineManagerRedux();
+		ScriptEngineManager manager = new ScriptEngineManager();
 		for (ScriptEngineFactory factory : manager.getEngineFactories()) {
 			System.out.println("  engineName=" + factory.getEngineName() +
 					" engineVersion=" + factory.getEngineVersion() +

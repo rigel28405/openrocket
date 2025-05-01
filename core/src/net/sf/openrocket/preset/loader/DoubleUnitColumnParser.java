@@ -4,11 +4,11 @@ import net.sf.openrocket.preset.TypedKey;
 import net.sf.openrocket.preset.TypedPropertyMap;
 import net.sf.openrocket.unit.Unit;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.util.StringUtils;
+import net.sf.openrocket.util.StringUtil;
 
 public class DoubleUnitColumnParser extends BaseUnitColumnParser {
 
-	private final TypedKey<Double> propKey;
+	private TypedKey<Double> propKey;
 
 	public DoubleUnitColumnParser(String columnHeader, String unitHeader,
 			TypedKey<Double> propKey) {
@@ -19,7 +19,7 @@ public class DoubleUnitColumnParser extends BaseUnitColumnParser {
 	@Override
 	protected void doParse(String columnData, String[] data, TypedPropertyMap props) {
 		try {
-			if (StringUtils.isEmpty(columnData)) {
+			if (StringUtil.isEmpty(columnData)) {
 				return;
 			}
 			double value = Double.valueOf(columnData);

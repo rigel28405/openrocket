@@ -3,15 +3,6 @@ package net.sf.openrocket.optimization.rocketoptimization;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import org.jmock.Expectations;
-import org.jmock.Mockery;
-import org.jmock.auto.Mock;
-import org.jmock.integration.junit4.JMock;
-import org.jmock.integration.junit4.JUnit4Mockery;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import net.sf.openrocket.document.Simulation;
 import net.sf.openrocket.optimization.general.OptimizationException;
 import net.sf.openrocket.optimization.general.Point;
@@ -21,6 +12,14 @@ import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.unit.Value;
 import net.sf.openrocket.util.Pair;
 import net.sf.openrocket.util.BaseTestCase.BaseTestCase;
+
+import org.jmock.Expectations;
+import org.jmock.Mockery;
+import org.jmock.auto.Mock;
+import org.jmock.integration.junit4.JMock;
+import org.jmock.integration.junit4.JUnit4Mockery;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 
 @RunWith(JMock.class)
@@ -223,13 +222,12 @@ public class TestRocketOptimizationFunction extends BaseTestCase {
 	
 	
 	@Test
-	public void testNewSimulationNames() {
+	public void testNewSimulationInstance() {
 		final Rocket rocket = new Rocket();
 		rocket.setName("Foobar");
 		final Simulation simulation = new Simulation(rocket);
 		simulation.setName("MySim");
 		
-
 		RocketOptimizationFunction function = new RocketOptimizationFunction(simulation,
 				parameter, goal, domain, modifier1, modifier2);
 		

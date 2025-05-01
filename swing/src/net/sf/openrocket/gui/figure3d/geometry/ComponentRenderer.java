@@ -1,43 +1,36 @@
 package net.sf.openrocket.gui.figure3d.geometry;
 
-import com.jogamp.opengl.GL;
-import com.jogamp.opengl.GL2;
-import com.jogamp.opengl.GLAutoDrawable;
-import com.jogamp.opengl.fixedfunc.GLMatrixFunc;
-import com.jogamp.opengl.glu.GLU;
-import com.jogamp.opengl.glu.GLUquadric;
-
-import net.sf.openrocket.rocketcomponent.InnerTube;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
+import javax.media.opengl.GLAutoDrawable;
+import javax.media.opengl.fixedfunc.GLMatrixFunc;
+import javax.media.opengl.glu.GLU;
+import javax.media.opengl.glu.GLUquadric;
 
 import net.sf.openrocket.gui.figure3d.geometry.Geometry.Surface;
 import net.sf.openrocket.motor.Motor;
-import net.sf.openrocket.rocketcomponent.AxialStage;
 import net.sf.openrocket.rocketcomponent.BodyTube;
 import net.sf.openrocket.rocketcomponent.FinSet;
 import net.sf.openrocket.rocketcomponent.LaunchLug;
 import net.sf.openrocket.rocketcomponent.MassObject;
-import net.sf.openrocket.rocketcomponent.ParallelStage;
-import net.sf.openrocket.rocketcomponent.PodSet;
-import net.sf.openrocket.rocketcomponent.RailButton;
 import net.sf.openrocket.rocketcomponent.RingComponent;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.Transition;
 import net.sf.openrocket.rocketcomponent.Transition.Shape;
 import net.sf.openrocket.rocketcomponent.TubeFinSet;
 import net.sf.openrocket.util.Coordinate;
-import net.sf.openrocket.util.Transformation;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /*
  * @author Bill Kuker <bkuker@billkuker.com>
- * @author Daniel Williams <equipoise@gmail.com>
  */
 public class ComponentRenderer {
 	@SuppressWarnings("unused")
 	private static final Logger log = LoggerFactory.getLogger(ComponentRenderer.class);
 
-	private int LOD = 80;		// Level of detail for rendering
+	private int LOD = 80;
 
 	GLU glu;
 	GLUquadric q;
@@ -58,73 +51,65 @@ public class ComponentRenderer {
 
 	}
 
-	public Geometry getComponentGeometry(final RocketComponent comp) {
-	    return getComponentGeometry(comp, Transformation.IDENTITY); 
-	}
-        
-	public Geometry getComponentGeometry(final RocketComponent comp, final Transformation transform ) {
-	    return new Geometry(comp, transform) {
+	public Geometry getGeometry(final RocketComponent c, final Surface which) {
+		return new Geometry() {
 			@Override
-			public void render(GL2 gl, final Surface which) {
-			    gl.glPushMatrix();
-
-			    gl.glMultMatrixd( transform.getGLMatrix() );
-			    
+			public void render(GL2 gl) {
 				if (which == Surface.ALL) {
-					renderInstance(gl, comp, Surface.INSIDE);
-					renderInstance(gl, comp, Surface.EDGES);
-					renderInstance(gl, comp, Surface.OUTSIDE);
+					renderGeometry(gl, c, Surface.INSIDE);
+					renderGeometry(gl, c, Surface.EDGES);
+					renderGeometry(gl, c, Surface.OUTSIDE);
 				} else {
-					renderInstance(gl, comp, which);
+					renderGeometry(gl, c, which);
 				}
-				gl.glPopMatrix();
 			}
 		};
 	}
 
-	public Geometry getMotorGeometry(final Motor motor) {
-		return new Geometry(motor, Transformation.IDENTITY) {
+	public Geometry getGeometry(final Motor motor, Surface which) {
+		return new Geometry() {
 			@Override
-			public void render(GL2 gl, final Surface which) {
+			public void render(GL2 gl) {
 				renderMotor(gl, motor);
 			}
 		};
 	}
 
-	protected void renderInstance(GL2 gl, RocketComponent c, Surface which) {
+	protected void renderGeometry(GL2 gl, RocketComponent c, Surface which) {
 		if (glu == null)
 			throw new IllegalStateException(this + " Not Initialized");
 
 		glu.gluQuadricNormals(q, GLU.GLU_SMOOTH);
 
-		if (c instanceof BodyTube) {
-			renderTube(gl, (BodyTube) c, which);
-		} else if (c instanceof InnerTube) {
-			renderTube(gl, (InnerTube) c, which);
-		} else if (c instanceof LaunchLug) {
-			renderLug(gl, (LaunchLug) c, which);
-		} else if ( c instanceof RailButton ){
-			renderRailButton(gl, (RailButton) c, which);
-		} else if (c instanceof RingComponent) {
-			if (which == Surface.OUTSIDE)
-				renderRing(gl, (RingComponent) c);
-		} else if (c instanceof Transition) {
-			renderTransition(gl, (Transition) c, which);
-		} else if (c instanceof MassObject) {
-			if (which == Surface.OUTSIDE)
-				renderMassObject(gl, (MassObject) c);
-		} else if (c instanceof FinSet) {
-		    FinSet fins = (FinSet) c;
-			fr.renderFinSet(gl, fins, which);
-		} else if (c instanceof TubeFinSet) {
-			renderTubeFins( gl, (TubeFinSet) c, which);
-		} else if ( c instanceof AxialStage ) {
-		} else if ( c instanceof ParallelStage ) {
-		} else if ( c instanceof PodSet ) {
-		} else {
-			renderOther(gl, c);
+		Coordinate[] oo = c.toAbsolute(new Coordinate(0, 0, 0));
+
+		for (Coordinate o : oo) {
+			gl.glPushMatrix();
+
+			gl.glTranslated(o.x, o.y, o.z);
+
+			if (c instanceof BodyTube) {
+				renderTube(gl, (BodyTube) c, which);
+			} else if (c instanceof LaunchLug) {
+				renderLug(gl, (LaunchLug) c, which);
+			} else if (c instanceof RingComponent) {
+				if (which == Surface.OUTSIDE)
+					renderRing(gl, (RingComponent) c);
+			} else if (c instanceof Transition) {
+				renderTransition(gl, (Transition) c, which);
+			} else if (c instanceof MassObject) {
+				if (which == Surface.OUTSIDE)
+					renderMassObject(gl, (MassObject) c);
+			} else if (c instanceof FinSet) {
+				if (which == Surface.OUTSIDE)
+					fr.renderFinSet(gl, (FinSet) c);
+			} else if (c instanceof TubeFinSet) {
+				renderTubeFins( gl, (TubeFinSet) c, which);
+			} else {
+				renderOther(gl, c);
+			}
+			gl.glPopMatrix();
 		}
-	
 
 	}
 
@@ -147,7 +132,7 @@ public class ComponentRenderer {
 			if (which == Surface.INSIDE) {
 				gl.glFrontFace(GL.GL_CCW);
 			}
-			TransitionRenderer.drawTransition(gl, t, LOD, t.getShapeType() == Shape.CONICAL ? 4 : LOD / 2, which == Surface.INSIDE ? -t.getThickness() : 0);
+			TransitionRenderer.drawTransition(gl, t, LOD, t.getType() == Shape.CONICAL ? 4 : LOD / 2, which == Surface.INSIDE ? -t.getThickness() : 0);
 			if (which == Surface.INSIDE) {
 				gl.glFrontFace(GL.GL_CW);
 			}
@@ -206,7 +191,7 @@ public class ComponentRenderer {
 			if (t.getForeShoulderLength() > 0) {
 				gl.glPushMatrix();
 				gl.glRotated(180, 0, 1.0, 0);
-				//gl.glTranslated(t.getLengthAerodynamic(), 0, 0);
+				//gl.glTranslated(t.getLength(), 0, 0);
 				double iR = (t.isFilled() || t.isForeShoulderCapped()) ? 0 : t.getForeShoulderRadius() - t.getForeShoulderThickness();
 				if (which == Surface.EDGES) {
 					renderTube(gl, Surface.OUTSIDE, t.getForeShoulderRadius(), iR, t.getForeShoulderLength());
@@ -260,10 +245,6 @@ public class ComponentRenderer {
 		renderTube(gl, which, t.getOuterRadius(), t.getInnerRadius(), t.getLength());
 	}
 
-	private void renderTube(GL2 gl, InnerTube t, Surface which) {
-		renderTube(gl, which, t.getOuterRadius(), t.getInnerRadius(), t.getLength());
-	}
-
 	private void renderRing(GL2 gl, RingComponent r) {
 
 		gl.glRotated(90, 0, 1.0, 0);
@@ -287,67 +268,19 @@ public class ComponentRenderer {
 	private void renderLug(GL2 gl, LaunchLug t, Surface which) {
 		renderTube(gl, which, t.getOuterRadius(), t.getInnerRadius(), t.getLength());
 	}
-	
-	private void renderRailButton(GL2 gl, RailButton r, Surface which) {
-		if ( which == Surface.OUTSIDE ){
-			//renderOther(gl, r);
-			final double or = r.getOuterDiameter() / 2.0;
-			final double ir = r.getInnerDiameter() / 2.0;
-			gl.glRotated(r.getAngleOffset()*180/Math.PI -90 , 1, 0, 0);
-			
-			// Base Cylinder
-			if (r.getBaseHeight() > 0) {
-				glu.gluCylinder(q, or, or, r.getBaseHeight(), LOD, 1);
-				glu.gluQuadricOrientation(q, GLU.GLU_INSIDE);
-				glu.gluDisk(q, 0, or, LOD, 2);
-				glu.gluQuadricOrientation(q, GLU.GLU_OUTSIDE);
-				gl.glTranslated(0, 0, r.getBaseHeight());
-				glu.gluDisk(q, 0, or, LOD, 2);
-			} else {	// Draw a closing cap if there is no base
-				glu.gluQuadricOrientation(q, GLU.GLU_INSIDE);
-				glu.gluDisk(q, 0, ir, LOD, 2);
-				glu.gluQuadricOrientation(q, GLU.GLU_OUTSIDE);
-				gl.glTranslated(0, 0, r.getBaseHeight());
-			}
 
-			// Inner Cylinder
-			glu.gluCylinder(q, ir, ir, r.getInnerHeight(), LOD, 1);
-			
-			// Flange Cylinder
-			gl.glTranslated(0, 0, r.getInnerHeight());
-			if (r.getFlangeHeight() > 0) {
-				glu.gluCylinder(q, or, or, r.getFlangeHeight(), LOD, 1);
-				glu.gluQuadricOrientation(q, GLU.GLU_INSIDE);
-				glu.gluDisk(q, 0, or, LOD, 2);
-				glu.gluQuadricOrientation(q, GLU.GLU_OUTSIDE);
-				gl.glTranslated(0, 0, r.getFlangeHeight());
-				glu.gluDisk(q, 0, or, LOD, 2);
-			} else if (r.getScrewHeight() == 0) {	// Draw a closing cap if there is no flange
-				glu.gluDisk(q, 0, ir, LOD, 2);
-			}
-
-			// Screw
-			if (r.getScrewHeight() > 0) {
-				// Half dome
-				gl.glClipPlane(GL2.GL_CLIP_PLANE0, new double[] { 0, 0, 1, 0 }, 0);
-				gl.glEnable(GL2.GL_CLIP_PLANE0);
-				gl.glScaled(1, 1, r.getScrewHeight() / (r.getOuterDiameter() / 2));
-				glu.gluSphere(q, r.getOuterDiameter() / 2.0, LOD, LOD);
-				gl.glDisable(GL2.GL_CLIP_PLANE0);
-
-				// Closing disk
-				glu.gluQuadricOrientation(q, GLU.GLU_INSIDE);
-				glu.gluDisk(q, ir, or, LOD, 2);
-			}
-
-		}
-	}
-	
 	private void renderTubeFins(GL2 gl, TubeFinSet fs, Surface which) {
 		gl.glPushMatrix();
 		gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
-		gl.glTranslated(0, fs.getOuterRadius(), 0);
-		renderTube(gl, which, fs.getOuterRadius(), fs.getInnerRadius(), fs.getLength());
+		System.out.println(fs.getBaseRotation());
+		gl.glRotated(fs.getBaseRotation() * (180.0 / Math.PI), 1, 0, 0);
+		for( int i = 0; i< fs.getFinCount(); i++ ) {
+			gl.glPushMatrix();
+			gl.glTranslated(0, fs.getOuterRadius() + fs.getBodyRadius(), 0);
+			renderTube(gl, which, fs.getOuterRadius(), fs.getInnerRadius(), fs.getLength());
+			gl.glPopMatrix();
+			gl.glRotated(360.0 / fs.getFinCount(), 1, 0, 0);
+		}
 		gl.glPopMatrix();
 	}
 

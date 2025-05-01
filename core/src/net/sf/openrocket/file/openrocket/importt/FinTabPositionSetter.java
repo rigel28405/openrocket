@@ -2,20 +2,16 @@ package net.sf.openrocket.file.openrocket.importt;
 
 import java.util.HashMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.rocketcomponent.FinSet;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.rocketcomponent.position.*;
+import net.sf.openrocket.rocketcomponent.FinSet.TabRelativePosition;
 import net.sf.openrocket.util.Reflection;
 
 class FinTabPositionSetter extends DoubleSetter {
-	private static final Logger log = LoggerFactory.getLogger(FinTabPositionSetter.class);
 	
 	public FinTabPositionSetter() {
-		super(Reflection.findMethod(FinSet.class, "setTabOffset", double.class));
+		super(Reflection.findMethod(FinSet.class, "setTabShift", double.class));
 	}
 	
 	@Override
@@ -27,30 +23,23 @@ class FinTabPositionSetter extends DoubleSetter {
 		}
 		
 		String relative = attributes.get("relativeto");
+		FinSet.TabRelativePosition position =
+				(TabRelativePosition) DocumentConfig.findEnum(relative,
+						FinSet.TabRelativePosition.class);
 		
-		if (relative == null) {
-			warnings.add("Required attribute 'relativeto' not found for fin tab position.");
+		if (position != null) {
+			
+			((FinSet) c).setTabRelativePosition(position);
+			
 		} else {
-			// translate from old enum names to current enum names
-			if( relative.contains("front")){
-				relative = "top";
-			}else if( relative.contains("center")){
-				relative = "middle";
-			}else if( relative.contains("end")){
-				relative = "bottom";
-			}
-			
-			AxialMethod position = (AxialMethod) DocumentConfig.findEnum(relative, AxialMethod.class);
-			
-			if( null == position ){
+			if (relative == null) {
+				warnings.add("Required attribute 'relativeto' not found for fin tab position.");
+			} else {
 				warnings.add("Illegal attribute value '" + relative + "' encountered.");
-			}else{
-				((FinSet) c).setTabOffsetMethod(position);
-				super.set(c, s, attributes, warnings);
 			}
-		
 		}
 		
+		super.set(c, s, attributes, warnings);
 	}
 	
 	

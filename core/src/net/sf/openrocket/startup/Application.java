@@ -20,9 +20,6 @@ public final class Application {
 	private static ExceptionHandler exceptionHandler;
 	
 	private static Injector injector;
-
-	// Supported Java Runtime Environment versions in which OR is allowed to run (e.g. '11' for Java 11)
-	public static int[] SUPPORTED_JRE_VERSIONS = {11, 17};
 	
 	/**
 	 * Return whether to use additional safety code checks.
@@ -30,8 +27,11 @@ public final class Application {
 	public static boolean useSafetyChecks() {
 		// Currently default to false unless openrocket.debug.safetycheck is defined
 		String s = System.getProperty("openrocket.debug.safetycheck");
-        return s != null && !(s.equalsIgnoreCase("false") || s.equalsIgnoreCase("off"));
-    }
+		if (s != null && !(s.equalsIgnoreCase("false") || s.equalsIgnoreCase("off"))) {
+			return true;
+		}
+		return false;
+	}
 	
 	private static Translator getBaseTranslator() {
 		if (injector == null) {

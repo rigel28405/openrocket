@@ -9,17 +9,14 @@ import java.util.Arrays;
 import java.util.EnumSet;
 
 import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
-import javax.swing.border.Border;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
@@ -32,17 +29,13 @@ import net.sf.openrocket.gui.plot.PlotConfiguration;
 import net.sf.openrocket.gui.plot.SimulationPlotDialog;
 import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.gui.util.Icons;
-import net.sf.openrocket.gui.util.SwingPreferences;
-import net.sf.openrocket.gui.util.UITheme;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.simulation.FlightDataBranch;
 import net.sf.openrocket.simulation.FlightDataType;
 import net.sf.openrocket.simulation.FlightEvent;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.startup.Preferences;
 import net.sf.openrocket.unit.Unit;
 import net.sf.openrocket.util.Utils;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 /**
  * Panel that displays the simulation plot options to the user.
@@ -50,10 +43,7 @@ import net.sf.openrocket.gui.widgets.SelectColorButton;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public class SimulationPlotPanel extends JPanel {
-	private static final long serialVersionUID = -2227129713185477998L;
-
 	private static final Translator trans = Application.getTranslator();
-	private static final SwingPreferences preferences = (SwingPreferences) Application.getPreferences();
 	
 	// TODO: LOW: Should these be somewhere else?
 	public static final int AUTO = -1;
@@ -96,9 +86,9 @@ public class SimulationPlotPanel extends JPanel {
 	private PlotConfiguration configuration;
 	
 	
-	private JComboBox<PlotConfiguration> configurationSelector;
+	private JComboBox configurationSelector;
 	
-	private JComboBox<FlightDataType> domainTypeSelector;
+	private JComboBox domainTypeSelector;
 	private UnitSelector domainUnitSelector;
 	
 	private JPanel typeSelectorPanel;
@@ -106,19 +96,11 @@ public class SimulationPlotPanel extends JPanel {
 	
 	
 	private int modifying = 0;
-
-	private DescriptionArea simPlotPanelDesc;
-
-	private static java.awt.Color darkWarningColor;
-	private static Border border;
-
-	static {
-		initColors();
-	}
+	
 	
 	public SimulationPlotPanel(final Simulation simulation) {
 		super(new MigLayout("fill"));
-
+		
 		this.simulation = simulation;
 		if (simulation.getSimulatedData() == null ||
 				simulation.getSimulatedData().getBranchCount() == 0) {
@@ -132,7 +114,7 @@ public class SimulationPlotPanel extends JPanel {
 		////  Configuration selector
 		
 		// Setup the combo box
-		configurationSelector = new JComboBox<PlotConfiguration>(PRESET_ARRAY);
+		configurationSelector = new JComboBox(PRESET_ARRAY);
 		for (PlotConfiguration config : PRESET_ARRAY) {
 			if (config.getName().equals(configuration.getName())) {
 				configurationSelector.setSelectedItem(config);
@@ -171,7 +153,7 @@ public class SimulationPlotPanel extends JPanel {
 		
 		//// X axis type:
 		this.add(new JLabel(trans.get("simplotpanel.lbl.Xaxistype")), "spanx, split");
-		domainTypeSelector = new JComboBox<FlightDataType>(types);
+		domainTypeSelector = new JComboBox(types);
 		domainTypeSelector.setSelectedItem(configuration.getDomainAxisType());
 		domainTypeSelector.addItemListener(new ItemListener() {
 			@Override
@@ -179,14 +161,6 @@ public class SimulationPlotPanel extends JPanel {
 				if (modifying > 0)
 					return;
 				FlightDataType type = (FlightDataType) domainTypeSelector.getSelectedItem();
-				if (type == FlightDataType.TYPE_TIME) {
-					simPlotPanelDesc.setVisible(false);
-					simPlotPanelDesc.setText("");
-				}
-				else {
-					simPlotPanelDesc.setVisible(true);
-					simPlotPanelDesc.setText(trans.get("simplotpanel.Desc"));
-				}
 				configuration.setDomainAxisType(type);
 				domainUnitSelector.setUnitGroup(type.getUnitGroup());
 				domainUnitSelector.setSelectedUnit(configuration.getDomainAxisUnit());
@@ -210,12 +184,9 @@ public class SimulationPlotPanel extends JPanel {
 		this.add(domainUnitSelector, "width 40lp, gapright para");
 		
 		//// The data will be plotted in time order even if the X axis type is not time.
-		simPlotPanelDesc = new DescriptionArea("", 2, -2f, false);
-		simPlotPanelDesc.setVisible(false);
-		simPlotPanelDesc.setForeground(darkWarningColor);
-		simPlotPanelDesc.setViewportBorder(BorderFactory.createEmptyBorder());
-		this.add(simPlotPanelDesc, "width 1px, growx 1, wrap unrel");
-		
+		DescriptionArea desc = new DescriptionArea(trans.get("simplotpanel.Desc"), 2, -2f);
+		desc.setViewportBorder(BorderFactory.createEmptyBorder());
+		this.add(desc, "width 1px, growx 1, wrap unrel");
 		
 		
 		
@@ -227,8 +198,7 @@ public class SimulationPlotPanel extends JPanel {
 		
 		typeSelectorPanel = new JPanel(new MigLayout("gapy rel"));
 		JScrollPane scroll = new JScrollPane(typeSelectorPanel);
-		scroll.setBorder(border);
-		this.add(scroll, "spany 3, height 10px, wmin 400lp, grow 100, gapright para");
+		this.add(scroll, "spany 2, height 10px, wmin 400lp, grow 100, gapright para");
 		
 		
 		//// Flight events
@@ -250,7 +220,7 @@ public class SimulationPlotPanel extends JPanel {
 		
 		
 		////  All + None buttons
-		JButton button = new SelectColorButton(trans.get("simplotpanel.but.All"));
+		JButton button = new JButton(trans.get("simplotpanel.but.All"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -262,7 +232,7 @@ public class SimulationPlotPanel extends JPanel {
 		this.add(button, "split 2, gapleft para, gapright para, growx, sizegroup buttons");
 		
 		//// None
-		button = new SelectColorButton(trans.get("simplotpanel.but.None"));
+		button = new JButton(trans.get("simplotpanel.but.None"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -271,48 +241,12 @@ public class SimulationPlotPanel extends JPanel {
 				eventTableModel.fireTableDataChanged();
 			}
 		});
-		this.add(button, "gapleft para, gapright para, growx, sizegroup buttons, wrap");
+		this.add(button, "gapleft para, gapright para, growx, sizegroup buttons, wrap para");
 		
-
-		//// Style event marker
-		JLabel styleEventMarker = new JLabel(trans.get("simplotpanel.MarkerStyle.lbl.MarkerStyle"));
-		JRadioButton radioVerticalMarker = new JRadioButton(trans.get("simplotpanel.MarkerStyle.btn.VerticalMarker"));
-		JRadioButton radioIcon = new JRadioButton(trans.get("simplotpanel.MarkerStyle.btn.Icon"));
-		ButtonGroup bg = new ButtonGroup();
-		bg.add(radioVerticalMarker);
-		bg.add(radioIcon);
-
-		boolean useIcon = preferences.getBoolean(Preferences.MARKER_STYLE_ICON, false);
-		if (useIcon) {
-			radioIcon.setSelected(true);
-		} else {
-			radioVerticalMarker.setSelected(true);
-		}
-
-		radioIcon.addItemListener(new ItemListener() {
-			@Override
-			public void itemStateChanged(ItemEvent e) {
-				if (modifying > 0)
-					return;
-				preferences.putBoolean(Preferences.MARKER_STYLE_ICON, radioIcon.isSelected());
-			}
-		});
-
-		domainTypeSelector.addItemListener(new ItemListener() {
-			@Override
-			public void itemStateChanged(ItemEvent e) {
-				updateStyleEventWidgets(styleEventMarker, radioVerticalMarker, radioIcon);
-			}
-		});
-		updateStyleEventWidgets(styleEventMarker, radioVerticalMarker, radioIcon);
-
-		this.add(styleEventMarker, "split 3, growx");
-		this.add(radioVerticalMarker);
-		this.add(radioIcon, "wrap para");
-
-
+		
+		
 		//// New Y axis plot type
-		button = new SelectColorButton(trans.get("simplotpanel.but.NewYaxisplottype"));
+		button = new JButton(trans.get("simplotpanel.but.NewYaxisplottype"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -365,7 +299,7 @@ public class SimulationPlotPanel extends JPanel {
 		
 		/*
 		//// Plot flight
-		button = new SelectColorButton(trans.get("simplotpanel.but.Plotflight"));
+		button = new JButton(trans.get("simplotpanel.but.Plotflight"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -384,29 +318,6 @@ public class SimulationPlotPanel extends JPanel {
 		this.add(button, "right");
 		*/
 		updatePlots();
-	}
-
-	private static void initColors() {
-		updateColors();
-		UITheme.Theme.addUIThemeChangeListener(SimulationPlotPanel::updateColors);
-	}
-
-	private static void updateColors() {
-		darkWarningColor = GUIUtil.getUITheme().getDarkWarningColor();
-		border = GUIUtil.getUITheme().getBorder();
-	}
-
-	private void updateStyleEventWidgets(JLabel styleEventMarker, JRadioButton radioVerticalMarker, JRadioButton radioIcon) {
-		if (modifying > 0)
-			return;
-		FlightDataType type = (FlightDataType) domainTypeSelector.getSelectedItem();
-		boolean isTime = type == FlightDataType.TYPE_TIME;
-		styleEventMarker.setEnabled(isTime);
-		radioVerticalMarker.setEnabled(isTime);
-		radioIcon.setEnabled(isTime);
-		styleEventMarker.setToolTipText(isTime ? trans.get("simplotpanel.MarkerStyle.lbl.MarkerStyle.ttip") : trans.get("simplotpanel.MarkerStyle.OnlyInTime"));
-		radioVerticalMarker.setToolTipText(isTime ? null : trans.get("simplotpanel.MarkerStyle.OnlyInTime"));
-		radioIcon.setToolTipText(isTime ? null : trans.get("simplotpanel.MarkerStyle.OnlyInTime"));
 	}
 	
 	public JDialog doPlot(Window parent) {
@@ -482,14 +393,12 @@ public class SimulationPlotPanel extends JPanel {
 	 * A JPanel which configures a single plot of a PlotConfiguration.
 	 */
 	private class PlotTypeSelector extends JPanel {
-		private static final long serialVersionUID = 9056324972817542570L;
-
 		private final String[] POSITIONS = { AUTO_NAME, LEFT_NAME, RIGHT_NAME };
 		
 		private final int index;
-		private JComboBox<FlightDataType> typeSelector;
+		private JComboBox typeSelector;
 		private UnitSelector unitSelector;
-		private JComboBox<String> axisSelector;
+		private JComboBox axisSelector;
 		
 		
 		public PlotTypeSelector(int plotIndex, FlightDataType type, Unit unit, int position) {
@@ -497,7 +406,7 @@ public class SimulationPlotPanel extends JPanel {
 			
 			this.index = plotIndex;
 			
-			typeSelector = new JComboBox<FlightDataType>(types);
+			typeSelector = new JComboBox(types);
 			typeSelector.setSelectedItem(type);
 			typeSelector.addItemListener(new ItemListener() {
 				@Override
@@ -531,7 +440,7 @@ public class SimulationPlotPanel extends JPanel {
 			
 			//// Axis:
 			this.add(new JLabel(trans.get("simplotpanel.lbl.Axis")));
-			axisSelector = new JComboBox<String>(POSITIONS);
+			axisSelector = new JComboBox(POSITIONS);
 			if (position == LEFT)
 				axisSelector.setSelectedIndex(1);
 			else if (position == RIGHT)
@@ -550,9 +459,9 @@ public class SimulationPlotPanel extends JPanel {
 			this.add(axisSelector);
 			
 			
-			JButton button = new SelectColorButton(Icons.EDIT_DELETE);
+			JButton button = new JButton(Icons.DELETE);
 			//// Remove this plot
-			button.setToolTipText(trans.get("simplotpanel.but.ttip.Deletethisplot"));
+			button.setToolTipText(trans.get("simplotpanel.but.ttip.Removethisplot"));
 			button.setBorderPainted(false);
 			button.addActionListener(new ActionListener() {
 				@Override
@@ -569,7 +478,6 @@ public class SimulationPlotPanel extends JPanel {
 	
 	
 	private class FlightEventTableModel extends AbstractTableModel {
-		private static final long serialVersionUID = -1108240805614567627L;
 		private final FlightEvent.Type[] eventTypes;
 		
 		public FlightEventTableModel() {
@@ -620,7 +528,7 @@ public class SimulationPlotPanel extends JPanel {
 		public Object getValueAt(int row, int column) {
 			switch (column) {
 			case 0:
-				return Boolean.valueOf(configuration.isEventActive(eventTypes[row]));
+				return new Boolean(configuration.isEventActive(eventTypes[row]));
 				
 			case 1:
 				return eventTypes[row].toString();

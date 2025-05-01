@@ -1,12 +1,11 @@
 package net.sf.openrocket.file.rocksim.export;
 
 import net.sf.openrocket.file.TipShapeCode;
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
 import net.sf.openrocket.rocketcomponent.EllipticalFinSet;
 import net.sf.openrocket.rocketcomponent.FinSet;
 import net.sf.openrocket.rocketcomponent.FreeformFinSet;
 import net.sf.openrocket.rocketcomponent.TrapezoidFinSet;
-import net.sf.openrocket.rocketcomponent.position.AxialMethod;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
@@ -16,35 +15,35 @@ import javax.xml.bind.annotation.XmlRootElement;
 /**
  * This class models XML elements for Rocksim finsets.
  */
-@XmlRootElement(name = RockSimCommonConstants.FIN_SET)
+@XmlRootElement(name = RocksimCommonConstants.FIN_SET)
 @XmlAccessorType(XmlAccessType.FIELD)
 public class FinSetDTO extends BasePartDTO {
 
-    @XmlElement(name = RockSimCommonConstants.FIN_COUNT)
+    @XmlElement(name = RocksimCommonConstants.FIN_COUNT)
     private int finCount = 0;
-    @XmlElement(name = RockSimCommonConstants.ROOT_CHORD)
+    @XmlElement(name = RocksimCommonConstants.ROOT_CHORD)
     private double rootChord = 0d;
-    @XmlElement(name = RockSimCommonConstants.TIP_CHORD)
+    @XmlElement(name = RocksimCommonConstants.TIP_CHORD)
     private double tipChord = 0d;
-    @XmlElement(name = RockSimCommonConstants.SEMI_SPAN)
+    @XmlElement(name = RocksimCommonConstants.SEMI_SPAN)
     private double semiSpan = 0d;
-    @XmlElement(name = RockSimCommonConstants.SWEEP_DISTANCE)
+    @XmlElement(name = RocksimCommonConstants.SWEEP_DISTANCE)
     private double sweepDistance = 0d;
-    @XmlElement(name = RockSimCommonConstants.THICKNESS)
+    @XmlElement(name = RocksimCommonConstants.THICKNESS)
     private double thickness = 0d;
-    @XmlElement(name = RockSimCommonConstants.SHAPE_CODE)
+    @XmlElement(name = RocksimCommonConstants.SHAPE_CODE)
     private int shapeCode = 0;
-    @XmlElement(name = RockSimCommonConstants.TIP_SHAPE_CODE)
+    @XmlElement(name = RocksimCommonConstants.TIP_SHAPE_CODE)
     private int tipShapeCode = 0;
-    @XmlElement(name = RockSimCommonConstants.TAB_LENGTH)
+    @XmlElement(name = RocksimCommonConstants.TAB_LENGTH)
     private double tabLength = 0d;
-    @XmlElement(name = RockSimCommonConstants.TAB_DEPTH)
+    @XmlElement(name = RocksimCommonConstants.TAB_DEPTH)
     private double tabDepth = 0d;
-    @XmlElement(name = RockSimCommonConstants.TAB_OFFSET)
+    @XmlElement(name = RocksimCommonConstants.TAB_OFFSET)
     private double tabOffset = 0d;
-    @XmlElement(name = RockSimCommonConstants.SWEEP_MODE)
+    @XmlElement(name = RocksimCommonConstants.SWEEP_MODE)
     private int sweepMode = 1;
-    @XmlElement(name = RockSimCommonConstants.CANT_ANGLE)
+    @XmlElement(name = RocksimCommonConstants.CANT_ANGLE)
     private double cantAngle = 0d;
 
     /**
@@ -63,26 +62,26 @@ public class FinSetDTO extends BasePartDTO {
 
         setFinCount(theORFinSet.getFinCount());
         setCantAngle(theORFinSet.getCantAngle());
-        setTabDepth(theORFinSet.getTabHeight() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-        setTabLength(theORFinSet.getTabLength() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-        setTabOffset(theORFinSet.getTabOffset(AxialMethod.TOP) * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-        setThickness(theORFinSet.getThickness() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+        setTabDepth(theORFinSet.getTabHeight() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+        setTabLength(theORFinSet.getTabLength() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+        setTabOffset(theORFinSet.getTabShift() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+        setThickness(theORFinSet.getThickness() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
 
         setRadialAngle(theORFinSet.getBaseRotation());
         setTipShapeCode(TipShapeCode.convertTipShapeCode(theORFinSet.getCrossSection()));
         if (theORFinSet instanceof TrapezoidFinSet) {
             TrapezoidFinSet tfs = (TrapezoidFinSet) theORFinSet;
             setShapeCode(0);
-            setRootChord(theORFinSet.getLength() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-            setSemiSpan(tfs.getHeight() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-            setTipChord(tfs.getTipChord() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-            setSweepDistance(tfs.getSweep() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setRootChord(theORFinSet.getLength() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setSemiSpan(tfs.getHeight() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setTipChord(tfs.getTipChord() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setSweepDistance(tfs.getSweep() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
         }
         else if (theORFinSet instanceof EllipticalFinSet) {
             EllipticalFinSet efs = (EllipticalFinSet) theORFinSet;
             setShapeCode(1);
-            setRootChord(theORFinSet.getLength() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-            setSemiSpan(efs.getHeight() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setRootChord(theORFinSet.getLength() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+            setSemiSpan(efs.getHeight() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
         }
         else if (theORFinSet instanceof FreeformFinSet) {
             setShapeCode(2);

@@ -1,9 +1,5 @@
 package net.sf.openrocket.gui.rocketfigure;
 
-import net.sf.openrocket.rocketcomponent.MassComponent;
-import net.sf.openrocket.rocketcomponent.MassObject;
-import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.rocketcomponent.ShockCord;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.Transformation;
 
@@ -13,52 +9,39 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 
-public class ShockCordShapes extends RocketComponentShape {
+public class ShockCordShapes extends RocketComponentShapes {
 
-	public static RocketComponentShape[] getShapesSide( final RocketComponent component, final Transformation transformation) {
-		final ShockCord massObj = (ShockCord)component;
+	public static Shape[] getShapesSide(net.sf.openrocket.rocketcomponent.RocketComponent component, 
+			Transformation transformation) {
+		net.sf.openrocket.rocketcomponent.MassObject tube = (net.sf.openrocket.rocketcomponent.MassObject)component;
 		
-		double length = massObj.getLength();
-		double radius = massObj.getRadius();
+		double length = tube.getLength();
+		double radius = tube.getRadius();
 		double arc = Math.min(length, 2*radius) * 0.7;
-		final double radialDistance = massObj.getRadialPosition();
-		final double radialAngleRadians = massObj.getRadialDirection();
+		Coordinate[] start = transformation.transform(tube.toAbsolute(new Coordinate(0,0,0)));
 
-		final Coordinate localPosition = new Coordinate(0,
-				radialDistance * Math.cos(radialAngleRadians),
-				radialDistance * Math.sin(radialAngleRadians));
-		final Coordinate renderPosition = transformation.transform(localPosition);
-		Shape[] s = new Shape[1];
-		s[0] = new RoundRectangle2D.Double(renderPosition.x,(renderPosition.y-radius),
-					length,2*radius,arc,arc);
-		
-		return RocketComponentShape.toArray(addSymbol(s), component);
+		Shape[] s = new Shape[start.length];
+		for (int i=0; i < start.length; i++) {
+			s[i] = new RoundRectangle2D.Double(start[i].x*S,(start[i].y-radius)*S,
+					length*S,2*radius*S,arc*S,arc*S);
+		}
+		return addSymbol(s);
 	}
 	
 
-	public static RocketComponentShape[] getShapesBack( final RocketComponent component, final Transformation transformation) {
-		final ShockCord massObj = (ShockCord)component;
+	public static Shape[] getShapesBack(net.sf.openrocket.rocketcomponent.RocketComponent component, 
+			Transformation transformation) {
+		net.sf.openrocket.rocketcomponent.MassObject tube = (net.sf.openrocket.rocketcomponent.MassObject)component;
 		
-		double or = massObj.getRadius();
-		final double radialDistance = massObj.getRadialPosition();
-		final double radialAngleRadians = massObj.getRadialDirection();
+		double or = tube.getRadius();
+		
+		Coordinate[] start = transformation.transform(tube.toAbsolute(new Coordinate(0,0,0)));
 
-		final Coordinate localPosition = new Coordinate(0,
-				radialDistance * Math.cos(radialAngleRadians),
-				radialDistance * Math.sin(radialAngleRadians));
-		final Coordinate renderPosition = transformation.transform(localPosition);
-		
-		Shape[] s = new Shape[1];
-		
-		s[0] = new Ellipse2D.Double((renderPosition.z-or),(renderPosition.y-or),2*or,2*or);
-		
-//		Coordinate[] start = transformation.transform(tube.toAbsolute(instanceOffset));
-//
-//		Shape[] s = new Shape[start.length];
-//		for (int i=0; i < start.length; i++) {
-//			s[i] = new Ellipse2D.Double((start[i].z-or),(start[i].y-or),2*or,2*or);
-//		}
-		return RocketComponentShape.toArray( s, component);
+		Shape[] s = new Shape[start.length];
+		for (int i=0; i < start.length; i++) {
+			s[i] = new Ellipse2D.Double((start[i].z-or)*S,(start[i].y-or)*S,2*or*S,2*or*S);
+		}
+		return s;
 	}
 	
 	private static Shape[] addSymbol(Shape[] baseShape){

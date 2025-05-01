@@ -2,7 +2,7 @@ package net.sf.openrocket.file.openrocket.importt;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.appearance.AppearanceBuilder;
 import net.sf.openrocket.appearance.Decal.EdgeMode;
 import net.sf.openrocket.document.Attachment;
@@ -16,11 +16,11 @@ import net.sf.openrocket.util.Color;
 import org.xml.sax.SAXException;
 
 class AppearanceHandler extends AbstractElementHandler {
-	protected final DocumentLoadingContext context;
-	protected final RocketComponent component;
-
-	protected final AppearanceBuilder builder = new AppearanceBuilder();
-	protected boolean isInDecal = false;
+	private final DocumentLoadingContext context;
+	private final RocketComponent component;
+	
+	private final AppearanceBuilder builder = new AppearanceBuilder();
+	private boolean isInDecal = false;
 	
 	public AppearanceHandler(RocketComponent component, DocumentLoadingContext context) {
 		this.context = context;
@@ -44,21 +44,14 @@ class AppearanceHandler extends AbstractElementHandler {
 		}
 		return PlainTextHandler.INSTANCE;
 	}
-
+	
 	@Override
 	public void closeElement(String element, HashMap<String, String> attributes, String content, WarningSet warnings) throws SAXException {
 		if ("paint".equals(element)) {
 			int red = Integer.parseInt(attributes.get("red"));
 			int green = Integer.parseInt(attributes.get("green"));
 			int blue = Integer.parseInt(attributes.get("blue"));
-			int alpha = 255;//set default
-			// add a test if "alpha" was added to the XML / backwards compatibility
-			String a = attributes.get("alpha");
-			if (a != null){
-				// "alpha" string was present so load the value
-				alpha = Integer.parseInt(a);
-			}
-			builder.setPaint(new Color(red, green, blue, alpha));
+			builder.setPaint(new Color(red, green, blue));
 			return;
 		}
 		if ("shine".equals(element)) {
@@ -99,12 +92,8 @@ class AppearanceHandler extends AbstractElementHandler {
 			isInDecal = false;
 			return;
 		}
-		setAppearance();
-		super.endHandler(element, attributes, content, warnings);
-	}
-
-	protected void setAppearance() {
 		component.setAppearance(builder.getAppearance());
+		super.endHandler(element, attributes, content, warnings);
 	}
 	
 }

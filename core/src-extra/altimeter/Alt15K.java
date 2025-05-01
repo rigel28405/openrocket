@@ -11,7 +11,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -32,7 +31,7 @@ public class Alt15K {
 	
 	private static final boolean DEBUG = false;
 	
-	private static final Charset CHARSET = StandardCharsets.ISO_8859_1;
+	private static final Charset CHARSET = Charset.forName("ISO-8859-1");
 	
 	private final CommPortIdentifier portID;
 	private SerialPort port = null;
@@ -42,8 +41,8 @@ public class Alt15K {
 	
 
 	public static String[] getNames() {
-		ArrayList<String> list = new ArrayList<String>();
-
+		ArrayList<String> list = new ArrayList<String>();;
+		
 		Enumeration<?> pids = CommPortIdentifier.getPortIdentifiers();
 
 		while (pids.hasMoreElements()) {

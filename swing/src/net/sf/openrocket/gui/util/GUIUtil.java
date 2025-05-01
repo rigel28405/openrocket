@@ -1,6 +1,14 @@
 package net.sf.openrocket.gui.util;
 
-import java.awt.*;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Image;
+import java.awt.KeyboardFocusManager;
+import java.awt.Point;
+import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
@@ -13,13 +21,11 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,15 +57,12 @@ import javax.swing.RootPaneContainer;
 import javax.swing.SpinnerModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ChangeListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableColumnModel;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -68,13 +71,9 @@ import javax.swing.tree.DefaultTreeSelectionModel;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreeSelectionModel;
 
-import com.github.weisj.darklaf.LafManager;
-import com.github.weisj.darklaf.theme.IntelliJTheme;
-import net.sf.openrocket.arch.SystemInfo;
 import net.sf.openrocket.gui.Resettable;
 import net.sf.openrocket.logging.Markers;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.startup.Preferences;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.Invalidatable;
 import net.sf.openrocket.util.MemoryManagement;
@@ -84,7 +83,7 @@ import org.slf4j.LoggerFactory;
 
 public class GUIUtil {
 	private static final Logger log = LoggerFactory.getLogger(GUIUtil.class);
-
+	
 	private static final KeyStroke ESCAPE = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
 	private static final String CLOSE_ACTION_KEY = "escape:WINDOW_CLOSING";
 	
@@ -166,44 +165,7 @@ public class GUIUtil {
 	 * @param dialog	the dialog for which to install the action.
 	 */
 	public static void installEscapeCloseOperation(final JDialog dialog) {
-		installEscapeCloseOperation(dialog, null);
-	}
-
-	public static void installEscapeCloseButtonOperation(final JDialog dialog, final JButton buttonToClick) {
-		Action triggerButtonAndClose = new AbstractAction() {
-			private static final long serialVersionUID = 9196153713666242274L;
-
-			@Override
-			public void actionPerformed(ActionEvent event) {
-				log.info(Markers.USER_MARKER, "Closing dialog " + dialog);
-
-				if (buttonToClick != null) {
-					buttonToClick.doClick();  // Programmatically "press" the button
-				}
-
-				dialog.dispatchEvent(new WindowEvent(dialog, WindowEvent.WINDOW_CLOSING));
-			}
-		};
-
-		installEscapeCloseOperation(dialog, triggerButtonAndClose);
-	}
-
-	/**
-	 * Add the correct action to close a JDialog when the ESC key is pressed.
-	 * The dialog is closed by sending it a WINDOW_CLOSING event.
-	 *
-	 * An additional action can be passed which will be executed upon the close action key.
-	 *
-	 * @param dialog	the dialog for which to install the action.
-	 * @param action	action to execute upon the close action
-	 */
-	public static void installEscapeCloseOperation(final JDialog dialog, Action action) {
 		Action dispatchClosing = new AbstractAction() {
-			/**
-			 *
-			 */
-			private static final long serialVersionUID = 9196153713666242274L;
-
 			@Override
 			public void actionPerformed(ActionEvent event) {
 				log.info(Markers.USER_MARKER, "Closing dialog " + dialog);
@@ -213,9 +175,6 @@ public class GUIUtil {
 		JRootPane root = dialog.getRootPane();
 		root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ESCAPE, CLOSE_ACTION_KEY);
 		root.getActionMap().put(CLOSE_ACTION_KEY, dispatchClosing);
-		if (action != null) {
-			root.getActionMap().put(CLOSE_ACTION_KEY, action);
-		}
 	}
 	
 	
@@ -279,24 +238,8 @@ public class GUIUtil {
 			}
 		});
 	}
-
-	/**
-	 * Get the current theme used for the UI.
-	 * @return the current theme
-	 */
-	public static UITheme.Theme getUITheme() {
-		Preferences prefs = Application.getPreferences();
-		Object theme = prefs.getUITheme();
-		if (theme instanceof UITheme.Theme) {
-			return (UITheme.Theme) theme;
-		}
-		return UITheme.Themes.LIGHT;
-	}
 	
-	public static void applyLAF() {
-		UITheme.Theme theme = getUITheme();
-		theme.applyTheme();
-	}
+	
 	
 	/**
 	 * Set the best available look-and-feel into use.
@@ -308,13 +251,8 @@ public class GUIUtil {
 		 * other alternatives.
 		 */
 		try {
-			// Linux systems often default to a dark mode LAF, so explicitly use light mode
-			if (SystemInfo.getPlatform() == SystemInfo.Platform.UNIX) {
-				LafManager.install(new IntelliJTheme());
-			} else {
-				// Set system L&F
-				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			}
+			// Set system L&F
+			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			
 			// Check whether we have an ugly L&F
 			LookAndFeel laf = UIManager.getLookAndFeel();
@@ -340,17 +278,6 @@ public class GUIUtil {
 						}
 					}
 				}
-			}
-			// Set the select foreground for buttons to not be black on a blue background
-			UIManager.put("Button.selectForeground", Color.WHITE);
-
-			// Fix some UI bugs on macOS
-			if (SystemInfo.getPlatform() == SystemInfo.Platform.MAC_OS) {
-				// Set the foreground of active tabs to black; there was a bug where you had a white background and white foreground
-				UIManager.put("TabbedPane.foreground", Color.black);
-
-				// Set the select foreground for buttons to not be black on a blue background
-				UIManager.put("ToggleButton.selectForeground", Color.WHITE);
 			}
 		} catch (Exception e) {
 			log.warn("Error setting LAF: " + e);
@@ -380,11 +307,8 @@ public class GUIUtil {
 		window.addComponentListener(new ComponentAdapter() {
 			@Override
 			public void componentResized(ComponentEvent e) {
-				final Dimension previousWindowSize = ((SwingPreferences)Application.getPreferences()).getWindowSize(window.getClass());
-				if( ! window.getSize().equals(previousWindowSize)) {
-					log.debug("Storing size of " + window.getClass().getName() + ": " + window.getSize());
-					((SwingPreferences) Application.getPreferences()).setWindowSize(window.getClass(), window.getSize());
-				}
+				log.debug("Storing size of " + window.getClass().getName() + ": " + window.getSize());
+				((SwingPreferences) Application.getPreferences()).setWindowSize(window.getClass(), window.getSize());
 				if (window instanceof JFrame) {
 					if ((((JFrame) window).getExtendedState() & JFrame.MAXIMIZED_BOTH) == JFrame.MAXIMIZED_BOTH) {
 						log.debug("Storing maximized state of " + window.getClass().getName());
@@ -404,28 +328,6 @@ public class GUIUtil {
 				window.setSize(dim);
 			}
 		}
-	}
-
-	public static int getOptimalColumnWidth(JTable table, int columnIndex) {
-		if (columnIndex >= table.getColumnModel().getColumnCount()) {
-			return -1;
-		}
-
-		TableColumn column = table.getColumnModel().getColumn(columnIndex);
-		Component headerRenderer = table.getTableHeader().getDefaultRenderer()
-				.getTableCellRendererComponent(table, column.getHeaderValue(), false, false, 0, columnIndex);
-
-		int maxWidth = headerRenderer.getPreferredSize().width;
-
-		for (int row = 0; row < table.getRowCount(); row++) {
-			Component renderer = table.getCellRenderer(row, columnIndex)
-					.getTableCellRendererComponent(table, table.getValueAt(row, columnIndex), false, false, row, columnIndex);
-			maxWidth = Math.max(maxWidth, renderer.getPreferredSize().width);
-		}
-
-		// Optional: Add some padding
-		int padding = 5;  // adjust this value as needed
-		return maxWidth + padding;
 	}
 	
 	
@@ -448,56 +350,26 @@ public class GUIUtil {
 			window.setLocation(position);
 		}
 	}
-
-	/**
-	 * Computes the optimal column widths for the specified table, based on the content in all rows for that column,
-	 * and optionally also the column header content.
-	 * @param table the table
-	 * @param max the maximum width for a column
-	 * @param includeHeaderWidth whether to include the width of the column header
-	 * @return an array of column widths
-	 */
-	public static int[] computeOptimalColumnWidths(JTable table, int max, boolean includeHeaderWidth) {
+	
+	
+	public static void setAutomaticColumnTableWidths(JTable table, int max) {
 		int columns = table.getColumnCount();
-		int[] widths = new int[columns];
+		int widths[] = new int[columns];
 		Arrays.fill(widths, 1);
-
-		// Consider the width required by the header text if includeHeaderWidth is true
-		if (includeHeaderWidth) {
-			TableCellRenderer headerRenderer = table.getTableHeader().getDefaultRenderer();
-			for (int col = 0; col < columns; col++) {
-				TableColumn column = table.getColumnModel().getColumn(col);
-				Component headerComp = headerRenderer.getTableCellRendererComponent(table, column.getHeaderValue(), false, false, 0, col);
-				widths[col] = headerComp.getPreferredSize().width;
-			}
-		}
-
-		// Compare header width to the width required by the cell data
+		
 		for (int row = 0; row < table.getRowCount(); row++) {
 			for (int col = 0; col < columns; col++) {
 				Object value = table.getValueAt(row, col);
-				TableCellRenderer cellRenderer = table.getCellRenderer(row, col);
-				Component cellComp = cellRenderer.getTableCellRendererComponent(table, value, false, false, row, col);
-				int cellWidth = cellComp.getPreferredSize().width;
-				widths[col] = Math.max(widths[col], cellWidth);
+				//System.out.println("row=" + row + " col=" + col + " : " + value);
+				widths[col] = Math.max(widths[col], value == null ? 0 : value.toString().length());
 			}
 		}
-
+		
+		
 		for (int col = 0; col < columns; col++) {
-			widths[col] = Math.min(widths[col], max * 100);  // Adjusting for your max value and scaling
+			System.err.println("Setting column " + col + " to width " + widths[col]);
+			table.getColumnModel().getColumn(col).setPreferredWidth(Math.min(widths[col], max) * 100);
 		}
-
-		return widths;
-	}
-
-	public static Window getWindowAncestor(Component c) {
-		while (c != null) {
-			if (c instanceof Window) {
-				return (Window) c;
-			}
-			c = c.getParent();
-		}
-		return null;
 	}
 	
 	/**
@@ -605,13 +477,13 @@ public class GUIUtil {
 			}
 			
 		} else if (c instanceof JComboBox) {
-			@SuppressWarnings("unchecked")
-			JComboBox<Object> combo = (JComboBox<Object>) c;
+			
+			JComboBox combo = (JComboBox) c;
 			for (ActionListener l : combo.getActionListeners()) {
 				combo.removeActionListener(l);
 			}
-			ComboBoxModel<?> model = combo.getModel();
-			combo.setModel(new DefaultComboBoxModel<Object>());
+			ComboBoxModel model = combo.getModel();
+			combo.setModel(new DefaultComboBoxModel());
 			if (model instanceof Invalidatable) {
 				((Invalidatable) model).invalidate();
 			}
@@ -624,8 +496,6 @@ public class GUIUtil {
 			}
 			Action model = button.getAction();
 			button.setAction(new AbstractAction() {
-				private static final long serialVersionUID = 3499667830135101535L;
-
 				@Override
 				public void actionPerformed(ActionEvent e) {
 				}
@@ -699,7 +569,6 @@ public class GUIUtil {
 	public static class BooleanTableClickListener extends MouseAdapter {
 		
 		private final JTable table;
-		// these are different because the MouseEvent and the model use different indexing (0- vs 1-)
 		private final int clickColumn;
 		private final int booleanColumn;
 		
@@ -720,55 +589,37 @@ public class GUIUtil {
 			if (e.getButton() != MouseEvent.BUTTON1)
 				return;
 			
-			final Point p = e.getPoint();
-			final int tableColumn = table.columnAtPoint(p);
-			if (tableColumn < 0)
+			Point p = e.getPoint();
+			int col = table.columnAtPoint(p);
+			if (col < 0)
 				return;
-
-			final int modelColumn= table.convertColumnIndexToModel(tableColumn);
-			if (modelColumn != clickColumn)
+			col = table.convertColumnIndexToModel(col);
+			if (col != clickColumn)
 				return;
-
-			final int tableRow = table.rowAtPoint(p);
-			if (tableRow < 0)
+			
+			int row = table.rowAtPoint(p);
+			if (row < 0)
 				return;
-
-			final int modelRow = table.convertRowIndexToModel(tableRow);
-			if ( modelRow < 0)
+			row = table.convertRowIndexToModel(row);
+			if (row < 0)
 				return;
-
+			
 			TableModel model = table.getModel();
-			final Object value = model.getValueAt(modelRow, booleanColumn);
-	        if (!(value instanceof Boolean)) {
-				throw new IllegalStateException("Table value at row=" + modelRow + " col=" +
+			Object value = model.getValueAt(row, booleanColumn);
+			
+			if (!(value instanceof Boolean)) {
+				throw new IllegalStateException("Table value at row=" + row + " col=" +
 						booleanColumn + " is not a Boolean, value=" + value);
 			}
 			
-			final Boolean oldValue = (Boolean) value;
-			final Boolean newValue = !oldValue;
-			model.setValueAt(newValue, tableRow, booleanColumn);
+			Boolean b = (Boolean) value;
+			b = !b;
+			model.setValueAt(b, row, booleanColumn);
 			if (model instanceof AbstractTableModel) {
-				((AbstractTableModel) model).fireTableCellUpdated(tableRow, booleanColumn);
+				((AbstractTableModel) model).fireTableCellUpdated(row, booleanColumn);
 			}
 		}
 		
-	}
-
-	/**
-	 * Executes the given code after a specified delay.
-	 *
-	 * @param delayMillis the delay in milliseconds.
-	 * @param runnable the code to be executed after the delay.
-	 */
-	public static void executeAfterDelay(int delayMillis, Runnable runnable) {
-		Timer timer = new Timer(delayMillis, new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				runnable.run();
-			}
-		});
-		timer.setRepeats(false);
-		timer.start();
 	}
 	
 }

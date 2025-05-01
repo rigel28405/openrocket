@@ -14,13 +14,6 @@ public interface FlightConfigurableComponent {
 	 * @param oldConfigId	the old configuration ID
 	 * @param newConfigId	the new configuration ID
 	 */
-	void copyFlightConfiguration(FlightConfigurationId oldConfigId, FlightConfigurationId newConfigId);
-	
-	/**
-	 * Reset a specific flight configuration ID to use the default parameter value.
-	 * 
-	 * @param fcid	the flight configuration ID
-	 */
-	void reset( final FlightConfigurationId fcid);
+	public void cloneFlightConfiguration(String oldConfigId, String newConfigId);
 	
 }

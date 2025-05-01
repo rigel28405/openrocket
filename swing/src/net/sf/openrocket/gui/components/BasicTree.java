@@ -1,8 +1,5 @@
 package net.sf.openrocket.gui.components;
 
-import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.UITheme;
-
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
@@ -15,13 +12,8 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
-@SuppressWarnings("serial")
 public class BasicTree extends JTree {
-	private static Color backgroundColor;
-
-	static {
-		initColors();
-	}
+	
 
 	public BasicTree() {
 		super();
@@ -44,18 +36,10 @@ public class BasicTree extends JTree {
 		plainUI.setLeftChildIndent(15);
 		
 
-		this.setBackground(backgroundColor);
+		this.setBackground(Color.WHITE);
 		this.setShowsRootHandles(false);
 	}
-
-	private static void initColors() {
-		updateColors();
-		UITheme.Theme.addUIThemeChangeListener(BasicTree::updateColors);
-	}
-
-	private static void updateColors() {
-		backgroundColor = GUIUtil.getUITheme().getBackgroundColor();
-	}
+	
 	
 	/**
 	 * Expand the entire tree structure.  All nodes will be visible after the call.

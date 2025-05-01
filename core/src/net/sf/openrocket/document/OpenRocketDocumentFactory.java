@@ -2,7 +2,7 @@ package net.sf.openrocket.document;
 
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.rocketcomponent.Rocket;
-import net.sf.openrocket.rocketcomponent.AxialStage;
+import net.sf.openrocket.rocketcomponent.Stage;
 import net.sf.openrocket.startup.Application;
 
 public class OpenRocketDocumentFactory {
@@ -11,11 +11,10 @@ public class OpenRocketDocumentFactory {
 	
 	public static OpenRocketDocument createNewRocket() {
 		Rocket rocket = new Rocket();
-		AxialStage stage = new AxialStage();
+		Stage stage = new Stage();
 		//// Sustainer
 		stage.setName(trans.get("BasicFrame.StageName.Sustainer"));
 		rocket.addChild(stage);
-		rocket.getSelectedConfiguration().setAllStages();
 		OpenRocketDocument doc = new OpenRocketDocument(rocket);
 		doc.setSaved(true);
 		return doc;

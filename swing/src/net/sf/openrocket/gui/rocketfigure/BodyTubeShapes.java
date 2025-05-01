@@ -1,37 +1,45 @@
 package net.sf.openrocket.gui.rocketfigure;
 
-import java.awt.Shape;
-
-import net.sf.openrocket.rocketcomponent.BodyTube;
-import net.sf.openrocket.rocketcomponent.RocketComponent;
+import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.Transformation;
 
-public class BodyTubeShapes extends RocketComponentShape {
-	
-	public static RocketComponentShape[] getShapesSide( final RocketComponent component, final Transformation transformation) {
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Rectangle2D;
 
-	    
-		BodyTube tube = (BodyTube)component;
-		
+
+public class BodyTubeShapes extends RocketComponentShapes {
+	
+	public static Shape[] getShapesSide(net.sf.openrocket.rocketcomponent.RocketComponent component, 
+			Transformation transformation) {
+		net.sf.openrocket.rocketcomponent.BodyTube tube = (net.sf.openrocket.rocketcomponent.BodyTube)component;
+
 		double length = tube.getLength();
 		double radius = tube.getOuterRadius();
-		
-		Shape[] s = new Shape[1];
-        s[0] = TubeShapes.getShapesSide( transformation, length, radius );
+		Coordinate[] start = transformation.transform(tube.toAbsolute(new Coordinate(0,0,0)));
 
-        return RocketComponentShape.toArray(s, component);
+		Shape[] s = new Shape[start.length];
+		for (int i=0; i < start.length; i++) {
+			s[i] = new Rectangle2D.Double(start[i].x*S,(start[i].y-radius)*S,
+					length*S,2*radius*S);
+		}
+		return s;
 	}
 	
-	public static RocketComponentShape[] getShapesBack( final RocketComponent component, final Transformation transformation) {
 
-	    BodyTube tube = (BodyTube)component;
-	    
-	    double radius = tube.getOuterRadius();
-
-        Shape[] s = new Shape[1];
-        s[0] = TubeShapes.getShapesBack( transformation, radius);
+	public static Shape[] getShapesBack(net.sf.openrocket.rocketcomponent.RocketComponent component, 
+			Transformation transformation) {
+		net.sf.openrocket.rocketcomponent.BodyTube tube = (net.sf.openrocket.rocketcomponent.BodyTube)component;
 		
-		return RocketComponentShape.toArray(s, component);
+		double or = tube.getOuterRadius();
+		
+		Coordinate[] start = transformation.transform(tube.toAbsolute(new Coordinate(0,0,0)));
+
+		Shape[] s = new Shape[start.length];
+		for (int i=0; i < start.length; i++) {
+			s[i] = new Ellipse2D.Double((start[i].z-or)*S,(start[i].y-or)*S,2*or*S,2*or*S);
+		}
+		return s;
 	}
 	
 	

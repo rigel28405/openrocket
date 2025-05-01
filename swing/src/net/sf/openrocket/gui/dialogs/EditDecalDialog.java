@@ -20,12 +20,9 @@ import javax.swing.event.ChangeListener;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
-@SuppressWarnings("serial")
 public class EditDecalDialog extends JDialog {
 	
 	private static final Translator trans = Application.getTranslator();
@@ -66,7 +63,7 @@ public class EditDecalDialog extends JDialog {
 				commandText.setEnabled(false);
 				panel.add(commandText, "growx, wrap");
 				
-				final JButton chooser = new SelectColorButton(trans.get("EditDecalDialog.btn.chooser"));
+				final JButton chooser = new JButton(trans.get("EditDecalDialog.btn.chooser"));
 				chooser.setEnabled(false);
 				chooser.addActionListener(new ActionListener() {
 					
@@ -76,7 +73,6 @@ public class EditDecalDialog extends JDialog {
 						int action = fc.showOpenDialog(owner);
 						if (action == JFileChooser.APPROVE_OPTION) {
 							commandText.setText(fc.getSelectedFile().getAbsolutePath());
-							((SwingPreferences) Application.getPreferences()).setDefaultDirectory(fc.getCurrentDirectory());
 						}
 						
 					}
@@ -98,11 +94,11 @@ public class EditDecalDialog extends JDialog {
 				
 			} else {
 				commandText = new JTextArea();
-				commandText.setEnabled(true);
+				commandText.setEnabled(false);
 				panel.add(commandText, "growx, wrap");
 				
-				final JButton chooser = new SelectColorButton(trans.get("EditDecalDialog.btn.chooser"));
-				chooser.setEnabled(true);
+				final JButton chooser = new JButton(trans.get("EditDecalDialog.btn.chooser"));
+				chooser.setEnabled(false);
 				chooser.addActionListener(new ActionListener() {
 					
 					@Override
@@ -111,7 +107,6 @@ public class EditDecalDialog extends JDialog {
 						int action = fc.showOpenDialog(owner);
 						if (action == JFileChooser.APPROVE_OPTION) {
 							commandText.setText(fc.getSelectedFile().getAbsolutePath());
-							((SwingPreferences) Application.getPreferences()).setDefaultDirectory(fc.getCurrentDirectory());
 						}
 						
 					}
@@ -146,7 +141,7 @@ public class EditDecalDialog extends JDialog {
 		}
 		
 		// OK / Cancel buttons
-		JButton okButton = new SelectColorButton(trans.get("dlg.but.ok"));
+		JButton okButton = new JButton(trans.get("dlg.but.ok"));
 		okButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -156,7 +151,7 @@ public class EditDecalDialog extends JDialog {
 		panel.add(okButton, "tag ok, spanx, split");
 		
 		//// Cancel button
-		JButton cancelButton = new SelectColorButton(trans.get("dlg.but.cancel"));
+		JButton cancelButton = new JButton(trans.get("dlg.but.cancel"));
 		cancelButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -166,11 +161,9 @@ public class EditDecalDialog extends JDialog {
 		panel.add(cancelButton, "tag cancel");
 		
 		this.add(panel);
-
-		GUIUtil.setDisposableDialogOptions(this, okButton);
+		
 		GUIUtil.rememberWindowSize(this);
-		this.setLocationByPlatform(true);
-		GUIUtil.rememberWindowPosition(this);
+		GUIUtil.setDisposableDialogOptions(this, okButton);
 		
 	}
 	

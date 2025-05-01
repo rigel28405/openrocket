@@ -3,25 +3,28 @@
  */
 package net.sf.openrocket.gui.print;
 
-import java.awt.geom.Rectangle2D;
-
 import net.sf.openrocket.gui.scalefigure.RocketFigure;
-import net.sf.openrocket.rocketcomponent.Rocket;
+import net.sf.openrocket.rocketcomponent.Configuration;
 
 /**
  * A figure used to override the scale factor in RocketFigure.  This allows pinpoint scaling to allow a diagram
  * to fit in the width of the chosen page size.
  */
 public class PrintFigure extends RocketFigure {
-	private static final long serialVersionUID = -3843219909502782607L;
-
+	
 	/**
 	 * Constructor.
 	 * 
 	 * @param configuration  the configuration
 	 */
-	public PrintFigure(final Rocket rkt) {
-		super(rkt);
+	public PrintFigure(final Configuration configuration) {
+		super(configuration);
+	}
+	
+	@Override
+	protected double computeTy(int heightPx) {
+		super.computeTy(heightPx);
+		return 0;
 	}
 	
 	public void setScale(final double theScale) {
@@ -29,15 +32,7 @@ public class PrintFigure extends RocketFigure {
 		updateFigure();
 	}
 
-    public double getFigureHeight() {
-        return this.contentBounds_m.getHeight();
-    }
-    
-    public double getFigureWidth() {
-    	return this.contentBounds_m.getWidth();
-    }
-    
-    public Rectangle2D getDimensions() {
-    	return this.contentBounds_m.getBounds2D();
+    public double getFigureHeightPx() {
+        return this.figureHeightPx;
     }
 }

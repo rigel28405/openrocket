@@ -19,18 +19,11 @@ import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.document.StorageOptions;
 import net.sf.openrocket.document.StorageOptions.FileType;
 import net.sf.openrocket.file.openrocket.OpenRocketSaver;
-import net.sf.openrocket.file.rasaero.export.RASAeroSaver;
-import net.sf.openrocket.file.rocksim.export.RockSimSaver;
-import net.sf.openrocket.logging.ErrorSet;
-import net.sf.openrocket.logging.WarningSet;
-import net.sf.openrocket.rocketcomponent.InsideColorComponent;
+import net.sf.openrocket.file.rocksim.export.RocksimSaver;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.util.DecalNotFoundException;
 import net.sf.openrocket.util.MathUtil;
 
 public class GeneralRocketSaver {
-	protected final WarningSet warnings = new WarningSet();
-	protected final ErrorSet errors = new ErrorSet();
 	
 	/**
 	 * Interface which can be implemented by the caller to receive progress information.
@@ -58,7 +51,7 @@ public class GeneralRocketSaver {
 	 * @param document		the document to save.
 	 * @throws IOException	in case of an I/O error.
 	 */
-	public final void save(File dest, OpenRocketDocument document) throws IOException, DecalNotFoundException {
+	public final void save(File dest, OpenRocketDocument document) throws IOException {
 		save(dest, document, document.getDefaultStorageOptions());
 	}
 	
@@ -70,7 +63,7 @@ public class GeneralRocketSaver {
 	 * @param options		the storage options.
 	 * @throws IOException	in case of an I/O error.
 	 */
-	public final void save(File dest, OpenRocketDocument document, StorageOptions options) throws IOException, DecalNotFoundException {
+	public final void save(File dest, OpenRocketDocument document, StorageOptions options) throws IOException {
 		save(dest, document, options, null);
 	}
 	
@@ -82,7 +75,7 @@ public class GeneralRocketSaver {
 	 * @param progress      a SavingProgress object used to provide progress information
 	 * @throws IOException	in case of an I/O error.
 	 */
-	public final void save(File dest, OpenRocketDocument doc, SavingProgress progress) throws IOException, DecalNotFoundException {
+	public final void save(File dest, OpenRocketDocument doc, SavingProgress progress) throws IOException {
 		save(dest, doc, doc.getDefaultStorageOptions(), progress);
 	}
 	
@@ -91,11 +84,11 @@ public class GeneralRocketSaver {
 	 * 
 	 * @param dest			the destination stream.
 	 * @param doc			the document to save.
-	 * @param opts			the storage options.
+	 * @param options		the storage options.
 	 * @param progress      a SavingProgress object used to provide progress information
 	 * @throws IOException	in case of an I/O error.
 	 */
-	public final void save(File dest, OpenRocketDocument doc, StorageOptions opts, SavingProgress progress) throws IOException, DecalNotFoundException {
+	public final void save(File dest, OpenRocketDocument doc, StorageOptions opts, SavingProgress progress) throws IOException {
 		
 		// This method is the core operational method.  It saves the document into a new (hopefully unique)
 		// file, then if the save is successful, it will copy the file over the old one.
@@ -111,9 +104,6 @@ public class GeneralRocketSaver {
 		}
 		try {
 			save(dest.getName(), s, doc, opts);
-		} catch (DecalNotFoundException decex) {
-			temporaryNewFile.delete();
-			throw decex;
 		} finally {
 			s.close();
 		}
@@ -147,21 +137,19 @@ public class GeneralRocketSaver {
 	 * @return			the estimated number of bytes the storage would take.
 	 */
 	public long estimateFileSize(OpenRocketDocument doc, StorageOptions options) {
-		if (options.getFileType() == FileType.ROCKSIM) {
-			return new RockSimSaver().estimateFileSize(doc, options);
-		} else if (options.getFileType() == FileType.RASAERO) {
-			return new RASAeroSaver().estimateFileSize(doc, options);
+		if (options.getFileType() == StorageOptions.FileType.ROCKSIM) {
+			return new RocksimSaver().estimateFileSize(doc, options);
 		} else {
 			return new OpenRocketSaver().estimateFileSize(doc, options);
 		}
 	}
 	
-	private void save(String fileName, OutputStream output, OpenRocketDocument document, StorageOptions options) throws IOException, DecalNotFoundException {
+	private void save(String fileName, OutputStream output, OpenRocketDocument document, StorageOptions options) throws IOException {
 		
-		// For now, we don't save decal information in ROCKSIM/RASAero files, so don't do anything
+		// For now, we don't save decal inforamtion in ROCKSIM files, so don't do anything
 		// which follows.
 		// TODO - add support for decals in ROCKSIM files?
-		if (options.getFileType() == FileType.ROCKSIM || options.getFileType() == FileType.RASAERO) {
+		if (options.getFileType() == FileType.ROCKSIM) {
 			saveInternal(output, document, options);
 			output.close();
 			return;
@@ -171,29 +159,24 @@ public class GeneralRocketSaver {
 		
 		// Look for all decals used in the rocket.
 		for (RocketComponent c : document.getRocket()) {
+			if (c.getAppearance() == null) {
+				continue;
+			}
 			Appearance ap = c.getAppearance();
-			Appearance ap_in = null;
-			if (c instanceof InsideColorComponent)
-				ap_in = ((InsideColorComponent)c).getInsideColorComponentHandler().getInsideAppearance();
-
-			if ((ap == null) && (ap_in == null)) continue;
-			if (ap != null) {
-				Decal decal = ap.getTexture();
-				if (decal != null)
-					usedDecals.add(decal.getImage());
+			if (ap.getTexture() == null) {
+				continue;
 			}
-			if (ap_in != null) {
-				Decal decal = ap_in.getTexture();
-				if (decal != null)
-					usedDecals.add(decal.getImage());
-			}
+			
+			Decal decal = ap.getTexture();
+			
+			usedDecals.add(decal.getImage());
 		}
 		
 		saveAllPartsZipFile(output, document, options, usedDecals);
 	}
 	
-	public void saveAllPartsZipFile(OutputStream output, OpenRocketDocument document, StorageOptions options, Set<DecalImage> decals) throws IOException, DecalNotFoundException {
-
+	public void saveAllPartsZipFile(OutputStream output, OpenRocketDocument document, StorageOptions options, Set<DecalImage> decals) throws IOException {
+		
 		// Open a zip stream to write to.
 		ZipOutputStream zos = new ZipOutputStream(output);
 		zos.setLevel(9);
@@ -207,12 +190,9 @@ public class GeneralRocketSaver {
 			zos.closeEntry();
 			
 			// Now we write out all the decal images files.
+			
 			for (DecalImage image : decals) {
-				if (image.isIgnored()) {
-					image.setIgnored(false);
-					continue;
-				}
-
+				
 				String name = image.getName();
 				ZipEntry decal = new ZipEntry(name);
 				zos.putNextEntry(decal);
@@ -238,39 +218,19 @@ public class GeneralRocketSaver {
 	
 	private void saveInternal(OutputStream output, OpenRocketDocument document, StorageOptions options)
 			throws IOException {
-		warnings.clear();
-		errors.clear();
-
-		if (options.getFileType() == FileType.ROCKSIM) {
-			new RockSimSaver().save(output, document, options, warnings, errors);
-		} else if (options.getFileType() == FileType.RASAERO) {
-			new RASAeroSaver().save(output, document, options, warnings, errors);
+		
+		if (options.getFileType() == StorageOptions.FileType.ROCKSIM) {
+			new RocksimSaver().save(output, document, options);
 		} else {
-			new OpenRocketSaver().save(output, document, options, warnings, errors);
+			new OpenRocketSaver().save(output, document, options);
 		}
 	}
-
-	/**
-	 * Return a list of warnings generated during the saving process.
-	 * @return a list of warnings generated during the saving process
-	 */
-	public WarningSet getWarnings() {
-		return warnings;
-	}
-
-	/**
-	 * Return a list of errors generated during the saving process.
-	 * @return a list of errors generated during the saving process
-	 */
-	public ErrorSet getErrors() {
-		return errors;
-	}
-
+	
 	private static class ProgressOutputStream extends FilterOutputStream {
 		
-		private final long estimatedSize;
+		private long estimatedSize;
 		private long bytesWritten = 0;
-		private final SavingProgress progressCallback;
+		private SavingProgress progressCallback;
 		
 		ProgressOutputStream(OutputStream ostream, long estimatedSize, SavingProgress progressCallback) {
 			super(ostream);

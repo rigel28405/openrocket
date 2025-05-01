@@ -23,26 +23,20 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 import net.miginfocom.swing.MigLayout;
-import net.sf.openrocket.arch.SystemInfo;
-import net.sf.openrocket.arch.SystemInfo.Platform;
 import net.sf.openrocket.gui.adaptors.BooleanModel;
 import net.sf.openrocket.gui.components.StyledLabel;
 import net.sf.openrocket.gui.components.StyledLabel.Style;
 import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.SwingPreferences;
-import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.startup.Preferences;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 import com.itextpdf.text.Font;
 
-@SuppressWarnings("serial")
 public class GraphicsPreferencesPanel extends PreferencesPanel {
 
 	public GraphicsPreferencesPanel(JDialog parent) {
 		super(parent, new MigLayout("fillx"));
 		
-		JPanel editorPrefPanel = new JPanel(new MigLayout("fill, ins n n n")) {
+		this.add(new JPanel(new MigLayout("fill, ins n n n")) {
 			{ //Editor Options		
 				TitledBorder border = BorderFactory.createTitledBorder(trans.get("pref.dlg.lbl.DecalEditor"));
 				GUIUtil.changeFontStyle(border, Font.BOLD);
@@ -109,7 +103,7 @@ public class GraphicsPreferencesPanel extends PreferencesPanel {
 				});
 				add(commandText, "growx, wrap");
 				
-				final JButton chooser = new SelectColorButton(trans.get("EditDecalDialog.btn.chooser"));
+				final JButton chooser = new JButton(trans.get("EditDecalDialog.btn.chooser"));
 				chooser.setEnabled(commandLineIsSelected);
 				chooser.addActionListener(new ActionListener() {
 					
@@ -121,7 +115,6 @@ public class GraphicsPreferencesPanel extends PreferencesPanel {
 							String commandLine = fc.getSelectedFile().getAbsolutePath();
 							commandText.setText(commandLine);
 							preferences.setDecalEditorPreference(false, commandLine);
-							((SwingPreferences) Application.getPreferences()).setDefaultDirectory(fc.getCurrentDirectory());
 						}
 						
 					}
@@ -141,16 +134,7 @@ public class GraphicsPreferencesPanel extends PreferencesPanel {
 					
 				});
 			}
-		};
-		
-		/* Don't show the editor preferences panel when confined in a snap on Linux.
-		 * The snap confinement doesn't allow to run any edit commands, and instead
-		 * we will rely on using the xdg-open command which allows the user to pick
-		 * their preferred application.
-		 */
-		if ((SystemInfo.getPlatform() != Platform.UNIX) || !SystemInfo.isConfined()) {
-			this.add(editorPrefPanel, "growx, span");
-		}
+		}, "growx, span");
 		
 		this.add(new JPanel(new MigLayout("fill, ins n n n")) {
 			{/////GL Options

@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import net.sf.openrocket.motor.ThrustCurveMotor;
+import net.sf.openrocket.motor.Motor;
 import net.sf.openrocket.util.ArrayUtils;
 import net.sf.openrocket.util.MathUtil;
 
@@ -23,7 +23,7 @@ public abstract class AbstractMotorLoader implements MotorLoader {
 	 * returned by {@link #getDefaultCharset()}.
 	 */
 	@Override
-	public List<ThrustCurveMotor.Builder> load(InputStream stream, String filename) throws IOException {
+	public List<Motor> load(InputStream stream, String filename) throws IOException {
 		return load(new InputStreamReader(stream, getDefaultCharset()), filename);
 	}
 	
@@ -37,7 +37,7 @@ public abstract class AbstractMotorLoader implements MotorLoader {
 	 * @return				a list of motors contained in the file.
 	 * @throws IOException	if an I/O exception occurs of the file format is invalid.
 	 */
-	protected abstract List<ThrustCurveMotor.Builder> load(Reader reader, String filename) throws IOException;
+	protected abstract List<Motor> load(Reader reader, String filename) throws IOException;
 	
 	
 	/**
@@ -116,7 +116,7 @@ public abstract class AbstractMotorLoader implements MotorLoader {
 	 * @param designation	the motor designation.
 	 * @return				the designation with a possible delay removed.
 	 */
-	public static String removeDelay(String designation) {
+	protected static String removeDelay(String designation) {
 		if (designation.matches(".*-([0-9]+|[pP])$")) {
 			designation = designation.substring(0, designation.lastIndexOf('-'));
 		}
@@ -179,14 +179,7 @@ public abstract class AbstractMotorLoader implements MotorLoader {
 			return;
 		
 		// Start
-		// If there is no datapoint at t=0, put one there (this is the
-		// normal case for a RASP file).  If there is a nonzero thrust
-		// at time 0 it's an error, but not one that calls for not
-		// using the file.  We *don't* want to also put a 0-thrust
-		// point at time 0 in that case, as that will cause the
-		// simulation to throw an exception just like in the
-		// commented-out case below.
-		if (!MathUtil.equals(time.get(0), 0)) {
+		if (!MathUtil.equals(time.get(0), 0) || !MathUtil.equals(thrust.get(0), 0)) {
 			time.add(0, 0.0);
 			thrust.add(0, 0.0);
 			for (List l : lists) {
@@ -194,73 +187,17 @@ public abstract class AbstractMotorLoader implements MotorLoader {
 				l.add(0, o);
 			}
 		}
-
-		// Not-uncommon issue at start of thrust curves:  two points
-		// for t=0, one with thrust zero and one non-zero.  We'll throw
-		// out the 0-thrust point and go on.
-		if (MathUtil.equals(time.get(0), 0) && MathUtil.equals(time.get(1), 0)) {
-			time.remove(0);
-			thrust.remove(0);
-		}
-
-		// Very rare but not unheard of issue:  two
-		// data points with identical time and thrust (see KBA K1750).
-		// We'll throw out the second, and hope the data in any other
-		// lists passed in is also duplicated (it *can't* make a big
-		// difference in the simulations)
-		for (int i = 0; i < time.size()-1; i++) {
-			while ((i < time.size()-1) &&
-				   MathUtil.equals(time.get(i), time.get(i+1)) &&
-				   MathUtil.equals(thrust.get(i), thrust.get(i+1))) {
-				System.out.println("\twarning:  deleting duplicate data point time[" + i+1 + "]=" + time.get(i+1) + ", thrust=" + thrust.get(i+1));
-				time.remove(i);
-				thrust.remove(i);
-				for (List l : lists) {
-					l.remove(i);
-				}
-			}
-		}
-
-		// Occasional issue:  two final data points at the same time,
-		// one zero and one not.  We'll throw the 0 point out.
-		int n = time.size() - 1;
-		if (MathUtil.equals(time.get(n-1), time.get(n))) {
-			if (MathUtil.equals(thrust.get(n-1), 0)) {
-				System.out.println("\twarning:  two final data points at time=" + time.get(n) + "; one is 0");
-				time.remove(n-1);
-				thrust.remove(n-1);
-				for (List l : lists) {
-					l.remove(n-1);
-				}
-			} else if (MathUtil.equals(thrust.get(n), 0)) {
-				System.out.println("\twarning:  two final data points at time=" + time.get(n) + "; one is 0");
-				time.remove(n);
-				thrust.remove(n);
-				for (List l : lists) {
-					l.remove(n);
-				}
-			}
-		}
-
+		
 		// End
-		// Ah, no, we don't want to do this (I'm leaving the dead code
-		// in case there's a temptation to put it back in).  This ends
-		// up putting the new 0-thrust point at the same time as the
-		// previous last datapoint, which will cause
-		// ThrustCurveMotor.getAverageThrust() to fail when it tries
-		// to interpolate (the exception is actually thrown by
-		// MathUtil.map())
-		//
-		// int n = time.size() - 1;
-		// if (!MathUtil.equals(thrust.get(n), 0)) {
-		//     time.add(time.get(n));
-		//     thrust.add(0.0);
-		//	   for (List l : lists) {
-		//         Object o = l.get(n);
-		//         l.add(o);
-		//     }
-		// }
-
+		int n = time.size() - 1;
+		if (!MathUtil.equals(thrust.get(n), 0)) {
+			time.add(time.get(n));
+			thrust.add(0.0);
+			for (List l : lists) {
+				Object o = l.get(n);
+				l.add(o);
+			}
+		}
 	}
 	
 }

@@ -13,7 +13,6 @@ import net.sf.openrocket.startup.Preferences;
  * @author cpearls
  *
  */
-@SuppressWarnings("serial")
 public class DisplayPreferencesPanel extends PreferencesPanel {
 	public DisplayPreferencesPanel() {
 		super(new MigLayout("fillx"));

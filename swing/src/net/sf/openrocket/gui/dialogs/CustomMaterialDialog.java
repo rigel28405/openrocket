@@ -4,10 +4,6 @@ import java.awt.Dialog;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -28,16 +24,14 @@ import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
-@SuppressWarnings("serial")
 public class CustomMaterialDialog extends JDialog {
 	private static final Translator trans = Application.getTranslator();
 	
 	private final Material originalMaterial;
 	
 	private boolean okClicked = false;
-	private JComboBox<Material.Type> typeBox;
+	private JComboBox typeBox;
 	private JTextField nameField;
 	private DoubleModel density;
 	private JSpinner densitySpinner;
@@ -82,13 +76,7 @@ public class CustomMaterialDialog extends JDialog {
 		// Material type (if not known)
 		panel.add(new JLabel(trans.get("custmatdlg.lbl.Materialtype")));
 		if (material == null) {
-			// Remove the CUSTOM material option from the dropdown box
-			Material.Type[] values = Material.Type.values();
-			List<Material.Type> values_list = new LinkedList<>(Arrays.asList(values));
-			values_list.remove(Material.Type.CUSTOM);
-			values = values_list.toArray(new Material.Type[0]);
-
-			typeBox = new JComboBox<>(values);
+			typeBox = new JComboBox(Material.Type.values());
 			typeBox.setSelectedItem(Material.Type.BULK);
 			typeBox.setEditable(false);
 			typeBox.addActionListener(new ActionListener() {
@@ -121,7 +109,7 @@ public class CustomMaterialDialog extends JDialog {
 		}
 		
 		//// OK button
-		JButton okButton = new SelectColorButton(trans.get("dlg.but.ok"));
+		JButton okButton = new JButton(trans.get("dlg.but.ok"));
 		
 		okButton.addActionListener(new ActionListener() {
 			@Override
@@ -133,7 +121,7 @@ public class CustomMaterialDialog extends JDialog {
 		panel.add(okButton, "span, split, tag ok");
 		
 		////  Cancel
-		JButton closeButton = new SelectColorButton(trans.get("dlg.but.cancel"));
+		JButton closeButton = new JButton(trans.get("dlg.but.cancel"));
 		closeButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {

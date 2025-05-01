@@ -5,7 +5,7 @@ package net.sf.openrocket.gui.widgets;
  * Java source file for the class MultiSlider
  *
  * Copyright (c), 1999 - 2002, Masahiro Takatsuka and GeoVISTA Center
- * All Rights Reserved.
+ * All Rights Researved.
  *
  * Original Author: Masahiro Takatsuka
  * $Author: eytanadar $
@@ -37,7 +37,7 @@ import javax.swing.plaf.SliderUI;
   Implementation of class MultiSlider
   ====================================================================*/
 /***
- * A component that lets the user graphically select values by sliding
+ * A component that lets the user graphically select values by slding
  * multiple thumbs within a bounded interval. MultiSlider inherits all
  * fields and methods from javax.swing.JSlider.
  * <p>
@@ -47,8 +47,12 @@ import javax.swing.plaf.SliderUI;
  * @see JSlider
  */
 
-@SuppressWarnings("serial")
 public class MultiSlider extends JSlider {
+	/***
+	 * @see #getUIClassID
+	 * @see #readObject
+	 */
+	private static final String uiClassID = "MultiSliderUI";
 
 	/***
 	 * An array of data models that handle the numeric maximum values,
@@ -70,7 +74,7 @@ public class MultiSlider extends JSlider {
 
 	/***
 	 * Creates a slider with the specified orientation and the
-	 * specified minimum, maximum, and initial values.
+	 * specified mimimum, maximum, and initial values.
 	 *
 	 * @exception IllegalArgumentException if orientation is not one of VERTICAL, HORIZONTAL
 	 *
@@ -88,7 +92,7 @@ public class MultiSlider extends JSlider {
 
 	/***
 	 * Creates a slider with the specified orientation and the
-	 * specified minimum, maximum, and the number of thumbs.
+	 * specified mimimum, maximum, and the number of thumbs.
 	 *
 	 * @exception IllegalArgumentException if orientation is not one of VERTICAL, HORIZONTAL
 	 *
@@ -105,7 +109,7 @@ public class MultiSlider extends JSlider {
 
 	/***
 	 * Creates a horizontal slider with the range 0 to 100 and
-	 * an initial value of 50.
+	 * an intitial value of 50.
 	 */
 	public MultiSlider() {
 		this(HORIZONTAL, 0, 100);
@@ -114,7 +118,7 @@ public class MultiSlider extends JSlider {
 
 	/***
 	 * Creates a slider using the specified orientation with the
-	 * range 0 to 100 and an initial value of 50.
+	 * range 0 to 100 and an intitial value of 50.
 	 */
 	public MultiSlider(int orientation) {
 		this(orientation, 0, 100);
@@ -123,7 +127,7 @@ public class MultiSlider extends JSlider {
 
 	/***
 	 * Creates a horizontal slider using the specified min and max
-	 * with an initial value of 50.
+	 * with an intitial value of 50.
 	 */
 	public MultiSlider(int min, int max) {
 		this(HORIZONTAL, min, max);
@@ -208,6 +212,28 @@ public class MultiSlider extends JSlider {
 		updateUI();
 	}
 
+	/***
+	 * Sets the number of thumbs.
+	 */
+	private void setNumberOfThumbs(int num) {
+		setNumberOfThumbs(num, false);
+	}
+
+	/***
+	 * Sets the number of thumbs.
+	 */
+	private void setNumberOfThumbs(int num, boolean useEndPoints) {
+		if (getNumberOfThumbs() != num) {
+			setNumberOfThumbs(getMinimum(), getMaximum(), num, useEndPoints);
+		}
+	}
+
+	/***
+	 * Sets the number of thumbs by specifying the initial values.
+	 */
+	private void setNumberOfThumbs(int[] values) {
+		setNumberOfThumbs(getMinimum(), getMaximum(), values);
+	}
 
 	/***
 	 * creates evenly spaced values for thumbs.
@@ -323,9 +349,9 @@ public class MultiSlider extends JSlider {
 				accessibleContext.firePropertyChange(
 						AccessibleContext.ACCESSIBLE_VALUE_PROPERTY,
 						(oldModel == null
-						? null : Integer.valueOf(oldModel.getValue())),
+						? null : new Integer(oldModel.getValue())),
 						(newModel == null
-						? null : Integer.valueOf(newModel.getValue())));
+						? null : new Integer(newModel.getValue())));
 			}
 		}
 
@@ -348,7 +374,7 @@ public class MultiSlider extends JSlider {
 		for (int i = 0; i < count; i++) {
 			getModelAt(i).setMinimum(minimum);
 		}
-		firePropertyChange("minimum", Integer.valueOf(oldMin), Integer.valueOf(minimum));
+		firePropertyChange( "minimum", new Integer( oldMin ), new Integer( minimum ) );
 	}
 
 	/***
@@ -367,7 +393,7 @@ public class MultiSlider extends JSlider {
 		for (int i = 0; i < count; i++) {
 			getModelAt(i).setMaximum(maximum);
 		}
-		firePropertyChange("maximum", Integer.valueOf(oldMax), Integer.valueOf(maximum));
+		firePropertyChange( "maximum", new Integer( oldMax ), new Integer( maximum ) );
 	}
 
 	/***
@@ -427,8 +453,8 @@ public class MultiSlider extends JSlider {
 		if (accessibleContext != null) {
 			accessibleContext.firePropertyChange(
 					AccessibleContext.ACCESSIBLE_VALUE_PROPERTY,
-					Integer.valueOf(oldValue),
-					Integer.valueOf(m.getValue()));
+					new Integer(oldValue),
+					new Integer(m.getValue()));
 		}
 	}
 

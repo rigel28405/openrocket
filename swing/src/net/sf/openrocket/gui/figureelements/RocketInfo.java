@@ -5,19 +5,15 @@ import static net.sf.openrocket.util.Chars.THETA;
 
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.font.GlyphVector;
 import java.awt.geom.Rectangle2D;
 
-import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.SwingPreferences;
-import net.sf.openrocket.gui.util.UITheme;
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.Warning;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.simulation.FlightData;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.Unit;
@@ -34,31 +30,26 @@ import net.sf.openrocket.util.MathUtil;
 public class RocketInfo implements FigureElement {
 	
 	private static final Translator trans = Application.getTranslator();
-	private static final SwingPreferences preferences = (SwingPreferences) Application.getPreferences();
 	// Margin around the figure edges, pixels
 	private static final int MARGIN = 8;
 
 	// Font to use
-	private Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 11);
-	private Font smallFont = new Font(Font.SANS_SERIF, Font.PLAIN, 9);
+	private static final Font FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 11);
+	private static final Font SMALLFONT = new Font(Font.SANS_SERIF, Font.PLAIN, 9);
+
 	
 	private final Caret cpCaret = new CPCaret(0,0);
 	private final Caret cgCaret = new CGCaret(0,0);
 	
-	private UnitGroup.StabilityUnitGroup stabilityUnits;
-	private UnitGroup.StabilityUnitGroup secondaryStabilityUnits;
+	private final Configuration configuration;
+	private final UnitGroup stabilityUnits;
 	
-	private FlightConfiguration configuration;
 	private double cg = 0, cp = 0;
 	private double length = 0, diameter = 0;
-	private double massWithMotors = 0;
-	private double aoa = Double.NaN;
-	private double theta = Double.NaN;
-	private double mach = Application.getPreferences().getDefaultMach();
-	private double massWithoutMotors = 0;
+	private double mass = 0;
+	private double aoa = Double.NaN, theta = Double.NaN, mach = Application.getPreferences().getDefaultMach();
 	
 	private WarningSet warnings = null;
-	private boolean showWarnings = true;
 	
 	private boolean calculatingData = false;
 	private FlightData flightData = null;
@@ -66,34 +57,14 @@ public class RocketInfo implements FigureElement {
 	private Graphics2D g2 = null;
 	private float line = 0;
 	private float x1, x2, y1, y2;
-
-	private static Color textColor;
-	private static Color dimTextColor;
-	private static Color warningColor;
-	private static Color flightDataTextActiveColor;
-	private static Color flightDataTextInactiveColor;
-
-	static {
-		initColors();
-	}
 	
-	public RocketInfo(FlightConfiguration configuration) {
+	
+	
+	
+	
+	public RocketInfo(Configuration configuration) {
 		this.configuration = configuration;
 		this.stabilityUnits = UnitGroup.stabilityUnits(configuration);
-		this.secondaryStabilityUnits = UnitGroup.secondaryStabilityUnits(configuration);
-	}
-
-	private static void initColors() {
-		updateColors();
-		UITheme.Theme.addUIThemeChangeListener(RocketInfo::updateColors);
-	}
-
-	private static void updateColors() {
-		textColor = GUIUtil.getUITheme().getTextColor();
-		dimTextColor = GUIUtil.getUITheme().getDimTextColor();
-		warningColor = GUIUtil.getUITheme().getWarningColor();
-		flightDataTextActiveColor = GUIUtil.getUITheme().getFlightDataTextActiveColor();
-		flightDataTextInactiveColor = GUIUtil.getUITheme().getFlightDataTextInactiveColor();
 	}
 	
 	
@@ -105,12 +76,9 @@ public class RocketInfo implements FigureElement {
 	@Override
 	public void paint(Graphics2D myG2, double scale, Rectangle visible) {
 		this.g2 = myG2;
-		
-		this.updateFontSizes();
-		
-		this.line = font.getLineMetrics("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+		this.line = FONT.getLineMetrics("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 				myG2.getFontRenderContext()).getHeight() + 
-				font.getLineMetrics("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+				FONT.getLineMetrics("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 						myG2.getFontRenderContext()).getDescent();
 		
 		x1 = visible.x + MARGIN;
@@ -141,26 +109,14 @@ public class RocketInfo implements FigureElement {
 		this.diameter = diameter;
 	}
 	
-	public void setMassWithMotors(double mass) {
-		this.massWithMotors = mass;
-	}
-	
-	public void setMassWithoutMotors(double mass) {
-		this.massWithoutMotors = mass;
+	public void setMass(double mass) {
+		this.mass = mass;
 	}
 	
 	public void setWarnings(WarningSet warnings) {
 		this.warnings = warnings.clone();
 	}
-
-	/**
-	 * Set whether warnings should be shown. If false, the warnings are not shown.
-	 * @param showWarnings whether to show warnings.
-	 */
-	public void setShowWarnings(boolean showWarnings) {
-		this.showWarnings = showWarnings;
-	}
-
+	
 	public void setAOA(double aoa) {
 		this.aoa = aoa;
 	}
@@ -182,6 +138,9 @@ public class RocketInfo implements FigureElement {
 		this.calculatingData = calc;
 	}
 	
+	
+	
+	
 	private void drawMainInfo() {
 		GlyphVector name = createText(configuration.getRocket().getName());
 		GlyphVector lengthLine = createText(
@@ -191,56 +150,52 @@ public class RocketInfo implements FigureElement {
 				trans.get("RocketInfo.lengthLine.maxdiameter") +" " + 
 				UnitGroup.UNITS_LENGTH.getDefaultUnit().toStringUnit(diameter));
 		
-		String massTextWithMotors;
-		String massTextWithoutMotors;
+		String massText;
+		if (configuration.hasMotors())
+			//// Mass with motors 
+			massText = trans.get("RocketInfo.massText1") +" ";
+		else
+			//// Mass with no motors 
+			massText = trans.get("RocketInfo.massText2") +" ";
+		
+		massText += UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(mass);
+		
+		GlyphVector massLine = createText(massText);
 
-		/// Mass with no motors
-		massTextWithoutMotors = trans.get("RocketInfo.massWithoutMotors") +" ";
-		massTextWithoutMotors += UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(massWithoutMotors);
-
-		GlyphVector massLineWithoutMotors = createText(massTextWithoutMotors);
-
-		g2.setColor(textColor);
+		
+		g2.setColor(Color.BLACK);
 
 		g2.drawGlyphVector(name, x1, y1);
 		g2.drawGlyphVector(lengthLine, x1, y1+line);
-		g2.drawGlyphVector(massLineWithoutMotors, x1, y1+2*line);
+		g2.drawGlyphVector(massLine, x1, y1+2*line);
 
-		if( configuration.hasMotors() ) {
-			//// Mass with motors
-			massTextWithMotors = trans.get("RocketInfo.massWithMotors") + " ";
-			massTextWithMotors += UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(massWithMotors);
-			GlyphVector massLineWithMotors = createText(massTextWithMotors);
-			g2.drawGlyphVector(massLineWithMotors, x1, y1+3*line);
-		}
 	}
 	
 	
 	private void drawStabilityInfo() {
-		GlyphVector cgValue = createText(getCg());
-		GlyphVector cpValue = createText(getCp());
-		GlyphVector stabValue = createText(getStabilityCombined());
-		
-		//// CG:		
-		GlyphVector cgText = createText(trans.get("RocketInfo.cgText"));
-		//// CP:
-		GlyphVector cpText = createText(trans.get("RocketInfo.cpText"));
-		//// Stability:
-		GlyphVector stabText = createText(trans.get("RocketInfo.stabText"));
-
-		//// at M=...
-		String at = trans.get("RocketInfo.at")+UnitGroup.UNITS_COEFFICIENT.getDefaultUnit().toStringUnit(this.mach);
+		String at;
+		//// at M=
+		at = trans.get("RocketInfo.at")+UnitGroup.UNITS_COEFFICIENT.getDefaultUnit().toStringUnit(Application.getPreferences().getDefaultMach());
 		if (!Double.isNaN(aoa)) {
 			at += " "+ALPHA+"=" + UnitGroup.UNITS_ANGLE.getDefaultUnit().toStringUnit(aoa);
 		}
 		if (!Double.isNaN(theta)) {
 			at += " "+THETA+"=" + UnitGroup.UNITS_ANGLE.getDefaultUnit().toStringUnit(theta);
 		}
-		GlyphVector atText = createSmallText(at);
 		
-		// GlyphVector visual bounds drops the spaces, so we'll add them
-		FontMetrics fontMetrics = g2.getFontMetrics(cgText.getFont());
-		int spaceWidth = fontMetrics.stringWidth(" ");
+		GlyphVector cgValue = createText(
+                getCg());
+		GlyphVector cpValue = createText(
+                getCp());
+		GlyphVector stabValue = createText(
+                getStability());
+		//// CG:		
+		GlyphVector cgText = createText(trans.get("RocketInfo.cgText") +"  ");
+		//// CP:
+		GlyphVector cpText = createText(trans.get("RocketInfo.cpText") +"  ");
+		//// Stability:
+		GlyphVector stabText = createText(trans.get("RocketInfo.stabText") + "  ");
+		GlyphVector atText = createSmallText(at);
 
 		Rectangle2D cgRect = cgValue.getVisualBounds();
 		Rectangle2D cpRect = cpValue.getVisualBounds();
@@ -250,31 +205,24 @@ public class RocketInfo implements FigureElement {
 		Rectangle2D stabTextRect = stabText.getVisualBounds();
 		Rectangle2D atTextRect = atText.getVisualBounds();
 		
-		double unitWidth = MathUtil.max(cpRect.getWidth(), cgRect.getWidth());
-		double stabUnitWidth = stabRect.getWidth();
+		double unitWidth = MathUtil.max(cpRect.getWidth(), cgRect.getWidth(),
+				stabRect.getWidth());
 		double textWidth = Math.max(cpTextRect.getWidth(), cgTextRect.getWidth());
 		
-		// Add an extra space worth of width so the text doesn't run into the values
-		unitWidth = unitWidth + spaceWidth;
-		stabUnitWidth = stabUnitWidth + spaceWidth;
 
-		g2.setColor(textColor);
+		g2.setColor(Color.BLACK);
 
-		// Draw the stability, CG & CP values (and units)
 		g2.drawGlyphVector(stabValue, (float)(x2-stabRect.getWidth()), y1);
 		g2.drawGlyphVector(cgValue, (float)(x2-cgRect.getWidth()), y1+line);
 		g2.drawGlyphVector(cpValue, (float)(x2-cpRect.getWidth()), y1+2*line);
 
-		// Draw the stability, CG & CP labels
-		g2.drawGlyphVector(stabText, (float)(x2-stabUnitWidth-stabTextRect.getWidth()), y1);
+		g2.drawGlyphVector(stabText, (float)(x2-unitWidth-stabTextRect.getWidth()), y1);
 		g2.drawGlyphVector(cgText, (float)(x2-unitWidth-cgTextRect.getWidth()), y1+line);
 		g2.drawGlyphVector(cpText, (float)(x2-unitWidth-cpTextRect.getWidth()), y1+2*line);
-
-		// Draw the CG caret
+				
 		cgCaret.setPosition(x2 - unitWidth - textWidth - 10, y1+line-0.3*line);
 		cgCaret.paint(g2, 1.7);
 
-		// Draw the CP caret
 		cpCaret.setPosition(x2 - unitWidth - textWidth - 10, y1+2*line-0.3*line);
 		cpCaret.paint(g2, 1.7);
 		
@@ -285,7 +233,7 @@ public class RocketInfo implements FigureElement {
 			atPos = (float)(x2 - atTextRect.getWidth());
 		}
 		
-		g2.setColor(dimTextColor);
+		g2.setColor(Color.GRAY);
 		g2.drawGlyphVector(atText, atPos, y1 + 3*line);
 
 	}
@@ -295,8 +243,8 @@ public class RocketInfo implements FigureElement {
      * 
      * @return the mass
      */
-    public double getMassWithMotors() {
-        return massWithMotors;
+    public double getMass() {
+        return mass;
     }
 
     /**
@@ -306,54 +254,18 @@ public class RocketInfo implements FigureElement {
      * 
      * @return the mass
      */
-    public String getMassWithMotors(Unit u) {
-        return u.toStringUnit(massWithMotors);
+    public String getMass(Unit u) {
+        return u.toStringUnit(mass);
     }
-
-
+    
     /**
-     * Get the stability in both the selected stability unit and in percentage, e.g. "2.4 cal (14.1 %)".
-	 * If the current unit is already the percentage length unit, only use that.
+     * Get the stability, in calibers.
      * 
-     * @return the current stability margin in the currently selected stability unit and in percentage
+     * @return  the current stability margin
      */
-    public String getStabilityCombined() {
-		Unit stabilityUnit = stabilityUnits.getDefaultUnit();
-		Unit secondaryStabilityUnit = secondaryStabilityUnits.getDefaultUnit();
-
-		String stabilityStr = getStability();
-
-		// Don't display secondary units if the stability is NaN, or if the secondary unit is the same as the primary unit,
-		// or if it is disabled in the preferences
-		if (Double.isNaN(getStabilityValue()) || secondaryStabilityUnit.equals(stabilityUnit) ||
-				!preferences.isDisplaySecondaryStability()) {
-			return stabilityStr;
-		}
-
-		String secondaryStabilityStr = getSecondaryStability();
-
-		return stabilityStr + " / " + secondaryStabilityStr;
+    public String getStability () {
+        return stabilityUnits.getDefaultUnit().toStringUnit(cp-cg);
     }
-
-	/**
-	 * Get the stability in the currently selected unit.
-	 * @return the current stability margin in the currently selected stability unit
-	 */
-	private String getStability() {
-		return stabilityUnits.getDefaultUnit().toStringUnit(getStabilityValue());
-	}
-
-	/**
-	 * Get the stability in the secondary stability unit.
-	 * @return the current stability margin in the secondary stability unit
-	 */
-	private String getSecondaryStability() {
-		return secondaryStabilityUnits.getDefaultUnit().toStringUnit(getStabilityValue());
-	}
-
-	private double getStabilityValue() {
-		return cp - cg;
-	}
 
     /**
      * Get the center of pressure in default length units.
@@ -407,35 +319,26 @@ public class RocketInfo implements FigureElement {
 		if (warnings == null || warnings.isEmpty())
 			return;
 		
-		final GlyphVector[] texts;
+		GlyphVector[] texts = new GlyphVector[warnings.size()+1];
 		double max = 0;
-
-		if (showWarnings) {
-			texts = new GlyphVector[warnings.size()+1];
-
-			//// Warning:
-			texts[0] = createText(trans.get("RocketInfo.Warning"));
-			int i = 1;
-			for (Warning w : warnings) {
-				texts[i] = createText(w.toString());
-				i++;
-			}
-
-			for (GlyphVector v : texts) {
-				Rectangle2D rect = v.getVisualBounds();
-				if (rect.getWidth() > max)
-					max = rect.getWidth();
-			}
-		} else {
-			texts = new GlyphVector[1];
-			texts[0] = createText(String.format(trans.get("RocketInfo.lbl.warnings"), warnings.size()));
-			Rectangle2D rect = texts[0].getVisualBounds();
-			max = rect.getWidth();
+		
+		//// Warning:
+		texts[0] = createText(trans.get("RocketInfo.Warning"));
+		int i=1;
+		for (Warning w: warnings) {
+			texts[i] = createText(w.toString());
+			i++;
+		}
+		
+		for (GlyphVector v: texts) {
+			Rectangle2D rect = v.getVisualBounds();
+			if (rect.getWidth() > max)
+				max = rect.getWidth();
 		}
 		
 
-		float y = y2 - line * (texts.length-1);
-		g2.setColor(warningColor);
+		float y = y2 - line * warnings.size();
+		g2.setColor(new Color(255,0,0,130));
 
 		for (GlyphVector v: texts) {
 			Rectangle2D rect = v.getVisualBounds();
@@ -451,7 +354,7 @@ public class RocketInfo implements FigureElement {
 		if (calculatingData) {
 			//// Calculating...
 			GlyphVector calculating = createText(trans.get("RocketInfo.Calculating"));
-			g2.setColor(textColor);
+			g2.setColor(Color.BLACK);
 			g2.drawGlyphVector(calculating, x1, (float)(y2-height));
 		}
 	}
@@ -509,43 +412,32 @@ public class RocketInfo implements FigureElement {
 		width += 5;
 
 		if (!calculatingData) 
-			g2.setColor(flightDataTextActiveColor);
+			g2.setColor(new Color(0,0,127));
 		else
-			g2.setColor(flightDataTextInactiveColor);
+			g2.setColor(new Color(0,0,127,127));
 
-		g2.drawGlyphVector(apogee, x1, y2-2*line);
-		g2.drawGlyphVector(maxVelocity, x1, y2-line);
-		g2.drawGlyphVector(maxAcceleration, x1, y2);
+		
+		g2.drawGlyphVector(apogee, (float)x1, (float)(y2-2*line));
+		g2.drawGlyphVector(maxVelocity, (float)x1, (float)(y2-line));
+		g2.drawGlyphVector(maxAcceleration, (float)x1, (float)(y2));
 
-		g2.drawGlyphVector(apogeeValue, (float)(x1+width), y2-2*line);
-		g2.drawGlyphVector(velocityValue, (float)(x1+width), y2-line);
-		g2.drawGlyphVector(accelerationValue, (float)(x1+width), y2);
+		g2.drawGlyphVector(apogeeValue, (float)(x1+width), (float)(y2-2*line));
+		g2.drawGlyphVector(velocityValue, (float)(x1+width), (float)(y2-line));
+		g2.drawGlyphVector(accelerationValue, (float)(x1+width), (float)(y2));
 		
 		return 3*line;
 	}
 	
-	private synchronized void updateFontSizes() {
-		float size = ((SwingPreferences) Application.getPreferences()).getRocketInfoFontSize();
-		// No change necessary as the font is the same size, just use the existing version
-		if (font.getSize2D() == size) {
-			return;
-		}
-		// Update the font sizes to whatever the currently selected font size is
-		font = font.deriveFont(size);
-		smallFont = smallFont.deriveFont((float)(size - 2.0));
-	}
-		
+	
+	
 	private GlyphVector createText(String text) {
-		return font.createGlyphVector(g2.getFontRenderContext(), text);
+		float size=Application.getPreferences().getRocketInfoFontSize();
+		return (FONT.deriveFont(size)).createGlyphVector(g2.getFontRenderContext(), text);
 	}
 
 	private GlyphVector createSmallText(String text) {
-		return smallFont.createGlyphVector(g2.getFontRenderContext(), text);
+		float size=(float) (Application.getPreferences().getRocketInfoFontSize()-2.0);
+		return (SMALLFONT.deriveFont(size)).createGlyphVector(g2.getFontRenderContext(), text);
 	}
-	
-	public void setCurrentConfig(FlightConfiguration newConfig) {
-		this.configuration = newConfig;
-		this.stabilityUnits = UnitGroup.stabilityUnits(newConfig);
-		this.secondaryStabilityUnits = UnitGroup.secondaryStabilityUnits(newConfig);
-	}
+
 }

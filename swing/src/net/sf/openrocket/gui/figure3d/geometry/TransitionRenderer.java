@@ -114,7 +114,7 @@
  */
 package net.sf.openrocket.gui.figure3d.geometry;
 
-import com.jogamp.opengl.GL2;
+import javax.media.opengl.GL2;
 
 import net.sf.openrocket.rocketcomponent.Transition;
 
@@ -123,7 +123,7 @@ final class TransitionRenderer {
 	private TransitionRenderer() {
 	}
 	
-	static void drawTransition(final GL2 gl, final Transition tr,
+	static final void drawTransition(final GL2 gl, final Transition tr,
 			final int slices, final int stacks, final double offsetRadius) {
 		
 		double da, r, dzBase;
@@ -131,16 +131,14 @@ final class TransitionRenderer {
 		int i;
 		
 		da = 2.0f * Math.PI / slices;
-		dzBase = tr.getLength() / stacks;
+		dzBase = (double) tr.getLength() / stacks;
 		
 		double ds = 1.0f / slices;
 		
 		z = 0.0f;
+		r = (double) tr.getForeRadius();
 		while (z < tr.getLength()) {
 			double t = z / tr.getLength();
-			if (tr.getForeRadius() > tr.getAftRadius()) {
-				t = 1 - t;
-			}
 			
 			double dz = t < 0.025 ? dzBase / 8.0 : dzBase;
 			double zNext = Math.min(z + dz, tr.getLength());
@@ -163,7 +161,7 @@ final class TransitionRenderer {
 				}
 				
 				if (r == 0) {
-					switch (tr.getShapeType()) {
+					switch (tr.getType()) {
 					case CONICAL:
 					case OGIVE:
 					case PARABOLIC:

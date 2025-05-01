@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JComponent;
-import javax.swing.JDialog;
 
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.rocketcomponent.DeploymentConfiguration.DeployEvent;
@@ -18,8 +17,8 @@ public abstract class RecoveryDeviceConfig extends RocketComponentConfig {
 	
 	protected final List<JComponent> altitudeComponents = new ArrayList<JComponent>();
 	
-	public RecoveryDeviceConfig(OpenRocketDocument d, RocketComponent component, JDialog parent) {
-		super(d, component, parent);
+	public RecoveryDeviceConfig(OpenRocketDocument d, RocketComponent component) {
+		super(d, component);
 	}
 	
 	
@@ -28,10 +27,10 @@ public abstract class RecoveryDeviceConfig extends RocketComponentConfig {
 	public void updateFields() {
 		super.updateFields();
 		
-		if (altitudeComponents == null || altitudeComponents.size() == 0)
+		if (altitudeComponents == null)
 			return;
 		
-		boolean enabled = (((RecoveryDevice) component).getDeploymentConfigurations().getDefault().getDeployEvent() == DeployEvent.ALTITUDE);
+		boolean enabled = (((RecoveryDevice) component).getDeploymentConfiguration().getDefault().getDeployEvent() == DeployEvent.ALTITUDE);
 		
 		for (JComponent c : altitudeComponents) {
 			c.setEnabled(enabled);

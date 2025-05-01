@@ -5,12 +5,13 @@ package net.sf.openrocket.file.rocksim.importt;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
-import net.sf.openrocket.file.rocksim.RockSimDensityType;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimDensityType;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.rocketcomponent.RecoveryDevice;
+import net.sf.openrocket.rocketcomponent.RocketComponent;
 
 import org.xml.sax.SAXException;
 
@@ -45,11 +46,11 @@ public abstract class RecoveryDeviceHandler<C extends RecoveryDevice> extends Po
 		super.closeElement(element, attributes, content, warnings);
 		
 		try {
-			if (RockSimCommonConstants.THICKNESS.equals(element)) {
-				thickness = Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH;
+			if (RocksimCommonConstants.THICKNESS.equals(element)) {
+				thickness = Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH;
 			}
-			if (RockSimCommonConstants.CALC_MASS.equals(element)) {
-				calcMass = Math.max(0d, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_MASS);
+			if (RocksimCommonConstants.CALC_MASS.equals(element)) {
+				calcMass = Math.max(0d, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_MASS);
 			}
 		} catch (NumberFormatException nfe) {
 			warnings.add("Could not convert " + element + " value of " + content + ".  It is expected to be a number.");
@@ -65,8 +66,7 @@ public abstract class RecoveryDeviceHandler<C extends RecoveryDevice> extends Po
 	 * @param rawDensity the density as specified in the Rocksim design file
 	 * @return a value in OpenRocket SURFACE density units
 	 */
-	@Override
-	protected double computeDensity(RockSimDensityType type, double rawDensity) {
+	protected double computeDensity(RocksimDensityType type, double rawDensity) {
 		
 		double result;
 		
@@ -74,8 +74,8 @@ public abstract class RecoveryDeviceHandler<C extends RecoveryDevice> extends Po
 			//ROCKSIM_SURFACE is a square area density; compute normally
 			//ROCKSIM_LINE is a single length dimension (kg/m) but Rocksim ignores thickness for this type and treats
 			//it like a SURFACE.
-			if (RockSimDensityType.ROCKSIM_SURFACE.equals(type) || RockSimDensityType.ROCKSIM_LINE.equals(type)) {
-				result = rawDensity / RockSimDensityType.ROCKSIM_SURFACE.asOpenRocket();
+			if (RocksimDensityType.ROCKSIM_SURFACE.equals(type) || RocksimDensityType.ROCKSIM_LINE.equals(type)) {
+				result = rawDensity / RocksimDensityType.ROCKSIM_SURFACE.asOpenRocket();
 			}
 			//ROCKSIM_BULK is a cubic area density; multiple by thickness to make per square area; the result, when
 			//multiplied by the area will then equal Rocksim's computed mass.
@@ -87,14 +87,25 @@ public abstract class RecoveryDeviceHandler<C extends RecoveryDevice> extends Po
 			result = calcMass / getComponent().getArea();
 			//A Rocksim bug on streamers/parachutes results in a 0 density at times.  When that is detected, try
 			//to compute an approximate density from Rocksim's computed mass.
-			if (RockSimDensityType.ROCKSIM_BULK.equals(type)) {
+			if (RocksimDensityType.ROCKSIM_BULK.equals(type)) {
 				//ROCKSIM_BULK is a cubic area density; multiple by thickness to make per square area
 				result *= thickness;
 			}
 		}
 		return result;
 	}
-
+	
+	/**
+	 * Set the relative position onto the component.  This cannot be done directly because setRelativePosition is not
+	 * public in all components.
+	 *
+	 * @param position the OpenRocket position
+	 */
+	@Override
+	public void setRelativePosition(RocketComponent.Position position) {
+		getComponent().setRelativePosition(position);
+	}
+	
 	/**
 	 * Get the required type of material for this component.  This is the OpenRocket type, which does NOT always
 	 * correspond to Rocksim.  Some streamer material is defined as BULK in the Rocksim file.  In those cases

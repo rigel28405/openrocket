@@ -4,8 +4,6 @@ import java.util.List;
 
 import javax.swing.table.AbstractTableModel;
 
-import org.jfree.util.Log;
-
 import net.sf.openrocket.rocketcomponent.ComponentChangeEvent;
 import net.sf.openrocket.rocketcomponent.ComponentChangeListener;
 import net.sf.openrocket.rocketcomponent.MotorMount;
@@ -17,16 +15,18 @@ import net.sf.openrocket.util.ArrayList;
  * The table model for selecting whether components are motor mounts or not.
  */
 class MotorMountTableModel extends AbstractTableModel implements ComponentChangeListener {
-	private static final long serialVersionUID = 1956400848559941228L;
-
-    private final List<MotorMount> potentialMounts = new ArrayList<MotorMount>();
+	
+	private final MotorMountConfigurationPanel motorConfigurationPanel;
+	
+	private final List<MotorMount> potentialMounts = new ArrayList<MotorMount>();
 	
 	private final Rocket rocket;
 	
 	/**
-	 * @param rocket the rocket to select motor mounts from
+	 * @param motorConfigurationPanel
 	 */
-	MotorMountTableModel( Rocket rocket) {
+	MotorMountTableModel(MotorMountConfigurationPanel motorConfigurationPanel, Rocket rocket) {
+		this.motorConfigurationPanel = motorConfigurationPanel;
 		this.rocket = rocket;
 		
 		initialize();
@@ -78,7 +78,7 @@ class MotorMountTableModel extends AbstractTableModel implements ComponentChange
 	public Object getValueAt(int row, int column) {
 		switch (column) {
 		case 0:
-			return Boolean.valueOf(potentialMounts.get(row).isMotorMount());
+			return new Boolean(potentialMounts.get(row).isMotorMount());
 			
 		case 1:
 			return potentialMounts.get(row).toString();
@@ -99,7 +99,8 @@ class MotorMountTableModel extends AbstractTableModel implements ComponentChange
 			throw new IllegalArgumentException("column=" + column + ", value=" + value);
 		}
 		
-        MotorMount mount = potentialMounts.get(row);
-        mount.setMotorMount((Boolean) value);
+		MotorMount mount = potentialMounts.get(row);
+		mount.setMotorMount((Boolean) value);
+		this.motorConfigurationPanel.onDataChanged();
 	}
 }

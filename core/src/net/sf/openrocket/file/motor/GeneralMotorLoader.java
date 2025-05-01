@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.util.List;
 
 import net.sf.openrocket.file.UnknownFileTypeException;
-import net.sf.openrocket.motor.ThrustCurveMotor;
+import net.sf.openrocket.motor.Motor;
 
 /**
  * A motor loader class that detects the file type based on the file name extension.
@@ -32,7 +32,7 @@ public class GeneralMotorLoader implements MotorLoader {
 	 * @throws UnknownFileTypeException		if the file format is not supported
 	 */
 	@Override
-	public List<ThrustCurveMotor.Builder> load(InputStream stream, String filename) throws IOException {
+	public List<Motor> load(InputStream stream, String filename) throws IOException {
 		return selectLoader(filename).load(stream, filename);
 	}
 	

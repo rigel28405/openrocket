@@ -1,19 +1,11 @@
 package net.sf.openrocket.rocketcomponent;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-
-import net.sf.openrocket.util.BoundingBox;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.motor.Motor;
-import net.sf.openrocket.motor.MotorConfiguration;
-import net.sf.openrocket.motor.MotorConfigurationSet;
 import net.sf.openrocket.preset.ComponentPreset;
-import net.sf.openrocket.rocketcomponent.position.AxialPositionable;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.Coordinate;
@@ -26,19 +18,18 @@ import net.sf.openrocket.util.MathUtil;
  *
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-public class InnerTube extends ThicknessRingComponent implements AxialPositionable, BoxBounded, Clusterable, RadialParent, MotorMount, InsideColorComponent {
+public class InnerTube extends ThicknessRingComponent implements Clusterable, RadialParent, MotorMount {
 	private static final Translator trans = Application.getTranslator();
-	private static final Logger log = LoggerFactory.getLogger(InnerTube.class);
 	
 	private ClusterConfiguration cluster = ClusterConfiguration.SINGLE;
 	private double clusterScale = 1.0;
 	private double clusterRotation = 0.0;
 	
+	private boolean motorMount = false;
 	private double overhang = 0;
-	private boolean isActingMount;
-	private MotorConfigurationSet motors;
-
-	private InsideColorComponentHandler insideColorComponentHandler = new InsideColorComponentHandler(this);
+	
+	private FlightConfigurationImpl<MotorConfiguration> motorConfigurations;
+	private FlightConfigurationImpl<IgnitionConfiguration> ignitionConfigurations;
 	
 	/**
 	 * Main constructor.
@@ -49,10 +40,8 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 		this.setInnerRadius(0.018 / 2);
 		this.setLength(0.070);
 		
-		motors = new MotorConfigurationSet(this);
-
-		super.displayOrder_side = 5;		// Order for displaying the component in the 2D side view
-		super.displayOrder_back = 14;		// Order for displaying the component in the 2D back view
+		this.motorConfigurations = new MotorFlightConfigurationImpl<MotorConfiguration>(this, ComponentChangeEvent.MOTOR_CHANGE, MotorConfiguration.NO_MOTORS);
+		this.ignitionConfigurations = new FlightConfigurationImpl<IgnitionConfiguration>(this, ComponentChangeEvent.EVENT_CHANGE, new IgnitionConfiguration());
 	}
 	
 	
@@ -74,12 +63,6 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 		return trans.get("InnerTube.InnerTube");
 	}
 	
-	@Override
-	public String getPatternName() {
-		return this.cluster.getXMLName();
-	}
-	
-
 	@Override
 	public boolean allowsChildren() {
 		return true;
@@ -131,49 +114,18 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	 * @param cluster  The cluster configuration.
 	 */
 	@Override
-	public void setClusterConfiguration( final ClusterConfiguration cluster) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setClusterConfiguration(cluster);
-			}
-		}
-
-		if( cluster == this.cluster){
-			// no change
-			return;
-		}else{
-			this.cluster = cluster;
-			fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
-		}
+	public void setClusterConfiguration(ClusterConfiguration cluster) {
+		this.cluster = cluster;
+		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
-	public BoundingBox getInstanceBoundingBox(){
-		BoundingBox instanceBounds = new BoundingBox();
-		
-		instanceBounds.update(new Coordinate(this.getLength(), 0,0));
-		
-		final double r = getOuterRadius();
-		instanceBounds.update(new Coordinate(0,r,r));
-		instanceBounds.update(new Coordinate(0,-r,-r));
-		
-		return instanceBounds;
-	}
-	
+	/**
+	 * Return the number of tubes in the cluster.
+	 * @return Number of tubes in the current cluster.
+	 */
 	@Override
-	public int getInstanceCount() {
+	public int getClusterCount() {
 		return cluster.getClusterCount();
-	}
-	
-	@Override
-	public void setInstanceCount( final int newCount ){
-		log.error("Programmer Error:  cannot set the instance count of an InnerTube directly."+
-				"  Please set setClusterConfiguration(ClusterConfiguration) instead.",
-				new UnsupportedOperationException("InnerTube.setInstanceCount(..) on an"+this.getClass().getSimpleName()));
-	}
-
-	@Override
-	public boolean isAfter(){
-		return false;
 	}
 	
 	/**
@@ -182,7 +134,6 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	 * pack inside each other.
 	 */
 	public double getClusterScale() {
-		mutex.verify();
 		return clusterScale;
 	}
 	
@@ -192,34 +143,10 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	 */
 	public void setClusterScale(double scale) {
 		scale = Math.max(scale, 0);
-
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setClusterScale(scale);
-			}
-		}
-
 		if (MathUtil.equals(clusterScale, scale))
 			return;
 		clusterScale = scale;
 		fireComponentChangeEvent(new ComponentChangeEvent(this, ComponentChangeEvent.MASS_CHANGE));
-	}
-
-	/**
-	 * Get the cluster scaling as an absolute distance measurement.  A value of 0 indicates that the tubes are packed
-	 * touching each other, larger values separate the tubes and smaller values pack inside each other.
-	 */
-	public double getClusterScaleAbsolute() {
-		return (getClusterScale() - 1) * getOuterRadius() * 2;
-	}
-
-	/**
-	 * Set the absolute cluster scaling (in terms of distance).
-	 * @see #getClusterScaleAbsolute()
-	 */
-	public void setClusterScaleAbsolute(double scale) {
-		double scaleRel = scale / (getOuterRadius() * 2) + 1;
-		setClusterScale(scaleRel);
 	}
 	
 	
@@ -236,13 +163,7 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	 * @param rotation the clusterRotation to set
 	 */
 	public void setClusterRotation(double rotation) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setClusterRotation(rotation);
-			}
-		}
-
-		rotation = MathUtil.reducePi(rotation);
+		rotation = MathUtil.reduce180(rotation);
 		if (clusterRotation == rotation)
 			return;
 		this.clusterRotation = rotation;
@@ -259,135 +180,103 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 		return 2 * getOuterRadius() * clusterScale;
 	}
 	
+	
 	public List<Coordinate> getClusterPoints() {
-		List<Coordinate> list = new ArrayList<>(getInstanceCount());
+		List<Coordinate> list = new ArrayList<Coordinate>(getClusterCount());
 		List<Double> points = cluster.getPoints(clusterRotation - getRadialDirection());
 		double separation = getClusterSeparation();
-		double yOffset = this.radialPosition * Math.cos(this.radialDirection);
-		double zOffset = this.radialPosition * Math.sin(this.radialDirection);
 		for (int i = 0; i < points.size() / 2; i++) {
-			list.add(new Coordinate(0, points.get(2 * i) * separation + yOffset, points.get(2 * i + 1) * separation + zOffset));
+			list.add(new Coordinate(0, points.get(2 * i) * separation, points.get(2 * i + 1) * separation));
 		}
 		return list;
 	}
 	
-	@Override
-	public Coordinate[] getInstanceOffsets(){
-		List<Coordinate> points = getClusterPoints();
-		return points.toArray(new Coordinate[0]);
-	}
 	
-//	@Override
-//	protected Coordinate[] shiftCoordinates(Coordinate[] array) {
-//		array = super.shiftCoordinates(array);
-//		
-//		int count = getClusterCount();
-//		if (count == 1)
-//			return array;
-//		
-//		List<Coordinate> points = getClusterPoints();
-//		if (points.size() != count) {
-//			throw new BugException("Inconsistent cluster configuration, cluster count=" + count +
-//					" point count=" + points.size());
-//		}
-//		Coordinate[] newArray = new Coordinate[array.length * count];
-//		for (int i = 0; i < array.length; i++) {
-//			for (int j = 0; j < count; j++) {
-//				newArray[i * count + j] = array[i].add(points.get(j));
-//			}
-//		}
-//		
-//		return newArray;
-//	}
+	@Override
+	public Coordinate[] shiftCoordinates(Coordinate[] array) {
+		array = super.shiftCoordinates(array);
+		
+		int count = getClusterCount();
+		if (count == 1)
+			return array;
+		
+		List<Coordinate> points = getClusterPoints();
+		if (points.size() != count) {
+			throw new BugException("Inconsistent cluster configuration, cluster count=" + count +
+					" point count=" + points.size());
+		}
+		Coordinate[] newArray = new Coordinate[array.length * count];
+		for (int i = 0; i < array.length; i++) {
+			for (int j = 0; j < count; j++) {
+				newArray[i * count + j] = array[i].add(points.get(j));
+			}
+		}
+		
+		return newArray;
+	}
 	
 	////////////////  Motor mount  /////////////////
-
-	@Override
-	public MotorConfiguration getDefaultMotorConfig(){
-		return this.motors.getDefault();
-	}
+	
 	
 	@Override
-	public MotorConfigurationSet getMotorConfigurationSet() {
-		return this.motors;
-	}
-		
-	@Override
-	public MotorConfiguration getMotorConfig( final FlightConfigurationId fcid){
-		return this.motors.get(fcid);
-	}
-
-	@Override 
-	public void setMotorConfig( final MotorConfiguration newMotorConfig, final FlightConfigurationId fcid){
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setMotorConfig(newMotorConfig, fcid);
-			}
-		}
-
-		if((null == newMotorConfig)){
-			this.motors.set( fcid, null);
-		}else{
-			if( this != newMotorConfig.getMount() ){
-				throw new BugException(" attempt to add a MotorConfig to a second mount!");
-			}
-			
-			this.motors.set(fcid, newMotorConfig);
-		}
-
-		this.isActingMount = true;
+	public FlightConfiguration<MotorConfiguration> getMotorConfiguration() {
+		return motorConfigurations;
 	}
 	
-	@Override
-	public Iterator<MotorConfiguration> getMotorIterator(){
-		return this.motors.iterator();
-	}
 	
 	@Override
-	public void copyFlightConfiguration(FlightConfigurationId oldConfigId, FlightConfigurationId newConfigId) {
-		motors.copyFlightConfiguration(oldConfigId, newConfigId);
+	public FlightConfiguration<IgnitionConfiguration> getIgnitionConfiguration() {
+		return ignitionConfigurations;
 	}
 	
-	@Override
-	public void reset( final FlightConfigurationId fcid){
-		this.motors.reset(fcid);
-	}
 	
 	@Override
-    public void setMotorMount(boolean _active){
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setMotorMount(_active);
-			}
-		}
-
-    	if (this.isActingMount == _active)
-    		return;
-    	this.isActingMount = _active;
+	public void cloneFlightConfiguration(String oldConfigId, String newConfigId) {
+		motorConfigurations.cloneFlightConfiguration(oldConfigId, newConfigId);
+		ignitionConfigurations.cloneFlightConfiguration(oldConfigId, newConfigId);
+	}
+	
+	
+	@Override
+	public boolean isMotorMount() {
+		return motorMount;
+	}
+	
+	
+	@Override
+	public void setMotorMount(boolean mount) {
+		if (motorMount == mount)
+			return;
+		motorMount = mount;
 		fireComponentChangeEvent(ComponentChangeEvent.MOTOR_CHANGE);
-    }
-
-	@Override
-	public boolean isMotorMount(){
-		return this.isActingMount;
 	}
 	
-	@Override
-	public boolean hasMotor() {
-		// the default MotorInstance is the EMPTY_INSTANCE.  If we have more than that, then the other instance will have a motor.
-		return this.motors.size() > 0;
-	}
 	
 	@Override
 	public double getMotorMountDiameter() {
 		return getInnerRadius() * 2;
 	}
 	
+	@SuppressWarnings("deprecation")
+	@Deprecated
 	@Override
 	public int getMotorCount() {
-		return this.getClusterConfiguration().getClusterCount();
+		return getClusterCount();
 	}
 	
+	@SuppressWarnings("deprecation")
+	@Deprecated
+	@Override
+	public Motor getMotor(String id) {
+		return this.motorConfigurations.get(id).getMotor();
+	}
+	
+	@SuppressWarnings("deprecation")
+	@Deprecated
+	@Override
+	public double getMotorDelay(String id) {
+		return this.motorConfigurations.get(id).getEjectionDelay();
+	}
 	
 	@Override
 	public double getMotorOverhang() {
@@ -396,12 +285,6 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	
 	@Override
 	public void setMotorOverhang(double overhang) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof InnerTube) {
-				((InnerTube) listener).setMotorOverhang(overhang);
-			}
-		}
-
 		if (MathUtil.equals(this.overhang, overhang))
 			return;
 		this.overhang = overhang;
@@ -409,8 +292,8 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	}
 	
 	@Override
-	public Coordinate getMotorPosition(FlightConfigurationId id) {
-		Motor motor = motors.get(id).getMotor();
+	public Coordinate getMotorPosition(String id) {
+		Motor motor = getMotor(id);
 		if (motor == null) {
 			throw new IllegalArgumentException("No motor with id " + id + " defined.");
 		}
@@ -421,18 +304,10 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	@Override
 	protected RocketComponent copyWithOriginalID() {
 		InnerTube copy = (InnerTube) super.copyWithOriginalID();
-		if( copy == this ){
-			new IllegalArgumentException(" copyWithOriginalID should return a different instance! ");
-		}
-		if( copy.motors == this.motors ){
-			new IllegalArgumentException(" copyWithOriginalID should produce different motorSet instances! ");
-		}
-		
-		copy.motors = new MotorConfigurationSet( this.motors, copy );
-		
+		copy.motorConfigurations = new FlightConfigurationImpl<MotorConfiguration>(motorConfigurations, copy, ComponentChangeEvent.MOTOR_CHANGE);
+		copy.ignitionConfigurations = new FlightConfigurationImpl<IgnitionConfiguration>(ignitionConfigurations, copy, ComponentChangeEvent.EVENT_CHANGE);
 		return copy;
 	}
-
 	
 	/**
 	 * For a given coordinate that represents one tube in a cluster, create an instance of that tube.  Must be called
@@ -447,55 +322,12 @@ public class InnerTube extends ThicknessRingComponent implements AxialPositionab
 	 */
 	public static InnerTube makeIndividualClusterComponent(Coordinate coord, String splitName, RocketComponent theInnerTube) {
 		InnerTube copy = (InnerTube) theInnerTube.copy();
-		copy.clearConfigListeners();
 		copy.setClusterConfiguration(ClusterConfiguration.SINGLE);
 		copy.setClusterRotation(0.0);
 		copy.setClusterScale(1.0);
 		copy.setRadialShift(coord.y, coord.z);
 		copy.setName(splitName);
 		return copy;
-	}
-	
-	@Override
-	public String toMotorDebug( ){
-		return this.motors.toDebug();
-	}
-
-	@Override
-	public InsideColorComponentHandler getInsideColorComponentHandler() {
-		return this.insideColorComponentHandler;
-	}
-
-	@Override
-	public void setInsideColorComponentHandler(InsideColorComponentHandler handler) {
-		this.insideColorComponentHandler = handler;
-	}
-
-	@Override
-	public boolean addConfigListener(RocketComponent listener) {
-		boolean success = super.addConfigListener(listener);
-		if (listener instanceof InnerTube) {
-			MotorConfiguration config = ((InnerTube) listener).getDefaultMotorConfig();
-			success = success && getDefaultMotorConfig().addConfigListener(config);
-			return success;
-		}
-		return false;
-	}
-
-	@Override
-	public void removeConfigListener(RocketComponent listener) {
-		super.removeConfigListener(listener);
-		if (listener instanceof InnerTube) {
-			MotorConfiguration config = ((InnerTube) listener).getDefaultMotorConfig();
-			getDefaultMotorConfig().removeConfigListener(config);
-		}
-	}
-
-	@Override
-	public void clearConfigListeners() {
-		super.clearConfigListeners();
-		// The motor config also has listeners, so clear them as well
-		getDefaultMotorConfig().clearConfigListeners();
 	}
 	
 }

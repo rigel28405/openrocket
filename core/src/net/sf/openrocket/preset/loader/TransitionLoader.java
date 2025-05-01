@@ -23,8 +23,8 @@ public class TransitionLoader extends NoseConeLoader {
 	}
 
 	@Override
-	protected RockSimComponentFileType getFileType() {
-		return RockSimComponentFileType.TRANSITION;
+	protected RocksimComponentFileType getFileType() {
+		return RocksimComponentFileType.TRANSITION;
 	}
 
 }

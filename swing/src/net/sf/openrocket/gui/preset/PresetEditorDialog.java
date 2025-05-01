@@ -44,7 +44,6 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.JTextComponent;
 
-import net.sf.openrocket.gui.util.SwingPreferences;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,16 +63,13 @@ import net.sf.openrocket.preset.loader.MaterialHolder;
 import net.sf.openrocket.rocketcomponent.Transition;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 /**
  * Preset editor for creating new preset components.
  */
 public class PresetEditorDialog extends JDialog implements ItemListener {
-
-	private static final long serialVersionUID = -3298642844886682536L;
-
-	private static final Translator trans = Application.getTranslator();
+	
+	private static Translator trans = Application.getTranslator();
 	
 	private static final Logger log = LoggerFactory.getLogger(PresetEditorDialog.class);
 	
@@ -83,137 +79,120 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 	 * Input of non-negative decimals.
 	 */
 	final PresetInputVerifier NON_NEGATIVE_INTEGER = new PresetInputVerifier(Pattern.compile(NON_NEGATIVE_INTEGER_FIELD));
-
-	private final DeselectableComboBox<String> typeCombo;
-	private final JTextField mfgTextField;
-	private final MaterialChooser materialChooser;
+	
+	private final JPanel contentPanel = new JPanel();
+	private DeselectableComboBox typeCombo;
+	private JTextField mfgTextField;
+	private MaterialChooser materialChooser;
 	private MaterialHolder holder = null;
 	
-	private final JTextField ncPartNoTextField;
-	private final JTextField ncDescTextField;
-	private final DoubleModel ncLength;
-	private final JCheckBox ncFilledCB;
-	private final JComboBox<String> ncShapeCB;
-	private final DoubleModel ncAftDia;
-	private final DoubleModel ncAftShoulderDia;
-	private final DoubleModel ncAftShoulderLen;
-	private final DoubleModel ncMass;
+	private JTextField ncPartNoTextField;
+	private JTextField ncDescTextField;
+	private DoubleModel ncLength;
+	private JCheckBox ncFilledCB;
+	private JComboBox ncShapeCB;
+	private DoubleModel ncAftDia;
+	private DoubleModel ncAftShoulderDia;
+	private DoubleModel ncAftShoulderLen;
+	private DoubleModel ncMass;
 	private ImageIcon ncImage;
-	private final JButton ncImageBtn;
+	private JButton ncImageBtn;
 	
-	private final JTextField trPartNoTextField;
-	private final JTextField trDescTextField;
-	private final DoubleModel trLength;
-	private final DoubleModel trAftDia;
-	private final DoubleModel trAftShoulderDia;
-	private final DoubleModel trAftShoulderLen;
-	private final DoubleModel trForeDia;
-	private final DoubleModel trForeShoulderDia;
-	private final DoubleModel trForeShoulderLen;
+	private JTextField trPartNoTextField;
+	private JTextField trDescTextField;
+	private DoubleModel trLength;
+	private DoubleModel trAftDia;
+	private DoubleModel trAftShoulderDia;
+	private DoubleModel trAftShoulderLen;
+	private DoubleModel trForeDia;
+	private DoubleModel trForeShoulderDia;
+	private DoubleModel trForeShoulderLen;
 	private DoubleModel trMass;
 	private ImageIcon trImage;
-	private final JCheckBox trFilledCB;
-	private final JComboBox<String> trShapeCB;
-	private final JButton trImageBtn;
+	private JCheckBox trFilledCB;
+	private JComboBox trShapeCB;
+	private JButton trImageBtn;
 	
-	private final JTextField btPartNoTextField;
-	private final JTextField btDescTextField;
-	private final DoubleModel btMass;
-	private final DoubleModel btInnerDia;
-	private final DoubleModel btOuterDia;
-	private final DoubleModel btLength;
+	private JTextField btPartNoTextField;
+	private JTextField btDescTextField;
+	private DoubleModel btMass;
+	private DoubleModel btInnerDia;
+	private DoubleModel btOuterDia;
+	private DoubleModel btLength;
 	private ImageIcon btImage;
-	private final JButton btImageBtn;
+	private JButton btImageBtn;
 	
-	private final JTextField tcPartNoTextField;
-	private final JTextField tcDescTextField;
-	private final DoubleModel tcMass;
-	private final DoubleModel tcInnerDia;
-	private final DoubleModel tcOuterDia;
-	private final DoubleModel tcLength;
+	private JTextField tcPartNoTextField;
+	private JTextField tcDescTextField;
+	private DoubleModel tcMass;
+	private DoubleModel tcInnerDia;
+	private DoubleModel tcOuterDia;
+	private DoubleModel tcLength;
 	private ImageIcon tcImage;
-	private final JButton tcImageBtn;
+	private JButton tcImageBtn;
 	
-	private final JTextField bhPartNoTextField;
-	private final JTextField bhDescTextField;
-	private final DoubleModel bhOuterDia;
-	private final DoubleModel bhLength;
-	private final DoubleModel bhMass;
+	private JTextField bhPartNoTextField;
+	private JTextField bhDescTextField;
+	private DoubleModel bhOuterDia;
+	private DoubleModel bhLength;
+	private DoubleModel bhMass;
 	private ImageIcon bhImage;
-	private final JButton bhImageBtn;
+	private JButton bhImageBtn;
 	
-	private final JTextField crPartNoTextField;
-	private final JTextField crDescTextField;
-	private final DoubleModel crOuterDia;
-	private final DoubleModel crInnerDia;
-	private final DoubleModel crThickness;
-	private final DoubleModel crMass;
+	private JTextField crPartNoTextField;
+	private JTextField crDescTextField;
+	private DoubleModel crOuterDia;
+	private DoubleModel crInnerDia;
+	private DoubleModel crThickness;
+	private DoubleModel crMass;
 	private ImageIcon crImage;
-	private final JButton crImageBtn;
+	private JButton crImageBtn;
 	
-	private final JTextField ebPartNoTextField;
-	private final JTextField ebDescTextField;
-	private final DoubleModel ebOuterDia;
-	private final DoubleModel ebInnerDia;
-	private final DoubleModel ebThickness;
-	private final DoubleModel ebMass;
+	private JTextField ebPartNoTextField;
+	private JTextField ebDescTextField;
+	private DoubleModel ebOuterDia;
+	private DoubleModel ebInnerDia;
+	private DoubleModel ebThickness;
+	private DoubleModel ebMass;
 	private ImageIcon ebImage;
-	private final JButton ebImageBtn;
+	private JButton ebImageBtn;
 	
-	private final JTextField llPartNoTextField;
-	private final JTextField llDescTextField;
-	private final DoubleModel llOuterDia;
-	private final DoubleModel llInnerDia;
-	private final DoubleModel llLength;
-	private final DoubleModel llMass;
+	private JTextField llPartNoTextField;
+	private JTextField llDescTextField;
+	private DoubleModel llOuterDia;
+	private DoubleModel llInnerDia;
+	private DoubleModel llLength;
+	private DoubleModel llMass;
 	private ImageIcon llImage;
-	private final JButton llImageBtn;
+	private JButton llImageBtn;
 	
-	private final JTextField rbPartNoTextField;
-	private final JTextField rbDescTextField;
-	private final DoubleModel rbOuterDia;
-	private final DoubleModel rbInnerDia;
-	private final DoubleModel rbHeight;
-	private final DoubleModel rbStandoffHeight;
-	private final DoubleModel rbFlangeHeight;
-	private final DoubleModel rbMass;
-	private ImageIcon rbImage;
-	private final JButton rbImageBtn;
-	
-	private final JTextField stPartNoTextField;
-	private final JTextField stDescTextField;
-	private final DoubleModel stThickness;
-	private final DoubleModel stWidth;
-	private final DoubleModel stLength;
-	private final DoubleModel stMass;
+	private JTextField stPartNoTextField;
+	private JTextField stDescTextField;
+	private DoubleModel stThickness;
+	private DoubleModel stWidth;
+	private DoubleModel stLength;
+	private DoubleModel stMass;
 	private ImageIcon stImage;
-	private final JButton stImageBtn;
-
-	//	Parachute Specific
-	private final JTextField pcPartNoTextField;
-	private final JTextField pcDescTextField;
-	private final DoubleModel pcDiameter;
-	private DoubleModel pcSpillDia;
-	private DoubleModel pcSurfaceArea;
-	private DoubleModel pcDragCoefficient;
-	//	Canopy material = private MaterialChooser materialChooser;
-	private final JTextField pcSides;
-	private final JTextField pcLineCount;
-	private final DoubleModel pcLineLength;
-	private DoubleModel pcPackedLength;
-	private DoubleModel pcPackedDiameter;
-	private final MaterialChooser pcLineMaterialChooser;
-	private final DoubleModel pcMass;
+	private JButton stImageBtn;
+	
+	private JTextField pcPartNoTextField;
+	private JTextField pcDescTextField;
+	private JTextField pcSides;
+	private JTextField pcLineCount;
+	private DoubleModel pcDiameter;
+	private DoubleModel pcLineLength;
+	private MaterialChooser pcLineMaterialChooser;
+	private DoubleModel pcMass;
 	private ImageIcon pcImage;
-	private final JButton pcImageBtn;
+	private JButton pcImageBtn;
 	
 	private final JFileChooser imageChooser = createImageChooser();
 	
-	private final JPanel componentOverlayPanel;
+	private JPanel componentOverlayPanel;
 	
-	private final PresetResultListener resultListener;
+	private PresetResultListener resultListener;
 	
-	private static final Map<String, String> componentMap = new HashMap<String, String>();
+	private static Map<String, String> componentMap = new HashMap<String, String>();
 	
 	private static final String NOSE_CONE_KEY = "NoseCone.NoseCone";
 	private static final String BODY_TUBE_KEY = "BodyTube.BodyTube";
@@ -223,7 +202,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 	private static final String BULKHEAD_KEY = "Bulkhead.Bulkhead";
 	private static final String EB_KEY = "ComponentIcons.Engineblock";
 	private static final String LAUNCH_LUG_KEY = "ComponentIcons.Launchlug";
-	private static final String RAIL_BUTTON_KEY = "ComponentIcons.RailButton";
 	private static final String STREAMER_KEY = "ComponentIcons.Streamer";
 	private static final String PARACHUTE_KEY = "ComponentIcons.Parachute";
 	
@@ -237,7 +215,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		componentMap.put(trans.get(BULKHEAD_KEY), "BULKHEAD");
 		componentMap.put(trans.get(EB_KEY), "ENGINEBLOCK");
 		componentMap.put(trans.get(LAUNCH_LUG_KEY), "LAUNCHLUG");
-		componentMap.put(trans.get(RAIL_BUTTON_KEY), "RAILBUTTON");
 		componentMap.put(trans.get(PARACHUTE_KEY), "PARACHUTE");
 		componentMap.put(trans.get(STREAMER_KEY), "STREAMER");
 	}
@@ -263,7 +240,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		getContentPane().setMinimumSize(new Dimension(200, 200));
 		setBounds(100, 100, 825, 610);
 		getContentPane().setLayout(new BorderLayout());
-		JPanel contentPanel = new JPanel();
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		contentPanel.setLayout(new MigLayout("", "[][grow][94.00,grow][232.0,grow][130.00][grow]", "[][][20.00,grow][grow]"));
@@ -281,9 +257,9 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		contentPanel.add(componentOverlayPanel, "cell 1 3 5 2,grow");
 		componentOverlayPanel.setLayout(new CardLayout(0, 0));
 		
-		typeCombo = new DeselectableComboBox<String>();
+		typeCombo = new DeselectableComboBox();
 		typeCombo.addItemListener(this);
-		typeCombo.setModel(new DefaultComboBoxModel<String>());
+		typeCombo.setModel(new DefaultComboBoxModel());
 		setItems(typeCombo, toEdit);
 		contentPanel.add(typeCombo, "cell 3 1,growx");
 		
@@ -315,7 +291,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			ncFilledCB = new JCheckBox("Filled");
 			ncPanel.add(ncFilledCB, "cell 1 1");
 			
-			JLabel ncMaterialLabel = new JLabel(trans.get("MaterialPanel.lbl.ComponentMaterial"));
+			JLabel ncMaterialLabel = new JLabel(trans.get("RocketCompCfg.lbl.Componentmaterial"));
 			ncPanel.add(ncMaterialLabel, "cell 0 1,alignx left");
 			
 			JLabel ncMassLabel = new JLabel(trans.get("RocketCompCfg.lbl.Componentmass"));
@@ -330,8 +306,8 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			JLabel ncShapeLabel = new JLabel(trans.get("NoseConeCfg.lbl.Noseconeshape"));
 			ncPanel.add(ncShapeLabel, "cell 0 2,alignx left");
 			
-			ncShapeCB = new JComboBox<String>();
-			ncShapeCB.setModel(new DefaultComboBoxModel<String>(new String[] { Transition.Shape.OGIVE.getName(), Transition.Shape.CONICAL.getName(), Transition.Shape.PARABOLIC.getName(),
+			ncShapeCB = new JComboBox();
+			ncShapeCB.setModel(new DefaultComboBoxModel(new String[] { Transition.Shape.OGIVE.getName(), Transition.Shape.CONICAL.getName(), Transition.Shape.PARABOLIC.getName(),
 					Transition.Shape.ELLIPSOID.getName(), Transition.Shape.HAACK.getName() }));
 			ncPanel.add(ncShapeCB, "cell 1 2,growx");
 			
@@ -375,7 +351,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			ncPanel.add(panel, "cell 4 3, span 1 3");
 			panel.setLayout(null);
-			ncImageBtn = new SelectColorButton("No Image");
+			ncImageBtn = new JButton("No Image");
 			ncImageBtn.setMaximumSize(new Dimension(75, 75));
 			ncImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(ncImageBtn);
@@ -390,7 +366,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 						File file = imageChooser.getSelectedFile();
 						ncImage = scaleImage(new ImageIcon(file.getAbsolutePath()).getImage(), 155);
 						ncImageBtn.setIcon(ncImage);
-						((SwingPreferences) Application.getPreferences()).setDefaultDirectory(imageChooser.getCurrentDirectory());
 					}
 				}
 			});
@@ -430,8 +405,8 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			JLabel trShapeLabel = new JLabel("Shape:");
 			trPanel.add(trShapeLabel, "cell 0 2,alignx left");
 			
-			trShapeCB = new JComboBox<String>();
-			trShapeCB.setModel(new DefaultComboBoxModel<String>(new String[] { Transition.Shape.OGIVE.getName(), Transition.Shape.CONICAL.getName(), Transition.Shape.PARABOLIC.getName(),
+			trShapeCB = new JComboBox();
+			trShapeCB.setModel(new DefaultComboBoxModel(new String[] { Transition.Shape.OGIVE.getName(), Transition.Shape.CONICAL.getName(), Transition.Shape.PARABOLIC.getName(),
 					Transition.Shape.ELLIPSOID.getName(), Transition.Shape.HAACK.getName() }));
 			trPanel.add(trShapeCB, "cell 1 2,growx");
 			
@@ -502,7 +477,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			trPanel.add(panel, "cell 4 6");
 			panel.setLayout(null);
-			trImageBtn = new SelectColorButton("No Image");
+			trImageBtn = new JButton("No Image");
 			trImageBtn.setMaximumSize(new Dimension(75, 75));
 			trImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(trImageBtn);
@@ -580,7 +555,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			btPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			btImageBtn = new SelectColorButton("No Image");
+			btImageBtn = new JButton("No Image");
 			btImageBtn.setMaximumSize(new Dimension(75, 75));
 			btImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(btImageBtn);
@@ -658,7 +633,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			tcPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			tcImageBtn = new SelectColorButton("No Image");
+			tcImageBtn = new JButton("No Image");
 			tcImageBtn.setMaximumSize(new Dimension(75, 75));
 			tcImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(tcImageBtn);
@@ -729,7 +704,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			bhPanel.add(panel, "cell 4 2");
 			panel.setLayout(null);
-			bhImageBtn = new SelectColorButton("No Image");
+			bhImageBtn = new JButton("No Image");
 			bhImageBtn.setMaximumSize(new Dimension(75, 75));
 			bhImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(bhImageBtn);
@@ -808,7 +783,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			crPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			crImageBtn = new SelectColorButton("No Image");
+			crImageBtn = new JButton("No Image");
 			crImageBtn.setMaximumSize(new Dimension(75, 75));
 			crImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(crImageBtn);
@@ -886,7 +861,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			ebPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			ebImageBtn = new SelectColorButton("No Image");
+			ebImageBtn = new JButton("No Image");
 			ebImageBtn.setMaximumSize(new Dimension(75, 75));
 			ebImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(ebImageBtn);
@@ -964,7 +939,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			llPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			llImageBtn = new SelectColorButton("No Image");
+			llImageBtn = new JButton("No Image");
 			llImageBtn.setMaximumSize(new Dimension(75, 75));
 			llImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(llImageBtn);
@@ -979,103 +954,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 						File file = imageChooser.getSelectedFile();
 						llImage = scaleImage(new ImageIcon(file.getAbsolutePath()).getImage(), 155);
 						llImageBtn.setIcon(llImage);
-					}
-				}
-			});
-		}
-		
-		// Railbutton
-		{
-			JPanel rbPanel = new JPanel();
-			componentOverlayPanel.add(rbPanel, "RAILBUTTON");
-			rbPanel.setLayout(new MigLayout("", "[][grow][][grow]", "[][][][]"));
-			JLabel rbPartNoLabel = new JLabel("Part No:");
-			rbPanel.add(rbPartNoLabel, "cell 0 0,alignx left");
-			
-			rbPartNoTextField = new JTextField();
-			rbPanel.add(rbPartNoTextField, "cell 1 0,growx");
-			rbPartNoTextField.setColumns(10);
-			
-			JLabel rbDescLabel = new JLabel("Description:");
-			rbPanel.add(rbDescLabel, "cell 3 0,alignx left");
-			
-			rbDescTextField = new JTextField();
-			rbPanel.add(rbDescTextField, "cell 4 0,growx");
-			rbDescTextField.setColumns(10);
-			
-			JLabel rbOuterDiaLabel = new JLabel("Outer Dia.:");
-			rbPanel.add(rbOuterDiaLabel, "cell 0 1,alignx left");
-			
-			rbOuterDia = new DoubleModel(0, UnitGroup.UNITS_LENGTH, 0);
-			JSpinner spin = new JSpinner(rbOuterDia.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 1 1, growx");
-			rbPanel.add(new UnitSelector(rbOuterDia), "growx");
-			
-			JLabel rbMassLabel = new JLabel("Mass:");
-			rbPanel.add(rbMassLabel, "cell 3 1,alignx left");
-			
-			rbMass = new DoubleModel(0, UnitGroup.UNITS_MASS, 0);
-			spin = new JSpinner(rbMass.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 4 1, growx");
-			rbPanel.add(new UnitSelector(llMass), "w 34lp!");
-			
-			JLabel rbInnerDiaLabel = new JLabel("Inner Dia.:");
-			rbPanel.add(rbInnerDiaLabel, "cell 0 2,alignx left");
-			
-			rbInnerDia = new DoubleModel(0, UnitGroup.UNITS_LENGTH, 0);
-			spin = new JSpinner(rbInnerDia.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 1 2, growx");
-			rbPanel.add(new UnitSelector(rbInnerDia), "growx");
-			
-			JLabel rbHeightLabel = new JLabel("Height:");
-			rbPanel.add(rbHeightLabel, "cell 3 2,alignx left");
-			
-			rbHeight = new DoubleModel(0, UnitGroup.UNITS_LENGTH, 0);
-			spin = new JSpinner(rbHeight.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 4 2, growx");
-			rbPanel.add(new UnitSelector(rbHeight), "w 34lp!");
-			
-			JLabel rbStandoffLabel = new JLabel("Standoff:");
-			rbPanel.add(rbStandoffLabel, "cell 0 3,alignx left");
-			
-			rbStandoffHeight = new DoubleModel(0, UnitGroup.UNITS_LENGTH, 0);
-			spin = new JSpinner(rbStandoffHeight.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 1 3, growx");
-			rbPanel.add(new UnitSelector(rbStandoffHeight), "growx");
-			
-			JLabel rbFlangeLabel = new JLabel("Flange:");
-			rbPanel.add(rbFlangeLabel, "cell 3 3,alignx left");
-			
-			rbFlangeHeight = new DoubleModel(0, UnitGroup.UNITS_LENGTH, 0);
-			spin = new JSpinner(rbFlangeHeight.getSpinnerModel());
-			spin.setEditor(new SpinnerEditor(spin));
-			rbPanel.add(spin, "cell 4 3, growx");
-			rbPanel.add(new UnitSelector(rbFlangeHeight), "w 34lp!");
-			
-			JPanel panel = new JPanel();
-			panel.setMinimumSize(new Dimension(200, 200));
-			rbPanel.add(panel, "cell 4 4");
-			panel.setLayout(null);
-			rbImageBtn = new SelectColorButton("No Image");
-			rbImageBtn.setMaximumSize(new Dimension(75, 75));
-			rbImageBtn.setMinimumSize(new Dimension(75, 75));
-			panel.add(rbImageBtn);
-			rbImageBtn.setBounds(new Rectangle(6, 6, 132, 145));
-			
-			rbImageBtn.addActionListener(new ActionListener() {
-				@Override
-				public void actionPerformed(final ActionEvent e) {
-					int returnVal = imageChooser.showOpenDialog(PresetEditorDialog.this);
-					
-					if (returnVal == JFileChooser.APPROVE_OPTION) {
-						File file = imageChooser.getSelectedFile();
-						rbImage = scaleImage(new ImageIcon(file.getAbsolutePath()).getImage(), 155);
-						rbImageBtn.setIcon(rbImage);
 					}
 				}
 			});
@@ -1139,7 +1017,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			stPanel.add(panel, "cell 4 3");
 			panel.setLayout(null);
-			stImageBtn = new SelectColorButton("No Image");
+			stImageBtn = new JButton("No Image");
 			stImageBtn.setMaximumSize(new Dimension(75, 75));
 			stImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(stImageBtn);
@@ -1231,7 +1109,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			panel.setMinimumSize(new Dimension(200, 200));
 			pcPanel.add(panel, "cell 1 3, span 1 3");
 			panel.setLayout(null);
-			pcImageBtn = new SelectColorButton("No Image");
+			pcImageBtn = new JButton("No Image");
 			pcImageBtn.setMaximumSize(new Dimension(75, 75));
 			pcImageBtn.setMinimumSize(new Dimension(75, 75));
 			panel.add(pcImageBtn);
@@ -1254,7 +1132,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		JPanel buttonPane = new JPanel();
 		getContentPane().add(buttonPane, BorderLayout.SOUTH);
 		buttonPane.setLayout(new MigLayout("", "[130px][176.00px][131.00px]", "[29px]"));
-		JButton btnSaveAndNew = new SelectColorButton("Save and New");
+		JButton btnSaveAndNew = new JButton("Save and New");
 		btnSaveAndNew.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent arg0) {
@@ -1263,7 +1141,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		});
 		buttonPane.add(btnSaveAndNew, "cell 0 0,alignx left,aligny top");
 		
-		JButton okButton = new SelectColorButton("Save and Close");
+		JButton okButton = new JButton("Save and Close");
 		okButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent event) {
@@ -1276,7 +1154,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		buttonPane.add(okButton, "cell 1 0,alignx left,aligny top");
 		getRootPane().setDefaultButton(okButton);
 		
-		JButton cancelButton = new SelectColorButton("Close");
+		JButton cancelButton = new JButton("Close");
 		cancelButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent event) {
@@ -1299,7 +1177,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 	 * @param cb     the combo box component
 	 * @param preset the preset being edited
 	 */
-	private void setItems(DeselectableComboBox<String> cb, ComponentPreset preset) {
+	private void setItems(DeselectableComboBox cb, ComponentPreset preset) {
 		cb.addItem(trans.get(NOSE_CONE_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.NOSE_CONE));
 		cb.addItem(trans.get(BODY_TUBE_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.BODY_TUBE));
 		cb.addItem(trans.get(BULKHEAD_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.BULK_HEAD));
@@ -1308,7 +1186,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		cb.addItem(trans.get(TRANSITION_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.TRANSITION));
 		cb.addItem(trans.get(TUBE_COUPLER_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.TUBE_COUPLER));
 		cb.addItem(trans.get(LAUNCH_LUG_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.LAUNCH_LUG));
-		cb.addItem(trans.get(RAIL_BUTTON_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.RAIL_BUTTON));
 		cb.addItem(trans.get(PARACHUTE_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.PARACHUTE));
 		cb.addItem(trans.get(STREAMER_KEY), preset != null && !preset.get(ComponentPreset.TYPE).equals(ComponentPreset.Type.STREAMER));
 	}
@@ -1320,7 +1197,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 	 */
 	private JFileChooser createImageChooser() {
 		final JFileChooser chooser = new JFileChooser();
-		chooser.setCurrentDirectory(((SwingPreferences) Application.getPreferences()).getDefaultDirectory());
 		ImagePreviewPanel preview = new ImagePreviewPanel();
 		chooser.setAccessory(preview);
 		chooser.addPropertyChangeListener(preview);
@@ -1569,84 +1445,37 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 				llImageBtn.setIcon(llImage);
 			}
 			break;
-		case RAIL_BUTTON:
-			setMaterial(materialChooser, preset, matHolder, Material.Type.BULK, ComponentPreset.MATERIAL);
-			typeCombo.setSelectedItem(trans.get(RAIL_BUTTON_KEY));
-			rbDescTextField.setText(preset.get(ComponentPreset.DESCRIPTION));
-			if (preset.has(ComponentPreset.INNER_DIAMETER)) {
-				rbInnerDia.setValue(preset.get(ComponentPreset.INNER_DIAMETER));
-				rbInnerDia.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.OUTER_DIAMETER)) {
-				rbOuterDia.setValue(preset.get(ComponentPreset.OUTER_DIAMETER));
-				rbOuterDia.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.HEIGHT)) {
-				rbHeight.setValue(preset.get(ComponentPreset.HEIGHT));
-				rbHeight.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.BASE_HEIGHT)) {
-				rbStandoffHeight.setValue(preset.get(ComponentPreset.BASE_HEIGHT));
-				rbStandoffHeight.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.FLANGE_HEIGHT)) {
-				rbFlangeHeight.setValue(preset.get(ComponentPreset.FLANGE_HEIGHT));
-				rbFlangeHeight.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.MASS)) {
-				rbMass.setValue(preset.get(ComponentPreset.MASS));
-				rbMass.setCurrentUnit(UnitGroup.UNITS_MASS.getDefaultUnit());
-			}
-
-			rbPartNoTextField.setText(preset.get(ComponentPreset.PARTNO));
-			if (preset.has(ComponentPreset.IMAGE)) {
-				rbImage = new ImageIcon(byteArrayToImage(preset.get(ComponentPreset.IMAGE)));
-				rbImageBtn.setIcon(llImage);
-			}
-			break;
 		case PARACHUTE:
 			setMaterial(materialChooser, preset, matHolder, Material.Type.SURFACE, ComponentPreset.MATERIAL);
 			typeCombo.setSelectedItem(trans.get(PARACHUTE_KEY));
-			pcPartNoTextField.setText(preset.get(ComponentPreset.PARTNO));
 			pcDescTextField.setText(preset.get(ComponentPreset.DESCRIPTION));
-			if (preset.has(ComponentPreset.DIAMETER)) {
-				pcDiameter.setValue(preset.get(ComponentPreset.DIAMETER));
-				pcDiameter.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.CD)) {
-				pcDragCoefficient.setValue(preset.get(ComponentPreset.CD));
-				pcDragCoefficient.setCurrentUnit(UnitGroup.UNITS_COEFFICIENT.getDefaultUnit());
-			}
-			setMaterial(materialChooser, preset, matHolder, Material.Type.SURFACE, ComponentPreset.MATERIAL);
-			if (preset.has(ComponentPreset.SIDES)) {
-				pcSides.setText(preset.get(ComponentPreset.SIDES).toString());
-			}
 			if (preset.has(ComponentPreset.LINE_COUNT)) {
 				pcLineCount.setText(preset.get(ComponentPreset.LINE_COUNT).toString());
 			}
-			if (preset.has(ComponentPreset.LINE_LENGTH)) {
-				pcLineLength.setValue(preset.get(ComponentPreset.LINE_LENGTH));
-				pcLineLength.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			setMaterial(pcLineMaterialChooser, preset, matHolder, Material.Type.LINE, ComponentPreset.LINE_MATERIAL);
-			//    pcLineMaterialChooser.setModel(new MaterialModel(PresetEditorDialog.this, Material.Type.LINE));
-			//    pcLineMaterialChooser.getModel().setSelectedItem(preset.get(ComponentPreset.LINE_MATERIAL));
-			if (preset.has(ComponentPreset.PACKED_LENGTH)) {
-				pcPackedLength.setValue(preset.get(ComponentPreset.PACKED_LENGTH));
-				pcPackedLength.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
-			}
-			if (preset.has(ComponentPreset.PACKED_DIAMETER)) {
-				pcPackedDiameter.setValue(preset.get(ComponentPreset.PACKED_DIAMETER));
-				pcPackedDiameter.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
+			if (preset.has(ComponentPreset.SIDES)) {
+				pcSides.setText(preset.get(ComponentPreset.SIDES).toString());
 			}
 			if (preset.has(ComponentPreset.MASS)) {
 				pcMass.setValue(preset.get(ComponentPreset.MASS));
 				pcMass.setCurrentUnit(UnitGroup.UNITS_MASS.getDefaultUnit());
 			}
+			if (preset.has(ComponentPreset.DIAMETER)) {
+				pcDiameter.setValue(preset.get(ComponentPreset.DIAMETER));
+				pcDiameter.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
+			}
+			if (preset.has(ComponentPreset.LINE_LENGTH)) {
+				pcLineLength.setValue(preset.get(ComponentPreset.LINE_LENGTH));
+				pcLineLength.setCurrentUnit(UnitGroup.UNITS_LENGTH.getDefaultUnit());
+			}
+			pcPartNoTextField.setText(preset.get(ComponentPreset.PARTNO));
 			if (preset.has(ComponentPreset.IMAGE)) {
 				pcImage = new ImageIcon(byteArrayToImage(preset.get(ComponentPreset.IMAGE)));
 				pcImageBtn.setIcon(pcImage);
 			}
+			setMaterial(pcLineMaterialChooser, preset, matHolder, Material.Type.LINE, ComponentPreset.LINE_MATERIAL);
+			//                pcLineMaterialChooser.setModel(new MaterialModel(PresetEditorDialog.this, Material.Type.LINE));
+			
+			//                pcLineMaterialChooser.getModel().setSelectedItem(preset.get(ComponentPreset.LINE_MATERIAL));
 			break;
 		case STREAMER:
 			setMaterial(materialChooser, preset, matHolder, Material.Type.SURFACE, ComponentPreset.MATERIAL);
@@ -1678,7 +1507,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		}
 	}
 	
-	private void setMaterial(final JComboBox<Material> chooser, final ComponentPreset preset, final MaterialHolder holder,
+	private void setMaterial(final JComboBox chooser, final ComponentPreset preset, final MaterialHolder holder,
 			final Material.Type theType, final TypedKey<Material> key) {
 		if (holder == null) {
 			chooser.setModel(new MaterialModel(PresetEditorDialog.this, theType));
@@ -1746,12 +1575,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 			result = extractLaunchLug();
 			if (result != null) {
 				clearLaunchLug();
-			}
-		}
-		else if (type.equals(trans.get(RAIL_BUTTON_KEY))) {
-			result = extractRailButton();
-			if (result != null) {
-				clearRailButton();
 			}
 		}
 		else if (type.equals(trans.get(PARACHUTE_KEY))) {
@@ -2129,60 +1952,21 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		llImageBtn.setIcon(null);
 	}
 	
-	public ComponentPreset extractRailButton() {
-		TypedPropertyMap props = new TypedPropertyMap();
-		try {
-			props.put(ComponentPreset.TYPE, ComponentPreset.Type.RAIL_BUTTON);
-			props.put(ComponentPreset.OUTER_DIAMETER, rbOuterDia.getValue());
-			props.put(ComponentPreset.INNER_DIAMETER, rbInnerDia.getValue());
-			props.put(ComponentPreset.BASE_HEIGHT, rbStandoffHeight.getValue());
-			props.put(ComponentPreset.FLANGE_HEIGHT, rbFlangeHeight.getValue());
-			props.put(ComponentPreset.DESCRIPTION, rbDescTextField.getText());
-			props.put(ComponentPreset.PARTNO, rbPartNoTextField.getText());
-			props.put(ComponentPreset.MANUFACTURER, Manufacturer.getManufacturer(mfgTextField.getText()));
-			props.put(ComponentPreset.HEIGHT, rbHeight.getValue());
-			final Material material = (Material) materialChooser.getSelectedItem();
-			if (material != null) {
-				props.put(ComponentPreset.MATERIAL, material);
-			}
-			else {
-				JOptionPane.showMessageDialog(null, "A material must be selected.", "Error", JOptionPane.ERROR_MESSAGE);
-				return null;
-			}
-			props.put(ComponentPreset.MASS, rbMass.getValue());
-			if (llImage != null) {
-				props.put(ComponentPreset.IMAGE, imageToByteArray(rbImage.getImage()));
-			}
-			return ComponentPresetFactory.create(props);
-		} catch (NumberFormatException nfe) {
-			JOptionPane.showMessageDialog(null, "Could not convert rail button attribute.", "Error", JOptionPane.ERROR_MESSAGE);
-		} catch (InvalidComponentPresetException e) {
-			JOptionPane.showMessageDialog(null, craftErrorMessage(e, "Mandatory rail button attribute not set."), "Error", JOptionPane.ERROR_MESSAGE);
-		}
-		return null;
-	}
-	
-	private void clearRailButton() {
-		rbOuterDia.setValue(0);
-		rbInnerDia.setValue(0);
-		rbDescTextField.setText("");
-		rbPartNoTextField.setText("");
-		rbFlangeHeight.setValue(0);
-		rbHeight.setValue(0);
-		rbStandoffHeight.setValue(0);
-		rbMass.setValue(0);
-		rbImage = null;
-		rbImageBtn.setIcon(null);
-	}
-	
 	public ComponentPreset extractParachute() {
 		TypedPropertyMap props = new TypedPropertyMap();
 		try {
 			props.put(ComponentPreset.TYPE, ComponentPreset.Type.PARACHUTE);
-			props.put(ComponentPreset.MANUFACTURER, Manufacturer.getManufacturer(mfgTextField.getText()));
-			props.put(ComponentPreset.PARTNO, pcPartNoTextField.getText());
+			props.put(ComponentPreset.DIAMETER, pcDiameter.getValue());
 			props.put(ComponentPreset.DESCRIPTION, pcDescTextField.getText());
-			props.put(ComponentPreset.CD, pcDragCoefficient.getValue());
+			props.put(ComponentPreset.PARTNO, pcPartNoTextField.getText());
+			props.put(ComponentPreset.MANUFACTURER, Manufacturer.getManufacturer(mfgTextField.getText()));
+			if (!pcLineCount.getText().equals("")) {
+				props.put(ComponentPreset.LINE_COUNT, Integer.parseInt(pcLineCount.getText()));
+			}
+			if (!pcSides.getText().equals("")) {
+				props.put(ComponentPreset.SIDES, Integer.parseInt(pcSides.getText()));
+			}
+			props.put(ComponentPreset.LINE_LENGTH, pcLineLength.getValue());
 			Material material = (Material) materialChooser.getSelectedItem();
 			if (material != null) {
 				props.put(ComponentPreset.MATERIAL, material);
@@ -2191,13 +1975,6 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 				JOptionPane.showMessageDialog(null, "A material must be selected.", "Error", JOptionPane.ERROR_MESSAGE);
 				return null;
 			}
-			if (!pcLineCount.getText().equals("")) {
-				props.put(ComponentPreset.LINE_COUNT, Integer.parseInt(pcLineCount.getText()));
-			}
-			if (!pcSides.getText().equals("")) {
-				props.put(ComponentPreset.SIDES, Integer.parseInt(pcSides.getText()));
-			}
-			props.put(ComponentPreset.LINE_LENGTH, pcLineLength.getValue());
 			material = (Material) pcLineMaterialChooser.getSelectedItem();
 			if (material != null) {
 				props.put(ComponentPreset.LINE_MATERIAL, material);
@@ -2413,9 +2190,8 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		}
 	}
 	
-	class MaterialChooser extends JComboBox<Material> {
-		private static final long serialVersionUID = -6066457077483291319L;
-
+	class MaterialChooser extends JComboBox {
+		
 		public MaterialChooser() {
 		}
 		
@@ -2431,7 +2207,7 @@ public class PresetEditorDialog extends JDialog implements ItemListener {
 		 * @beaninfo bound: true description: Model that the combo box uses to get data to display.
 		 */
 		@Override
-		public void setModel(final ComboBoxModel<Material> aModel) {
+		public void setModel(final ComboBoxModel aModel) {
 			if (getModel() instanceof MaterialModel) {
 				MaterialModel old = (MaterialModel) getModel();
 				old.removeListener();

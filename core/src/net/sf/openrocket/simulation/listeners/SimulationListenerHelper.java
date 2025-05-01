@@ -6,15 +6,15 @@ import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.aerodynamics.AerodynamicForces;
 import net.sf.openrocket.aerodynamics.FlightConditions;
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.masscalc.RigidBody;
+import net.sf.openrocket.aerodynamics.Warning;
 import net.sf.openrocket.models.atmosphere.AtmosphericConditions;
-import net.sf.openrocket.motor.MotorConfigurationId;
+import net.sf.openrocket.motor.MotorId;
+import net.sf.openrocket.motor.MotorInstance;
 import net.sf.openrocket.rocketcomponent.MotorMount;
 import net.sf.openrocket.rocketcomponent.RecoveryDevice;
 import net.sf.openrocket.simulation.AccelerationData;
 import net.sf.openrocket.simulation.FlightEvent;
-import net.sf.openrocket.simulation.MotorClusterState;
+import net.sf.openrocket.simulation.MassData;
 import net.sf.openrocket.simulation.SimulationStatus;
 import net.sf.openrocket.simulation.exception.SimulationException;
 import net.sf.openrocket.util.Coordinate;
@@ -167,19 +167,19 @@ public class SimulationListenerHelper {
 	 * 
 	 * @return	<code>true</code> to handle the event normally, <code>false</code> to skip event.
 	 */
-	public static boolean fireMotorIgnition(SimulationStatus status, MotorConfigurationId motorId, MotorMount mount,
-			MotorClusterState instance) throws SimulationException {
-		boolean result;
+	public static boolean fireMotorIgnition(SimulationStatus status, MotorId motorId, MotorMount mount,
+			MotorInstance instance) throws SimulationException {
+		boolean b;
 		int modID = status.getModID(); // Contains also motor instance
 		
 		for (SimulationListener l : status.getSimulationConditions().getSimulationListenerList()) {
 			if (l instanceof SimulationEventListener) {
-				result = ((SimulationEventListener) l).motorIgnition(status, motorId, mount, instance);
+				b = ((SimulationEventListener) l).motorIgnition(status, motorId, mount, instance);
 				if (modID != status.getModID()) {
 					warn(status, l);
 					modID = status.getModID();
 				}
-				if ( false == result ) {
+				if (b == false) {
 					warn(status, l);
 					return false;
 				}
@@ -196,17 +196,17 @@ public class SimulationListenerHelper {
 	 */
 	public static boolean fireRecoveryDeviceDeployment(SimulationStatus status, RecoveryDevice device)
 			throws SimulationException {
-		boolean result;
+		boolean b;
 		int modID = status.getModID(); // Contains also motor instance
 		
 		for (SimulationListener l : status.getSimulationConditions().getSimulationListenerList()) {
 			if (l instanceof SimulationEventListener) {
-				result = ((SimulationEventListener) l).recoveryDeviceDeployment(status, device);
+				b = ((SimulationEventListener) l).recoveryDeviceDeployment(status, device);
 				if (modID != status.getModID()) {
 					warn(status, l);
 					modID = status.getModID();
 				}
-				if (false == result) {
+				if (b == false) {
 					warn(status, l);
 					return false;
 				}
@@ -502,9 +502,9 @@ public class SimulationListenerHelper {
 	 * 
 	 * @return	<code>null</code> normally, or overriding mass data.
 	 */
-	public static RigidBody firePreMassCalculation(SimulationStatus status)
+	public static MassData firePreMassCalculation(SimulationStatus status)
 			throws SimulationException {
-		RigidBody mass;
+		MassData mass;
 		int modID = status.getModID();
 		
 		for (SimulationListener l : status.getSimulationConditions().getSimulationListenerList()) {
@@ -526,10 +526,10 @@ public class SimulationListenerHelper {
 	/**
 	 * Fire postMassCalculation event.
 	 * 
-	 * @return	the resultant mass data
+	 * @return	the aerodynamic forces to use.
 	 */
-	public static RigidBody firePostMassCalculation(SimulationStatus status, RigidBody mass) throws SimulationException {
-		RigidBody m;
+	public static MassData firePostMassCalculation(SimulationStatus status, MassData mass) throws SimulationException {
+		MassData m;
 		int modID = status.getModID();
 		
 		for (SimulationListener l : status.getSimulationConditions().getSimulationListenerList()) {

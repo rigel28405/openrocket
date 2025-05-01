@@ -13,8 +13,6 @@ public class CenteringRing extends RadiusRingComponent {
 		setOuterRadiusAutomatic(true);
 		setInnerRadiusAutomatic(true);
 		setLength(0.002);
-		super.displayOrder_side = 7;		// Order for displaying the component in the 2D side view
-		super.displayOrder_back = 5;		// Order for displaying the component in the 2D back view
 	}
 	
 	private static final Translator trans = Application.getTranslator();
@@ -25,7 +23,7 @@ public class CenteringRing extends RadiusRingComponent {
 		// Implement sibling inner radius automation
 		if (isInnerRadiusAutomatic()) {
 			innerRadius = 0;
-			// Component can be parentless if detached from rocket
+			// Component can be parentless if disattached from rocket
 			if (this.getParent() != null) {
 				for (RocketComponent sibling : this.getParent().getChildren()) {
 					/*
@@ -79,6 +77,5 @@ public class CenteringRing extends RadiusRingComponent {
 	public Type getPresetType() {
 		return ComponentPreset.Type.CENTERING_RING;
 	}
-	
-	
+
 }

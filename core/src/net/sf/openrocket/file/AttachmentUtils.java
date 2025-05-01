@@ -8,12 +8,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import net.sf.openrocket.document.Attachment;
-import net.sf.openrocket.util.DecalNotFoundException;
 import net.sf.openrocket.util.FileUtils;
 
 public abstract class AttachmentUtils {
 	
-	public static void exportAttachment(Attachment a, File outFile) throws IOException, DecalNotFoundException {
+	public static void exportAttachment(Attachment a, File outFile) throws IOException {
 		InputStream is = a.getBytes();
 		OutputStream os = new BufferedOutputStream(new FileOutputStream(outFile));
 		

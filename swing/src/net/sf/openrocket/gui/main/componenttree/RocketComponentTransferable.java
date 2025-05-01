@@ -4,7 +4,6 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
-import java.util.List;
 
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 
@@ -14,18 +13,16 @@ import net.sf.openrocket.rocketcomponent.RocketComponent;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public class RocketComponentTransferable implements Transferable {
-
-	/**
-	 * Data flavor that allows a RocketComponent to be extracted from a transferable object
-	 */
-	public static final DataFlavor ROCKET_COMPONENT_DATA_FLAVOR = new DataFlavor(RocketComponentTransferable.class,
-			"Drag and drop list");
+	
+	public static final DataFlavor ROCKET_COMPONENT_DATA_FLAVOR = new DataFlavor(
+			DataFlavor.javaJVMLocalObjectMimeType + "; class=" + RocketComponent.class.getCanonicalName(),
+			"OpenRocket component");
 	
 
-	private final List<RocketComponent> components;
+	private final RocketComponent component;
 	
-	public RocketComponentTransferable(List<RocketComponent> components) {
-		this.components = components;
+	public RocketComponentTransferable(RocketComponent component) {
+		this.component = component;
 	}
 	
 	
@@ -34,11 +31,7 @@ public class RocketComponentTransferable implements Transferable {
 		if (!isDataFlavorSupported(flavor)) {
 			throw new UnsupportedFlavorException(flavor);
 		}
-		return this;
-	}
-
-	public List<RocketComponent> getComponents() {
-		return components;
+		return component;
 	}
 	
 	@Override

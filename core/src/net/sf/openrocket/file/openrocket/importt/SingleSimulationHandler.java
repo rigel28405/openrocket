@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.document.Simulation;
 import net.sf.openrocket.document.Simulation.Status;
@@ -13,14 +13,13 @@ import net.sf.openrocket.file.DocumentLoadingContext;
 import net.sf.openrocket.file.simplesax.AbstractElementHandler;
 import net.sf.openrocket.file.simplesax.ElementHandler;
 import net.sf.openrocket.file.simplesax.PlainTextHandler;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
 import net.sf.openrocket.simulation.FlightData;
 import net.sf.openrocket.simulation.SimulationOptions;
 import net.sf.openrocket.simulation.extension.SimulationExtension;
 import net.sf.openrocket.simulation.extension.SimulationExtensionProvider;
 import net.sf.openrocket.simulation.extension.impl.JavaCode;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.util.StringUtils;
+import net.sf.openrocket.util.StringUtil;
 
 import com.google.inject.Key;
 
@@ -85,7 +84,7 @@ class SingleSimulationHandler extends AbstractElementHandler {
 			}
 		} else if (element.equals("listener") && content.trim().length() > 0) {
 			extensions.add(compatibilityExtension(content.trim()));
-		} else if (element.equals("extension") && !StringUtils.isEmpty(attributes.get("extensionid"))) {
+		} else if (element.equals("extension") && !StringUtil.isEmpty(attributes.get("extensionid"))) {
 			String id = attributes.get("extensionid");
 			SimulationExtension extension = null;
 			Set<SimulationExtensionProvider> extensionProviders = Application.getInjector().getInstance(new Key<Set<SimulationExtensionProvider>>() {
@@ -116,38 +115,25 @@ class SingleSimulationHandler extends AbstractElementHandler {
 			status = Simulation.Status.OUTDATED;
 		}
 		
-		SimulationOptions options;
-		FlightConfigurationId idToSet= FlightConfigurationId.ERROR_FCID;
+		SimulationOptions conditions;
 		if (conditionHandler != null) {
-			options = conditionHandler.getConditions();
-			idToSet = conditionHandler.idToSet;
+			conditions = conditionHandler.getConditions();
 		} else {
 			warnings.add("Simulation conditions not defined, using defaults.");
-			options = new SimulationOptions();
+			conditions = new SimulationOptions(doc.getRocket());
 		}
 		
-		if (name == null) 
+		if (name == null)
 			name = "Simulation";
 		
-		// If the simulation was saved with flight data (which may just be a summary)
-		// mark it as loaded from the file else as not simulated.  If outdated data was saved,
-		// it'll be marked as outdated (creating a new status for "loaded but outdated" seems
-		// excessive, and the fact that it's outdated is the more important)
 		FlightData data;
 		if (dataHandler == null)
 			data = null;
 		else
 			data = dataHandler.getFlightData();
-
-		if (data == null) {
-			status = Status.NOT_SIMULATED;
-		} else if (status != Status.OUTDATED) {
-			status = Status.LOADED;
-		}
 		
-		Simulation simulation = new Simulation(doc, doc.getRocket(), status, name,
-				options, extensions, data);
-		simulation.setFlightConfigurationId( idToSet );
+		Simulation simulation = new Simulation(doc.getRocket(), status, name,
+				conditions, extensions, data);
 		
 		doc.addSimulation(simulation);
 	}

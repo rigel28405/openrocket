@@ -3,11 +3,10 @@ package net.sf.openrocket.rocketcomponent;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.preset.ComponentPreset;
 import net.sf.openrocket.preset.ComponentPreset.Type;
-import net.sf.openrocket.rocketcomponent.position.AxialPositionable;
 import net.sf.openrocket.startup.Application;
 
 
-public class EngineBlock extends ThicknessRingComponent implements AxialPositionable {
+public class EngineBlock extends ThicknessRingComponent {
 	
 	private static final Translator trans = Application.getTranslator();
 
@@ -16,8 +15,6 @@ public class EngineBlock extends ThicknessRingComponent implements AxialPosition
 		setOuterRadiusAutomatic(true);
 		setThickness(0.005);
 		setLength(0.005);
-		super.displayOrder_side = 9;		// Order for displaying the component in the 2D side view
-		super.displayOrder_back = 15;		// Order for displaying the component in the 2D back view
 	}
 	
 	@Override

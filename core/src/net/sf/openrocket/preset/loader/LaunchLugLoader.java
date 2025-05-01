@@ -23,8 +23,8 @@ public class LaunchLugLoader extends BaseComponentLoader {
 
 
 	@Override
-	protected RockSimComponentFileType getFileType() {
-		return RockSimComponentFileType.LAUNCH_LUG;
+	protected RocksimComponentFileType getFileType() {
+		return RocksimComponentFileType.LAUNCH_LUG;
 	}
 
 }

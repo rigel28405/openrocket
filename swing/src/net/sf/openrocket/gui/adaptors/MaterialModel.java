@@ -19,12 +19,10 @@ import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.Reflection;
 
-public class MaterialModel extends AbstractListModel<Material> implements
-		ComboBoxModel<Material>, ComponentChangeListener, DatabaseListener<Material> {
-	private static final long serialVersionUID = 4552478532933113655L;
-
-
-	private final Material custom;
+public class MaterialModel extends AbstractListModel implements
+		ComboBoxModel, ComponentChangeListener, DatabaseListener<Material> {
+	
+	private final String custom;
 
 	
 	private final Component parentUIComponent;
@@ -49,7 +47,7 @@ public class MaterialModel extends AbstractListModel<Material> implements
 		this.parentUIComponent = parent;
 		this.rocketComponent = component;
 		this.type = type;
-		this.custom = Material.newMaterial( Material.Type.CUSTOM, trans.get ("Material.CUSTOM"), 1.0, true );
+		this.custom = trans.get ("Material.CUSTOM");
 		
 		switch (type) {
 		case LINE:
@@ -130,7 +128,7 @@ public class MaterialModel extends AbstractListModel<Material> implements
 	}
 
 	@Override
-	public Material getElementAt(int index) {
+	public Object getElementAt(int index) {
 		if (index == database.size()) {
 			return custom;
 		} else if (index >= database.size()+1) {

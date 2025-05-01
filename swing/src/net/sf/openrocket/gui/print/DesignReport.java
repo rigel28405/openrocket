@@ -4,15 +4,32 @@
 package net.sf.openrocket.gui.print;
 
 import java.awt.Graphics2D;
-import java.awt.Window;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+
+import net.sf.openrocket.document.OpenRocketDocument;
+import net.sf.openrocket.document.Simulation;
+import net.sf.openrocket.formatting.RocketDescriptor;
+import net.sf.openrocket.gui.figureelements.FigureElement;
+import net.sf.openrocket.gui.figureelements.RocketInfo;
+import net.sf.openrocket.gui.scalefigure.RocketPanel;
+import net.sf.openrocket.masscalc.BasicMassCalculator;
+import net.sf.openrocket.masscalc.MassCalculator;
+import net.sf.openrocket.masscalc.MassCalculator.MassCalcType;
+import net.sf.openrocket.motor.Motor;
+import net.sf.openrocket.rocketcomponent.Configuration;
+import net.sf.openrocket.rocketcomponent.MotorMount;
+import net.sf.openrocket.rocketcomponent.Rocket;
+import net.sf.openrocket.rocketcomponent.RocketComponent;
+import net.sf.openrocket.rocketcomponent.Stage;
+import net.sf.openrocket.simulation.FlightData;
+import net.sf.openrocket.simulation.exception.SimulationException;
+import net.sf.openrocket.startup.Application;
+import net.sf.openrocket.unit.Unit;
+import net.sf.openrocket.unit.UnitGroup;
+import net.sf.openrocket.util.Chars;
+import net.sf.openrocket.util.Coordinate;
+import net.sf.openrocket.util.Utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,32 +44,6 @@ import com.itextpdf.text.pdf.PdfContentByte;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
-
-import net.sf.openrocket.document.OpenRocketDocument;
-import net.sf.openrocket.document.Simulation;
-import net.sf.openrocket.formatting.RocketDescriptor;
-import net.sf.openrocket.gui.figureelements.FigureElement;
-import net.sf.openrocket.gui.figureelements.RocketInfo;
-import net.sf.openrocket.gui.scalefigure.RocketPanel;
-import net.sf.openrocket.gui.simulation.SimulationRunDialog;
-import net.sf.openrocket.masscalc.MassCalculator;
-import net.sf.openrocket.masscalc.RigidBody;
-import net.sf.openrocket.motor.Motor;
-import net.sf.openrocket.motor.MotorConfiguration;
-import net.sf.openrocket.rocketcomponent.AxialStage;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
-import net.sf.openrocket.rocketcomponent.MotorMount;
-import net.sf.openrocket.rocketcomponent.Rocket;
-import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.simulation.FlightData;
-import net.sf.openrocket.simulation.FlightDataBranch;
-import net.sf.openrocket.simulation.exception.SimulationException;
-import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.unit.Unit;
-import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.util.Chars;
-import net.sf.openrocket.util.Utils;
 
 /**
  * <pre>
@@ -116,21 +107,6 @@ public class DesignReport {
 	 */
 	private double rotation = 0d;
 	
-	/**
-	 * Determines whether or not to run out of date simulations.
-	 */
-	private boolean runOutOfDateSimulations = true;
-	
-	/**
-	 * Determines whether or not to update existing simulations.
-	 */
-	private boolean updateExistingSimulations = false;
-	
-	/**
-	 * Parent window for showing simulation run dialog as necessary
-	 */
-	private Window window = null;
-	
 	/** The displayed strings. */
 	private static final String STAGES = "Stages: ";
 	private static final String MASS_WITH_MOTORS = "Mass (with motors): ";
@@ -145,7 +121,7 @@ public class DesignReport {
 	private static final String MAX_THRUST = "Max Thrust";
 	private static final String TOTAL_IMPULSE = "Total Impulse";
 	private static final String THRUST_TO_WT = "Thrust to Wt";
-	private static final String MOTOR_WT = "Motor Wt";
+	private static final String PROPELLANT_WT = "Propellant Wt";
 	private static final String SIZE = "Size";
 	private static final String ALTITUDE = "Altitude";
 	private static final String FLIGHT_TIME = "Flight Time";
@@ -159,45 +135,17 @@ public class DesignReport {
 	private static final double GRAVITY_CONSTANT = 9.80665d;
 	
 	/**
-	 * Creates a new DesignReport in the iTextPDF Document based on the
-	 * OpenRocketDocument specified. All out of date simulations will be
-	 * run as part of generating the iTextPDF report.
-	 * 
-	 * This is for backwards API compatibility and will copy existing
-	 * simulations before running them.
-	 * 
-	 * @param theRocDoc the OpenRocketDocument which serves as the source
-	 *                  of the rocket information
-	 * @param theIDoc the iTextPDF Document where the DesignReport is written
-	 * @param figureRotation the rotation of the figure used for displaying
-	 *        the profile view.
-	 */
-	public DesignReport(OpenRocketDocument theRocDoc, Document theIDoc, Double figureRotation) {
-		this(theRocDoc, theIDoc, figureRotation, true, false, null);
-	}
-	
-	/**
-	 * Creates a new DesignReport in the iTextPDF Document based on the
-	 * OpenRocketDocument specified. Out of date simulations will be run
-	 * when the runOutOfDateSims parameter is set to true.
+	 * Constructor.
 	 *
 	 * @param theRocDoc the OR document
 	 * @param theIDoc   the iText document
 	 * @param figureRotation the angle the figure is rotated on the screen; printed report will mimic
-	 * @param runOutOfDateSims whether or not to run simulations that are not up to date.
-	 * @param updateExistingSims whether or not to update existing simulations or to copy the simulations.
-	 *                           Previous behavior was to copy existing simulations.
-	 * @param window the base AWT window to use 
 	 */
-	public DesignReport(OpenRocketDocument theRocDoc, Document theIDoc, Double figureRotation,
-	                    boolean runOutOfDateSims, boolean updateExistingSims, Window window) {
+	public DesignReport(OpenRocketDocument theRocDoc, Document theIDoc, Double figureRotation) {
 		document = theIDoc;
 		rocketDocument = theRocDoc;
 		panel = new RocketPanel(rocketDocument);
 		rotation = figureRotation;
-		this.runOutOfDateSimulations = runOutOfDateSims;
-		this.updateExistingSimulations = updateExistingSims;
-		this.window = window;
 	}
 	
 	/**
@@ -216,11 +164,11 @@ public class DesignReport {
 		PrintUtilities.addText(document, PrintUtilities.BIG_BOLD, ROCKET_DESIGN);
 		
 		Rocket rocket = rocketDocument.getRocket();
-		final FlightConfiguration configuration = rocket.getSelectedConfiguration();
+		final Configuration configuration = rocket.getDefaultConfiguration().clone();
 		configuration.setAllStages();
 		PdfContentByte canvas = writer.getDirectContent();
 		
-		final PrintFigure figure = new PrintFigure(rocket);
+		final PrintFigure figure = new PrintFigure(configuration);
 		figure.setRotation(rotation);
 		
 		FigureElement cp = panel.getExtraCP();
@@ -231,8 +179,8 @@ public class DesignReport {
 		
 		canvas.beginText();
 		canvas.setFontAndSize(ITextHelper.getBaseFont(), PrintUtilities.NORMAL_FONT_SIZE);
-		double figureHeightInPoints = PrintUnit.METERS.toPoints(figure.getFigureHeight());
-		int figHeightPts = (int) (figureHeightInPoints * SCALE_FUDGE_FACTOR * (scale / PrintUnit.METERS.toPoints(1)));
+		int figHeightPts = (int) (PrintUnit.METERS.toPoints(figure.getFigureHeight()) * 0.4 * (scale / PrintUnit.METERS
+				.toPoints(1)));
 		final int diagramHeight = pageImageableHeight * 2 - 70 - (figHeightPts);
 		canvas.moveText(document.leftMargin() + pageSize.getBorderWidthLeft(), diagramHeight);
 		canvas.moveTextWithLeading(0, -16);
@@ -244,6 +192,7 @@ public class DesignReport {
 		canvas.newlineShowText(STAGES);
 		canvas.showText("" + rocket.getStageCount());
 		
+		
 		if (configuration.hasMotors()) {
 			if (configuration.getStageCount() > 1) {
 				canvas.newlineShowText(MASS_WITH_MOTORS);
@@ -253,10 +202,10 @@ public class DesignReport {
 		} else {
 			canvas.newlineShowText(MASS_EMPTY);
 		}
-		canvas.showText(text.getMassWithMotors(UnitGroup.UNITS_MASS.getDefaultUnit()));
+		canvas.showText(text.getMass(UnitGroup.UNITS_MASS.getDefaultUnit()));
 		
 		canvas.newlineShowText(STABILITY);
-		canvas.showText(text.getStabilityCombined());
+		canvas.showText(text.getStability());
 		
 		canvas.newlineShowText(CG);
 		canvas.showText(text.getCg());
@@ -266,11 +215,7 @@ public class DesignReport {
 		canvas.endText();
 		
 		try {
-			/*
-			 * Move the internal pointer of the document below the rocket diagram and
-			 * the key attributes. The height of the rocket figure is already calculated
-			 * as diagramHeigt and the height of the attributes text is finalY - initialY.
-			 */
+			//Move the internal pointer of the document below that of what was just written using the direct byte buffer.
 			Paragraph paragraph = new Paragraph();
 			float finalY = canvas.getYTLM();
 			int heightOfDiagramAndText = (int) (pageSize.getHeight() - (finalY - initialY + diagramHeight));
@@ -278,28 +223,27 @@ public class DesignReport {
 			paragraph.setSpacingAfter(heightOfDiagramAndText);
 			document.add(paragraph);
 			
-			List<Simulation> simulations = getSimulations();
+			String[] motorIds = rocket.getFlightConfigurationIDs();
+			List<Simulation> simulations = rocketDocument.getSimulations();
 			
-			boolean firstMotor = true;
-			for (FlightConfigurationId fcid : rocket.getIds()) {
-				PdfPTable parent = new PdfPTable(2);
-				parent.setWidthPercentage(100);
-				parent.setHorizontalAlignment(Element.ALIGN_LEFT);
-				parent.setSpacingBefore(0);
-				parent.setWidths(new int[] { 1, 3 });
-				
-				/* The first motor information will get no spacing
-				 * before it, while each subsequent table will need
-				 * a spacing of 25.
-				 */
-				int leading = (firstMotor) ? 0 : 25;
-				
-				FlightData flight = findSimulation(fcid, simulations);
-				addFlightData(flight, rocket, fcid, parent, leading);
-				addMotorData(rocket, fcid, parent);
-				document.add(parent);
-					
-				firstMotor = false;
+			for (int j = 0; j < motorIds.length; j++) {
+				String motorId = motorIds[j];
+				if (motorId != null) {
+					PdfPTable parent = new PdfPTable(2);
+					parent.setWidthPercentage(100);
+					parent.setHorizontalAlignment(Element.ALIGN_LEFT);
+					parent.setSpacingBefore(0);
+					parent.setWidths(new int[] { 1, 3 });
+					int leading = 0;
+					//The first motor config is always null.  Skip it and the top-most motor, then set the leading.
+					if (j > 1) {
+						leading = 25;
+					}
+					FlightData flight = findSimulation(motorId, simulations);
+					addFlightData(flight, rocket, motorId, parent, leading);
+					addMotorData(rocket, motorId, parent);
+					document.add(parent);
+				}
 			}
 		} catch (DocumentException e) {
 			log.error("Could not modify document.", e);
@@ -331,16 +275,15 @@ public class DesignReport {
 		double scale =
 				(thePageImageableWidth * 2.2) / theFigure.getFigureWidth();
 		theFigure.setScale(scale);
-		/* Conveniently, page dimensions are in points-per-inch, which, in
-		 * Java2D, are the same as pixels-per-inch; thus we don't need any
-		 * conversion for the figure size.
+		/*
+		 * page dimensions are in points-per-inch, which, in Java2D, are the same as pixels-per-inch; thus we don't need any conversion
 		 */
 		theFigure.setSize(thePageImageableWidth, thePageImageableHeight);
 		theFigure.updateFigure();
 		
 		final DefaultFontMapper mapper = new DefaultFontMapper();
 		Graphics2D g2d = theCanvas.createGraphics(thePageImageableWidth, thePageImageableHeight * 2, mapper);
-		final double halfFigureHeight = SCALE_FUDGE_FACTOR * theFigure.getFigureHeight() / 2;
+		final double halfFigureHeight = SCALE_FUDGE_FACTOR * theFigure.getFigureHeightPx() / 2;
 		int y = PrintUnit.POINTS_PER_INCH;
 		//If the y dimension is negative, then it will potentially be drawn off the top of the page.  Move the origin
 		//to allow for this.
@@ -362,7 +305,7 @@ public class DesignReport {
 	 * @param motorId	the motor ID to output
 	 * @param parent	the parent to which the motor data will be added
 	 */
-	private void addMotorData(Rocket rocket, FlightConfigurationId motorId, final PdfPTable parent) {
+	private void addMotorData(Rocket rocket, String motorId, final PdfPTable parent) {
 		
 		PdfPTable motorTable = new PdfPTable(8);
 		motorTable.setWidthPercentage(68);
@@ -377,31 +320,31 @@ public class DesignReport {
 		motorTable.addCell(ITextHelper.createCell(MAX_THRUST, PdfPCell.BOTTOM, PrintUtilities.SMALL));
 		motorTable.addCell(ITextHelper.createCell(TOTAL_IMPULSE, PdfPCell.BOTTOM, PrintUtilities.SMALL));
 		motorTable.addCell(ITextHelper.createCell(THRUST_TO_WT, PdfPCell.BOTTOM, PrintUtilities.SMALL));
-		motorTable.addCell(ITextHelper.createCell(MOTOR_WT, PdfPCell.BOTTOM, PrintUtilities.SMALL));
+		motorTable.addCell(ITextHelper.createCell(PROPELLANT_WT, PdfPCell.BOTTOM, PrintUtilities.SMALL));
 		motorTable.addCell(ITextHelper.createCell(SIZE, PdfPCell.BOTTOM, PrintUtilities.SMALL));
 		
 		DecimalFormat ttwFormat = new DecimalFormat("0.00");
 		
-		if( motorId.hasError() ){
-		    throw new IllegalStateException("Attempted to add motor data with an invalid fcid");
-		}
-		rocket.createFlightConfiguration(motorId);
-	    FlightConfiguration config = rocket.getFlightConfiguration(motorId);
+		MassCalculator massCalc = new BasicMassCalculator();
+		
+		Configuration config = new Configuration(rocket);
+		config.setFlightConfigurationID(motorId);
 		
 		int totalMotorCount = 0;
 		double totalPropMass = 0;
 		double totalImpulse = 0;
 		double totalTTW = 0;
 		
+		int stage = 0;
 		double stageMass = 0;
 		
 		boolean topBorder = false;
 		for (RocketComponent c : rocket) {
 			
-			if (c instanceof AxialStage) {
-				config.activateStagesThrough((AxialStage) c); 
-				RigidBody launchInfo = MassCalculator.calculateLaunch(config);
-				stageMass = launchInfo.getMass();
+			if (c instanceof Stage) {
+				config.setToStage(stage);
+				stage++;
+				stageMass = massCalc.getCG(config, MassCalcType.LAUNCH_MASS).weight;
 				// Calculate total thrust-to-weight from only lowest stage motors
 				totalTTW = 0;
 				topBorder = true;
@@ -410,62 +353,54 @@ public class DesignReport {
 			if (c instanceof MotorMount && ((MotorMount) c).isMotorMount()) {
 				MotorMount mount = (MotorMount) c;
 				
-				MotorConfiguration motorConfig = mount.getMotorConfig(motorId);
-				if (null == motorConfig) {
-					log.warn("Unable to find motorConfig for motorId {}", motorId);
-					continue;
+				if (mount.isMotorMount() && mount.getMotor(motorId) != null) {
+					Motor motor = mount.getMotor(motorId);
+					int motorCount = c.toAbsolute(Coordinate.NUL).length;
+					
+					
+					int border = Rectangle.NO_BORDER;
+					if (topBorder) {
+						border = Rectangle.TOP;
+						topBorder = false;
+					}
+					
+					String name = motor.getDesignation();
+					if (motorCount > 1) {
+						name += " (" + Chars.TIMES + motorCount + ")";
+					}
+					
+					final PdfPCell motorVCell = ITextHelper.createCell(name, border);
+					motorVCell.setPaddingLeft(mPad);
+					motorTable.addCell(motorVCell);
+					motorTable.addCell(ITextHelper.createCell(
+							UnitGroup.UNITS_FORCE.getDefaultUnit().toStringUnit(motor.getAverageThrustEstimate()), border));
+					motorTable.addCell(ITextHelper.createCell(
+							UnitGroup.UNITS_FLIGHT_TIME.getDefaultUnit().toStringUnit(motor.getBurnTimeEstimate()), border));
+					motorTable.addCell(ITextHelper.createCell(
+							UnitGroup.UNITS_FORCE.getDefaultUnit().toStringUnit(motor.getMaxThrustEstimate()), border));
+					motorTable.addCell(ITextHelper.createCell(
+							UnitGroup.UNITS_IMPULSE.getDefaultUnit().toStringUnit(motor.getTotalImpulseEstimate()), border));
+					
+					double ttw = motor.getAverageThrustEstimate() / (stageMass * GRAVITY_CONSTANT);
+					motorTable.addCell(ITextHelper.createCell(
+							ttwFormat.format(ttw) + ":1", border));
+					
+					double propMass = (motor.getLaunchCG().weight - motor.getEmptyCG().weight);
+					motorTable.addCell(ITextHelper.createCell(
+							UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(propMass), border));
+					
+					final Unit motorUnit = UnitGroup.UNITS_MOTOR_DIMENSIONS.getDefaultUnit();
+					motorTable.addCell(ITextHelper.createCell(motorUnit.toString(motor.getDiameter()) +
+							"/" +
+							motorUnit.toString(motor.getLength()) + " " +
+							motorUnit.toString(), border));
+					
+					// Sum up total count
+					totalMotorCount += motorCount;
+					totalPropMass += propMass * motorCount;
+					totalImpulse += motor.getTotalImpulseEstimate() * motorCount;
+					totalTTW += ttw * motorCount;
 				}
-				
-				Motor motor = motorConfig.getMotor();
-				if (null == motor) {
-					log.warn("Motor instance is null for motorId {}", motorId);
-					continue;
-				}
-				
-				int motorCount = mount.getMotorCount();
-				
-				int border = Rectangle.NO_BORDER;
-				if (topBorder) {
-					border = Rectangle.TOP;
-					topBorder = false;
-				}
-				
-				String name = motor.getDesignation();
-				if (motorCount > 1) {
-					name += " (" + Chars.TIMES + motorCount + ")";
-				}
-				
-				final PdfPCell motorVCell = ITextHelper.createCell(name, border);
-				motorVCell.setPaddingLeft(mPad);
-				motorTable.addCell(motorVCell);
-				motorTable.addCell(ITextHelper.createCell(
-						UnitGroup.UNITS_FORCE.getDefaultUnit().toStringUnit(motor.getAverageThrustEstimate()), border));
-				motorTable.addCell(ITextHelper.createCell(
-						UnitGroup.UNITS_FLIGHT_TIME.getDefaultUnit().toStringUnit(motor.getBurnTimeEstimate()), border));
-				motorTable.addCell(ITextHelper.createCell(
-						UnitGroup.UNITS_FORCE.getDefaultUnit().toStringUnit(motor.getMaxThrustEstimate()), border));
-				motorTable.addCell(ITextHelper.createCell(
-						UnitGroup.UNITS_IMPULSE.getDefaultUnit().toStringUnit(motor.getTotalImpulseEstimate()), border));
-				
-				double ttw = motor.getAverageThrustEstimate() / (stageMass * GRAVITY_CONSTANT);
-				motorTable.addCell(ITextHelper.createCell(
-						ttwFormat.format(ttw) + ":1", border));
-				
-				double propMass = (motor.getLaunchMass() - motor.getBurnoutMass());
-				motorTable.addCell(ITextHelper.createCell(
-						UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(propMass), border));
-				
-				final Unit motorUnit = UnitGroup.UNITS_MOTOR_DIMENSIONS.getDefaultUnit();
-				motorTable.addCell(ITextHelper.createCell(motorUnit.toString(motor.getDiameter()) +
-						"/" +
-						motorUnit.toString(motor.getLength()) + " " +
-						motorUnit.toString(), border));
-				
-				// Sum up total count
-				totalMotorCount += motorCount;
-				totalPropMass += propMass * motorCount;
-				totalImpulse += motor.getTotalImpulseEstimate() * motorCount;
-				totalTTW += ttw * motorCount;
 			}
 		}
 		
@@ -491,6 +426,7 @@ public class DesignReport {
 		c.setBorder(PdfPCell.LEFT);
 		c.setBorderWidthTop(0f);
 		parent.addCell(c);
+		config.release();
 	}
 	
 	
@@ -503,15 +439,11 @@ public class DesignReport {
 	 * @param parent    the parent to which the simulation flight data will be added
 	 * @param leading   the number of points for the leading
 	 */
-	private void addFlightData(final FlightData flight, final Rocket theRocket, final FlightConfigurationId motorId, final PdfPTable parent, int leading) {
+	private void addFlightData(final FlightData flight, final Rocket theRocket, final String motorId, final PdfPTable parent, int leading) {
 		
 		// Output the flight data
 		if (flight != null) {
 			try {
-				FlightDataBranch branch = new FlightDataBranch();
-				if (flight.getBranchCount() > 0) {
-					branch = flight.getBranch(0);
-				}
 				final Unit distanceUnit = UnitGroup.UNITS_DISTANCE.getDefaultUnit();
 				final Unit velocityUnit = UnitGroup.UNITS_VELOCITY.getDefaultUnit();
 				final Unit flightTimeUnit = UnitGroup.UNITS_FLIGHT_TIME.getDefaultUnit();
@@ -538,7 +470,7 @@ public class DesignReport {
 				labelTable.addCell(ITextHelper.createCell(flightTimeUnit.toStringUnit(flight.getTimeToApogee()), 2, 2));
 				
 				labelTable.addCell(ITextHelper.createCell(OPTIMUM_DELAY, 2, 2));
-				labelTable.addCell(ITextHelper.createCell(flightTimeUnit.toStringUnit(branch.getOptimumDelay()), 2, 2));
+				labelTable.addCell(ITextHelper.createCell(flightTimeUnit.toStringUnit(flight.getBranch(0).getOptimumDelay()), 2, 2));
 				
 				labelTable.addCell(ITextHelper.createCell(VELOCITY_OFF_PAD, 2, 2));
 				labelTable.addCell(ITextHelper.createCell(velocityUnit.toStringUnit(flight.getLaunchRodVelocity()), 2, 2));
@@ -573,161 +505,23 @@ public class DesignReport {
 	 *
 	 * @return the flight data from the simulation for the specified motor id, or null if not found
 	 */
-	private FlightData findSimulation(final FlightConfigurationId motorId, List<Simulation> simulations) {
+	private FlightData findSimulation(final String motorId, List<Simulation> simulations) {
 		// Perform flight simulation
 		FlightData flight = null;
-		for (int i = 0; i < simulations.size(); i++) {
-			Simulation simulation = simulations.get(i);
-			if (Utils.equals(simulation.getId(), motorId)) {
-				flight = simulation.getSimulatedData();
-				break;
+		try {
+			for (int i = 0; i < simulations.size(); i++) {
+				Simulation simulation = simulations.get(i);
+				if (Utils.equals(simulation.getOptions().getMotorConfigurationID(), motorId)) {
+					simulation = simulation.copy();
+					simulation.simulate();
+					flight = simulation.getSimulatedData();
+					break;
+				}
 			}
+		} catch (SimulationException e1) {
+			// Ignore
 		}
 		return flight;
-	}
-	
-	/**
-	 * Returns a list of Simulations to use for printing the design report
-	 * for the rocket and optionally re-run out of date simulations.
-	 * 
-	 * If the user has selected to not run any simulations, this method will
-	 * simply return the simulations found in the OpenRocketDocument.
-	 * 
-	 * If the user has selected to run simulations, this method will identify
-	 * any simulations which are not up to date and re-run them.
-	 * 
-	 * @return a list of Simulations to include in the DesignReport.
-	 */
-	protected List<Simulation> getSimulations() {
-		List<Simulation> simulations = rocketDocument.getSimulations();
-		if (!runOutOfDateSimulations) {
-			log.debug("Using current simulations for rocket.");
-			return simulations;
-		}
-		
-		ArrayList<Simulation> simulationsToRun = new ArrayList<Simulation>();
-		ArrayList<Simulation> upToDateSimulations = new ArrayList<Simulation>();
-		for (Simulation simulation : simulations) {
-			boolean simulate = false;
-			boolean copy = !this.updateExistingSimulations;
-
-			switch (simulation.getStatus()) {
-			case CANT_RUN:
-				log.warn("Simulation " + simulation.getId() + " has no motors, skipping");
-				// Continue so we don't simulate
-				continue;
-			case LOADED:
-			case UPTODATE:
-				log.trace("Simulation " + simulation.getId() + "is up to date, not running simulation");
-				simulate = false;
-				break;
-			case NOT_SIMULATED:
-			case OUTDATED:
-				log.trace("Running simulation for " + simulation.getId());
-				simulate = true;
-				break;
-			case EXTERNAL:
-				log.trace("Simulation " + simulation.getId() + " is external. Using data provided");
-				simulate = false;
-				break;
-			default:
-				log.trace("Running simulation for " + simulation.getId());
-				simulate = true;
-				copy = true;
-				break;
-			}
-			
-			if (!simulate) {
-				upToDateSimulations.add(simulation);
-			} else if (copy) {
-				simulationsToRun.add(simulation.copy());
-			} else {
-				simulationsToRun.add(simulation);
-			}
-		}
-		
-		/* Run any simulations that are pending a run. This is done via the
-		 * SimulationRunDialog in order to provide user feedback.
-		 */
-		if (!simulationsToRun.isEmpty()) {
-			runSimulations(simulationsToRun);
-			upToDateSimulations.addAll(simulationsToRun);
-		}
-		
-		return upToDateSimulations;
-	}
-	
-	/**
-	 * Runs the selected set of simulations. If a valid Window was provided when
-	 * creating this DesignReport, this method will run simulations using the
-	 * SimulationRunDialog in order to present status to the user.
-	 * 
-	 * @param simulations a list of Simulations to run
-	 */
-	protected void runSimulations(List<Simulation> simulations) {
-		if (window != null) {
-			log.debug("Updating " + simulations.size() + "simulations using SimulationRunDialog");
-			Simulation[] runMe = simulations.toArray(new Simulation[simulations.size()]);
-			new SimulationRunDialog(window, rocketDocument, runMe).setVisible(true);
-		} else {
-			/* This code is left for compatibility with any developers who are
-			 * using the API to generate design reports. This may not be running
-			 * graphically and the SimulationRunDialog may not be available for
-			 * displaying progress information/updating simulations.
-			 */
-			log.debug("Updating simulations using thread pool");
-			int cores = Runtime.getRuntime().availableProcessors();
-			ThreadPoolExecutor executor = new ThreadPoolExecutor(cores, cores, 0L, TimeUnit.MILLISECONDS,
-			                                                     new LinkedBlockingQueue<Runnable>(),
-			                                                     new SimulationRunnerThreadFactory());
-			for (Simulation simulation : simulations) {
-				executor.execute(new RunSimulationTask(simulation));
-			}
-			executor.shutdown();
-			try {
-				/* Arbitrarily wait for at most 5 minutes for the simulation
-				 * to complete. This seems like a long time, but in case there
-				 * is a really long running simulation
-				 */
-				executor.awaitTermination(5, TimeUnit.MINUTES);
-			} catch (InterruptedException ie) {
-				
-			}
-		}
-	}
-	
-	private static class SimulationRunnerThreadFactory implements ThreadFactory {
-		private ThreadFactory factory = Executors.defaultThreadFactory();
-		
-		@Override
-		public Thread newThread(Runnable r) {
-			Thread t = factory.newThread(r);
-			t.setDaemon(true);
-			return t;
-		}
-	}
-	
-	/**
-	 * The RunSimulationTask is responsible for running simulations within the
-	 * DesignReport when run outside of the SimulationRunDialog.
-	 */
-	private static class RunSimulationTask implements Runnable {
-
-		private final Simulation simulation;
-		
-		public RunSimulationTask(final Simulation simulation) {
-			this.simulation = simulation;
-		}
-		
-		@Override
-		public void run() {
-			try {
-				simulation.simulate();
-			} catch (SimulationException ex) {
-				log.error("Error simulating " + simulation.getId(), ex);
-			}
-		}
-		
 	}
 	
 	/**

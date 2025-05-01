@@ -8,10 +8,12 @@ import net.sf.openrocket.aerodynamics.BarrowmanCalculator;
 import net.sf.openrocket.aerodynamics.FlightConditions;
 import net.sf.openrocket.document.Simulation;
 import net.sf.openrocket.l10n.Translator;
+import net.sf.openrocket.masscalc.BasicMassCalculator;
 import net.sf.openrocket.masscalc.MassCalculator;
+import net.sf.openrocket.masscalc.MassCalculator.MassCalcType;
 import net.sf.openrocket.optimization.general.OptimizationException;
 import net.sf.openrocket.optimization.rocketoptimization.OptimizableParameter;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.SymmetricComponent;
 import net.sf.openrocket.startup.Application;
@@ -29,7 +31,7 @@ public class StabilityParameter implements OptimizableParameter {
 	private static final Logger log = LoggerFactory.getLogger(StabilityParameter.class);
 	private static final Translator trans = Application.getTranslator();
 	
-	
+
 	private final boolean absolute;
 	
 	public StabilityParameter(boolean absolute) {
@@ -44,47 +46,58 @@ public class StabilityParameter implements OptimizableParameter {
 	
 	@Override
 	public double computeValue(Simulation simulation) throws OptimizationException {
+		Coordinate cp, cg;
+		double cpx, cgx;
+		double stability;
+		
 		log.debug("Calculating stability of simulation, absolute=" + absolute);
-
+		
 		/*
 		 * These are instantiated each time because this class must be thread-safe.
 		 * Caching would in any case be inefficient since the rocket changes all the time.
 		 */
-		final AerodynamicCalculator aerodynamicCalculator = new BarrowmanCalculator();
-		final FlightConfiguration configuration = simulation.getActiveConfiguration();
-		final FlightConditions conditions = new FlightConditions(configuration);
+		AerodynamicCalculator aerodynamicCalculator = new BarrowmanCalculator();
+		MassCalculator massCalculator = new BasicMassCalculator();
+		
+
+		Configuration configuration = simulation.getConfiguration();
+		FlightConditions conditions = new FlightConditions(configuration);
 		conditions.setMach(Application.getPreferences().getDefaultMach());
 		conditions.setAOA(0);
 		conditions.setRollRate(0);
 		
-		final Coordinate cp = aerodynamicCalculator.getWorstCP(configuration, conditions, null);
-		// the launch CM is the worst case CM
-		final Coordinate cg = MassCalculator.calculateLaunch(configuration).getCM();
-
-		double cpx = Double.NaN;
+		cp = aerodynamicCalculator.getWorstCP(configuration, conditions, null);
+		cg = massCalculator.getCG(configuration, MassCalcType.LAUNCH_MASS);
+		
 		if (cp.weight > 0.000001)
 			cpx = cp.x;
-
-		double cgx = Double.NaN;
+		else
+			cpx = Double.NaN;
+		
 		if (cg.weight > 0.000001)
 			cgx = cg.x;
+		else
+			cgx = Double.NaN;
 		
-		// Calculate the reference (absolute or relative)
-		final double stability_absolute = cpx - cgx;
 
-		if (absolute) {
-			return stability_absolute;
-		} else {
+		// Calculate the reference (absolute or relative)
+		stability = cpx - cgx;
+		
+		if (!absolute) {
 			double diameter = 0;
-			for (RocketComponent c : configuration.getActiveInstances().keySet()) {
+			for (RocketComponent c : configuration) {
 				if (c instanceof SymmetricComponent) {
-					final double d1 = ((SymmetricComponent) c).getForeRadius() * 2;
-					final double d2 = ((SymmetricComponent) c).getAftRadius() * 2;
+					double d1 = ((SymmetricComponent) c).getForeRadius() * 2;
+					double d2 = ((SymmetricComponent) c).getAftRadius() * 2;
 					diameter = MathUtil.max(diameter, d1, d2);
 				}
 			}
-			return stability_absolute / diameter;
+			stability = stability / diameter;
 		}
+		
+		log.debug("Resulting stability is " + stability + ", absolute=" + absolute);
+		
+		return stability;
 	}
 	
 	@Override

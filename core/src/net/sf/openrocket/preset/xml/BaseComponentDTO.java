@@ -156,7 +156,7 @@ public abstract class BaseComponentDTO {
 		}
 	}
 	
-	public abstract ComponentPreset asComponentPreset(Boolean legacy, List<MaterialDTO> materials) throws InvalidComponentPresetException;
+	public abstract ComponentPreset asComponentPreset(List<MaterialDTO> materials) throws InvalidComponentPresetException;
 	
 	void addProps(TypedPropertyMap props, List<MaterialDTO> materialList) {
 		props.put(ComponentPreset.MANUFACTURER, Manufacturer.getManufacturer(manufacturer));
@@ -222,22 +222,20 @@ public abstract class BaseComponentDTO {
 			} else if ("LINE".equals(type)) {
 				return Material.Type.LINE;
 			}
-			throw new IllegalArgumentException("Invalid material type " + type + " specified for Component");
+			throw new IllegalArgumentException("Inavlid material type " + type + " specified for Component");
 		}
 	}
 	
 	static class AnnotatedLengthDTO {
 		@XmlAttribute(name = "Unit", required = false)
-		private final String unitName;
+		private String unitName = "m";
 		@XmlValue
 		private double length;
 		
 		AnnotatedLengthDTO() {
-			this.unitName = "m";
 		}
 		
 		AnnotatedLengthDTO(double length) {
-			this.unitName = "m";
 			this.length = length;
 		}
 		
@@ -248,16 +246,14 @@ public abstract class BaseComponentDTO {
 	
 	static class AnnotatedMassDTO {
 		@XmlAttribute(name = "Unit", required = false)
-		private final String unitName;
+		private String unitName = "kg";
 		@XmlValue
 		private double mass;
 		
 		AnnotatedMassDTO() {
-			unitName = "kg";
 		}
 		
 		AnnotatedMassDTO(double mass) {
-			unitName = "kg";
 			this.mass = mass;
 		}
 		

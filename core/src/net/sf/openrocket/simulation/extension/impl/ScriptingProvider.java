@@ -7,7 +7,7 @@ import net.sf.openrocket.simulation.extension.AbstractSimulationExtensionProvide
 public class ScriptingProvider extends AbstractSimulationExtensionProvider {
 	
 	public ScriptingProvider() {
-		super(ScriptingExtension.class, "Scripts", "JavaScript");
+		super(ScriptingExtension.class, "User code", "Scripts");
 	}
 	
 }

@@ -31,7 +31,7 @@ public class VariableTableModel extends AbstractTableModel {
 		
 		//Collections.addAll(types, FlightDataType.ALL_TYPES);
 		//for (CustomExpression expression : doc.getCustomExpressions()){
-		//	types.add(expression.getCurrentViewType());
+		//	types.add(expression.getType());
 		//}
 	}
 	

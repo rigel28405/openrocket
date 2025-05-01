@@ -3,7 +3,6 @@ package net.sf.openrocket.motor;
 import static org.junit.Assert.assertEquals;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -72,6 +71,6 @@ public class MotorDigestTest {
 	private static String md5(String source) 
 	throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		MessageDigest digest = MessageDigest.getInstance("MD5");
-		return TextUtil.hexString(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+		return TextUtil.hexString(digest.digest(source.getBytes("UTF-8")));
 	}
 }
