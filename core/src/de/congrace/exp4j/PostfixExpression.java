@@ -28,7 +28,7 @@ import java.util.Stack;
  */
 public final class PostfixExpression extends AbstractExpression implements Calculable {
 	
-	private VariableSet variables = new VariableSet();
+	private final VariableSet variables = new VariableSet();
 	
 	/**
 	 * Factory method for creating {@link PostfixExpression}s from human
@@ -100,6 +100,7 @@ public final class PostfixExpression extends AbstractExpression implements Calcu
 	/**
 	 * delegate the calculation of a simple expression 
 	 */
+	@Override
 	public Variable calculate() throws IllegalArgumentException {
 
 		final Stack<Variable> stack = new Stack<Variable>();
@@ -110,6 +111,7 @@ public final class PostfixExpression extends AbstractExpression implements Calcu
 
 	}
 
+	@Override
 	public void setVariable(Variable value) {
 		variables.add(value);
 	}

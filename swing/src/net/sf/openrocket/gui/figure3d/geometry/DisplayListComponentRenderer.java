@@ -3,8 +3,8 @@ package net.sf.openrocket.gui.figure3d.geometry;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.media.opengl.GL2;
-import javax.media.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
 
 import net.sf.openrocket.gui.figure3d.geometry.Geometry.Surface;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
@@ -24,14 +24,14 @@ public class DisplayListComponentRenderer extends ComponentRenderer {
 	}
 	
 	@Override
-	protected void renderGeometry(GL2 gl, RocketComponent c, Surface which) {
+	protected void renderInstance(GL2 gl, RocketComponent c, Surface which) {
 		Key k = new Key(c, which);
 		if (lists.containsKey(k)) {
 			gl.glCallList(lists.get(k));
 		} else {
 			int list = gl.glGenLists(1);
 			gl.glNewList(list, GL2.GL_COMPILE_AND_EXECUTE);
-			super.renderGeometry(gl, c, which);
+			super.renderInstance(gl, c, which);
 			gl.glEndList();
 			lists.put(k, list);
 		}

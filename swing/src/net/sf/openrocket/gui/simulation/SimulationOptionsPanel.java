@@ -22,6 +22,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
+import javax.swing.border.Border;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.document.OpenRocketDocument;
@@ -36,6 +37,7 @@ import net.sf.openrocket.gui.components.StyledLabel.Style;
 import net.sf.openrocket.gui.components.UnitSelector;
 import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.gui.util.Icons;
+import net.sf.openrocket.gui.util.UITheme;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.simulation.RK4SimulationStepper;
 import net.sf.openrocket.simulation.SimulationOptions;
@@ -46,23 +48,36 @@ import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.startup.Preferences;
 import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.GeodeticComputationStrategy;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 import com.google.inject.Key;
 
 class SimulationOptionsPanel extends JPanel {
-	
+
+	private static final long serialVersionUID = -5251458539346201239L;
+
 	private static final Translator trans = Application.getTranslator();
 	
 	private OpenRocketDocument document;
 	final Simulation simulation;
 	
 	private JPanel currentExtensions;
+	final JPopupMenu extensionMenu;
+	JMenu extensionMenuCopyExtension;
+
+	private static Color textColor;
+	private static Color dimTextColor;
+	private static Border border;
+
+	static {
+		initColors();
+	}
 	
 	SimulationOptionsPanel(OpenRocketDocument document, final Simulation simulation) {
 		super(new MigLayout("fill"));
 		this.document = document;
 		this.simulation = simulation;
-		
+
 		final SimulationOptions conditions = simulation.getOptions();
 		
 		JPanel sub, subsub;
@@ -114,7 +129,7 @@ class SimulationOptionsPanel extends JPanel {
 		
 		EnumModel<GeodeticComputationStrategy> gcsModel = new EnumModel<GeodeticComputationStrategy>(
 				conditions, "GeodeticComputation");
-		final JComboBox gcsCombo = new JComboBox(gcsModel);
+		final JComboBox<GeodeticComputationStrategy> gcsCombo = new JComboBox<GeodeticComputationStrategy>(gcsModel);
 		ActionListener gcsTTipListener = new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -140,7 +155,7 @@ class SimulationOptionsPanel extends JPanel {
 		subsub.add(label, "gapright para");
 		
 		m = new DoubleModel(conditions, "TimeStep", UnitGroup.UNITS_TIME_STEP,
-				0, 1);
+				0.01, 1);
 		
 		spin = new JSpinner(m.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin));
@@ -150,14 +165,14 @@ class SimulationOptionsPanel extends JPanel {
 		unit = new UnitSelector(m);
 		unit.setToolTipText(tip);
 		subsub.add(unit, "");
-		slider = new BasicSlider(m.getSliderModel(0, 0.2));
+		slider = new BasicSlider(m.getSliderModel(0.01, 0.2));
 		slider.setToolTipText(tip);
 		subsub.add(slider, "w 100");
 		
 		sub.add(subsub, "spanx, wrap para");
 		
 		// Reset to default button
-		JButton button = new JButton(trans.get("simedtdlg.but.resettodefault"));
+		JButton button = new SelectColorButton(trans.get("simedtdlg.but.resettodefault"));
 		// Reset the time step to its default value (
 		button.setToolTipText(trans.get("simedtdlg.but.ttip.resettodefault")
 				+ UnitGroup.UNITS_SHORT_TIME
@@ -191,22 +206,35 @@ class SimulationOptionsPanel extends JPanel {
 		sub.add(desc, "aligny 0, hmin 100lp, growx, wrap para");
 		
 		
-		final JButton addExtension = new JButton(trans.get("simedtdlg.SimExt.add"));
-		final JPopupMenu menu = getExtensionMenu();
+		final JButton addExtension = new SelectColorButton(trans.get("simedtdlg.SimExt.add"));
+		extensionMenu = getExtensionMenu();
 		addExtension.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ev) {
-				menu.show(addExtension, 5, addExtension.getBounds().height);
-			}
-		});
+				public void actionPerformed(ActionEvent ev) {
+					extensionMenu.show(addExtension, 5, addExtension.getBounds().height);
+				}
+			});
 		sub.add(addExtension, "growx, wrap 0");
 		
 		currentExtensions = new JPanel(new MigLayout("fillx, gap 0 0, ins 0"));
 		JScrollPane scroll = new JScrollPane(currentExtensions);
+		currentExtensions.setBorder(border);
+		scroll.setForeground(textColor);
 		//  &#$%! scroll pane will not honor "growy"...
 		sub.add(scroll, "growx, growy, h 100%");
 		
 		updateCurrentExtensions();
 		
+	}
+
+	private static void initColors() {
+		updateColors();
+		UITheme.Theme.addUIThemeChangeListener(SimulationOptionsPanel::updateColors);
+	}
+
+	private static void updateColors() {
+		textColor = GUIUtil.getUITheme().getTextColor();
+		dimTextColor = GUIUtil.getUITheme().getDimTextColor();
+		border = GUIUtil.getUITheme().getBorder();
 	}
 	
 	private JPopupMenu getExtensionMenu() {
@@ -214,7 +242,8 @@ class SimulationOptionsPanel extends JPanel {
 		});
 		
 		JPopupMenu basemenu = new JPopupMenu();
-		
+
+		//// Use code / Launch conditions
 		for (final SimulationExtensionProvider provider : extensions) {
 			List<String> ids = provider.getIds();
 			for (final String id : ids) {
@@ -231,6 +260,7 @@ class SimulationOptionsPanel extends JPanel {
 							SwingSimulationExtensionConfigurator configurator = findConfigurator(e);
 							if (configurator != null) {
 								configurator.configure(e, simulation, SwingUtilities.windowForComponent(SimulationOptionsPanel.this));
+								updateCurrentExtensions();
 							}
 						}
 					});
@@ -238,39 +268,58 @@ class SimulationOptionsPanel extends JPanel {
 				}
 			}
 		}
-		
-		JMenu copyMenu = null;
-		for (Simulation sim : document.getSimulations()) {
-			if (!sim.getSimulationExtensions().isEmpty()) {
-				JMenu menu = new JMenu(sim.getName());
-				for (final SimulationExtension ext : sim.getSimulationExtensions()) {
-					JMenuItem item = new JMenuItem(ext.getName());
-					item.addActionListener(new ActionListener() {
-						@Override
-						public void actionPerformed(ActionEvent arg0) {
-							SimulationExtension e = ext.clone();
-							simulation.getSimulationExtensions().add(e);
-							updateCurrentExtensions();
-							SwingSimulationExtensionConfigurator configurator = findConfigurator(e);
-							if (configurator != null) {
-								configurator.configure(e, simulation, SwingUtilities.windowForComponent(SimulationOptionsPanel.this));
-							}
-						}
-					});
-					menu.add(item);
-				}
-				
-				if (copyMenu == null) {
-					copyMenu = new JMenu(trans.get("simedtdlg.SimExt.copyExtension"));
-				}
-				copyMenu.add(menu);
-			}
-		}
-		if (copyMenu != null) {
-			basemenu.add(copyMenu);
-		}
+
+		//// Copy extension
+		updateExtensionMenuCopyExtension(basemenu);
 		
 		return basemenu;
+	}
+
+	/**
+	 * Updates the contents of the "Copy extension" menu item in the extension menu.
+	 * @param extensionMenu extension menu to add the "Copy extension" menu item to
+	 */
+	private void updateExtensionMenuCopyExtension(JPopupMenu extensionMenu) {
+		if (extensionMenu == null) {
+			return;
+		}
+		if (this.extensionMenuCopyExtension != null) {
+			extensionMenu.remove(this.extensionMenuCopyExtension);
+		}
+
+		this.extensionMenuCopyExtension = null;
+		for (Simulation sim : document.getSimulations()) {
+			if (sim.getSimulationExtensions().isEmpty()) {
+				continue;
+			}
+
+			JMenu menu = new JMenu(sim.getName());
+			for (final SimulationExtension ext : sim.getSimulationExtensions()) {
+				JMenuItem item = new JMenuItem(ext.getName());
+				item.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent arg0) {
+						SimulationExtension e = ext.clone();
+						simulation.getSimulationExtensions().add(e);
+						updateCurrentExtensions();
+						SwingSimulationExtensionConfigurator configurator = findConfigurator(e);
+						if (configurator != null) {
+							configurator.configure(e, simulation, SwingUtilities.windowForComponent(SimulationOptionsPanel.this));
+              updateCurrentExtensions();
+						}
+					}
+				});
+				menu.add(item);
+			}
+
+			if (this.extensionMenuCopyExtension == null) {
+				this.extensionMenuCopyExtension = new JMenu(trans.get("simedtdlg.SimExt.copyExtension"));
+			}
+			this.extensionMenuCopyExtension.add(menu);
+		}
+		if (this.extensionMenuCopyExtension != null) {
+			extensionMenu.add(this.extensionMenuCopyExtension);
+		}
 	}
 	
 	private JComponent findMenu(MenuElement menu, List<String> menuItems) {
@@ -302,13 +351,16 @@ class SimulationOptionsPanel extends JPanel {
 		
 		if (simulation.getSimulationExtensions().isEmpty()) {
 			StyledLabel l = new StyledLabel(trans.get("simedtdlg.SimExt.noExtensions"), Style.ITALIC);
-			l.setForeground(Color.DARK_GRAY);
+			l.setForeground(dimTextColor);
 			currentExtensions.add(l, "growx, pad 5 5 5 5, wrap");
 		} else {
 			for (SimulationExtension e : simulation.getSimulationExtensions()) {
 				currentExtensions.add(new SimulationExtensionPanel(e), "growx, wrap");
 			}
 		}
+
+		updateExtensionMenuCopyExtension(this.extensionMenu);
+
 		// Both needed:
 		this.revalidate();
 		this.repaint();
@@ -317,6 +369,11 @@ class SimulationOptionsPanel extends JPanel {
 	
 	private class SimulationExtensionPanel extends JPanel {
 		
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -3296795614810745035L;
+
 		public SimulationExtensionPanel(final SimulationExtension extension) {
 			super(new MigLayout("fillx, gapx 0"));
 			
@@ -326,9 +383,10 @@ class SimulationOptionsPanel extends JPanel {
 			JButton button;
 			
 			this.add(new JPanel(), "spanx, split, growx, right");
-			
+
+			// Configure
 			if (findConfigurator(extension) != null) {
-				button = new JButton(Icons.CONFIGURE);
+				button = new SelectColorButton(Icons.CONFIGURE);
 				button.addActionListener(new ActionListener() {
 					@Override
 					public void actionPerformed(ActionEvent e) {
@@ -339,9 +397,10 @@ class SimulationOptionsPanel extends JPanel {
 				});
 				this.add(button, "right");
 			}
-			
+
+			// Help
 			if (extension.getDescription() != null) {
-				button = new JButton(Icons.HELP);
+				button = new SelectColorButton(Icons.HELP);
 				button.addActionListener(new ActionListener() {
 					@Override
 					public void actionPerformed(ActionEvent e) {
@@ -350,7 +409,7 @@ class SimulationOptionsPanel extends JPanel {
 						JPanel panel = new JPanel(new MigLayout("fill"));
 						DescriptionArea area = new DescriptionArea(extension.getDescription(), 10, 0);
 						panel.add(area, "width 400lp, wrap para");
-						JButton close = new JButton(trans.get("button.close"));
+						JButton close = new SelectColorButton(trans.get("button.close"));
 						close.addActionListener(new ActionListener() {
 							@Override
 							public void actionPerformed(ActionEvent e) {
@@ -366,8 +425,9 @@ class SimulationOptionsPanel extends JPanel {
 				});
 				this.add(button, "right");
 			}
-			
-			button = new JButton(Icons.DELETE);
+
+			// Delete
+			button = new SelectColorButton(Icons.EDIT_DELETE);
 			button.addActionListener(new ActionListener() {
 				@Override
 				public void actionPerformed(ActionEvent arg0) {

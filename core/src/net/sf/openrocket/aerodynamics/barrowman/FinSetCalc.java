@@ -7,8 +7,8 @@ import java.util.Arrays;
 
 import net.sf.openrocket.aerodynamics.AerodynamicForces;
 import net.sf.openrocket.aerodynamics.FlightConditions;
-import net.sf.openrocket.aerodynamics.Warning;
-import net.sf.openrocket.aerodynamics.WarningSet;
+import net.sf.openrocket.logging.Warning;
+import net.sf.openrocket.logging.WarningSet;
 import net.sf.openrocket.rocketcomponent.FinSet;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.util.BugException;
@@ -16,15 +16,11 @@ import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.LinearInterpolator;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.PolyInterpolator;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import net.sf.openrocket.util.Transformation;
 
 public class FinSetCalc extends RocketComponentCalc {
 	
-	private final static Logger logger = LoggerFactory.getLogger(FinSetCalc.class);
-	
+	/** considers the stall angle as 20 degrees*/
 	private static final double STALL_ANGLE = (20 * Math.PI / 180);
 	
 	/** Number of divisions in the fin chords. */
@@ -48,45 +44,48 @@ public class FinSetCalc extends RocketComponentCalc {
 	
 	protected final WarningSet geometryWarnings = new WarningSet();
 	
-	private double[] poly = new double[6];
-	
+	private final double[] poly = new double[6];
+
 	private final double thickness;
 	private final double bodyRadius;
 	private final int finCount;
-	private final double baseRotation;
 	private final double cantAngle;
 	private final FinSet.CrossSection crossSection;
 	
-	public FinSetCalc(RocketComponent component) {
+	/**
+	 * builds a calculator of aerodynamic forces a specified fin
+	 * @param component		The fin in consideration
+	 */
+	///why is this accepting RocketComponent when it rejects?
+	///why not put FinSet in the parameter instead?
+	public FinSetCalc(FinSet component) {
 		super(component);
-		if (!(component instanceof FinSet)) {
-			throw new IllegalArgumentException("Illegal component type " + component);
-		}
+
+		this.thickness = component.getThickness();
+		this.bodyRadius = component.getBodyRadius();
+		this.finCount = component.getFinCount();
+
+		this.cantAngle = component.getCantAngle();
+		this.span = component.getSpan();
+		this.finArea = component.getPlanformArea();
+		this.crossSection = component.getCrossSection();
 		
-		FinSet fin = (FinSet) component;
-		thickness = fin.getThickness();
-		bodyRadius = fin.getBodyRadius();
-		finCount = fin.getFinCount();
-		baseRotation = fin.getBaseRotation();
-		cantAngle = fin.getCantAngle();
-		span = fin.getSpan();
-		finArea = fin.getFinArea();
-		crossSection = fin.getCrossSection();
-		
-		calculateFinGeometry(fin);
+		calculateFinGeometry(component);
 		calculatePoly();
-		calculateInterferenceFinCount(fin);
+		calculateInterferenceFinCount(component);
 	}
 	
 	/*
-	 * Calculates the non-axial forces produced by the fins (normal and side forces,
-	 * pitch, yaw and roll moments, CP position, CNa).
+	 * Calculates the non-axial forces produced by each set of fins.
+	 * (normal and side forces, pitch, yaw and roll moments, CP position, CNa).
 	 */
 	@Override
-	public void calculateNonaxialForces(FlightConditions conditions,
+	public void calculateNonaxialForces(FlightConditions conditions, Transformation transform,
 			AerodynamicForces forces, WarningSet warnings) {
 		
-		if (span < 0.001) {
+		warnings.addAll(geometryWarnings);
+		
+		if (finArea < MathUtil.EPSILON) {
 			forces.setCm(0);
 			forces.setCN(0);
 			forces.setCNa(0);
@@ -99,37 +98,20 @@ public class FinSetCalc extends RocketComponentCalc {
 			return;
 		}
 		
-		// Add warnings  (radius/2 == diameter/4)
-		if (thickness > bodyRadius / 2) {
-			warnings.add(Warning.THICK_FIN);
-		}
-		warnings.addAll(geometryWarnings);
-		
 		//////// Calculate CNa.  /////////
 		
 		// One fin without interference (both sub- and supersonic):
 		double cna1 = calculateFinCNa1(conditions);
-		
-		//		logger.debug("Component cna1 = {}", cna1);
-		
+			
 		// Multiple fins with fin-fin interference
 		double cna;
 		double theta = conditions.getTheta();
-		double angle = baseRotation;
-		
+		double angle = transform.getXrotation();
+
 		// Compute basic CNa without interference effects
-		if (finCount == 1 || finCount == 2) {
-			// Basic CNa from geometry
-			double mul = 0;
-			for (int i = 0; i < finCount; i++) {
-				mul += MathUtil.pow2(Math.sin(theta - angle));
-				angle += 2 * Math.PI / finCount;
-			}
-			cna = cna1 * mul;
-		} else {
-			// Basic CNa assuming full efficiency
-			cna = cna1 * finCount / 2.0;
-		}
+		cna = cna1 * MathUtil.pow2(Math.sin(theta - angle));
+//		final double cna_x = cna1 * MathUtil.pow2(Math.sin(theta - angle));
+//		final double cna_y = cna1 * MathUtil.pow2(Math.sin(theta - angle));
 		
 		//		logger.debug("Component cna = {}", cna);
 		
@@ -164,56 +146,7 @@ public class FinSetCalc extends RocketComponentCalc {
 			warnings.add(Warning.PARALLEL_FINS);
 			break;
 		}
-		
-		/*
-		 * Used in 0.9.5 and earlier.  Takes into account rotation angle for three
-		 * and four fins, does not take into account interference from other fin sets.
-		 * 
-		switch (fins) {
-		case 1:
-		case 2:
-			// from geometry
-			double mul = 0;
-			for (int i=0; i < fins; i++) {
-				mul += MathUtil.pow2(Math.sin(theta - angle));
-				angle += 2 * Math.PI / fins;
-			}
-			cna = cna1*mul;
-			break;
-			
-		case 3:
-			// multiplier 1.5, sinusoidal reduction of 15%
-			cna = cna1 * 1.5 * (1 - 0.15*pow2(Math.cos(1.5 * (theta-angle))));
-			break;
-			
-		case 4:
-			// multiplier 2.0, sinusoidal reduction of 6%
-			cna = cna1 * 2.0 * (1 - 0.06*pow2(Math.sin(2 * (theta-angle))));
-			break;
-			
-		case 5:
-			cna = 2.37 * cna1;
-			break;
-			
-		case 6:
-			cna = 2.74 * cna1;
-			break;
-			
-		case 7:
-			cna = 2.99 * cna1;
-			break;
-			
-		case 8:
-			cna = 3.24 * cna1;
-			break;
-			
-		default:
-			// Assume N/2 * 3/4 efficiency for more fins
-			cna = cna1 * fins * 3.0/8.0;
-			break;
-		}
-		*/
-		
+				
 		// Body-fin interference effect
 		double r = bodyRadius;
 		double tau = r / (span + r);
@@ -227,7 +160,6 @@ public class FinSetCalc extends RocketComponentCalc {
 		// (Barrowman thesis pdf-page 40)
 		
 		// TODO: LOW: fin-fin mach cone effect, MIL-HDBK page 5-25
-		
 		// Calculate CP position
 		double x = macLead + calculateCPPos(conditions) * macLength;
 		//		logger.debug("Component macLead = {}", macLead);
@@ -241,7 +173,7 @@ public class FinSetCalc extends RocketComponentCalc {
 		//		forces.CrollForce = fins * (macSpan+r) * cna1 * component.getCantAngle() / 
 		//			conditions.getRefLength();
 		// With body-fin interference effect:
-		forces.setCrollForce(finCount * (macSpan + r) * cna1 * (1 + tau) * cantAngle / conditions.getRefLength());
+		forces.setCrollForce((macSpan + r) * cna1 * (1 + tau) * cantAngle / conditions.getRefLength());
 		
 		if (conditions.getAOA() > STALL_ANGLE) {
 			//			System.out.println("Fin stalling in roll");
@@ -299,26 +231,36 @@ public class FinSetCalc extends RocketComponentCalc {
 	protected void calculateFinGeometry(FinSet component) {
 		
 		span = component.getSpan();
-		finArea = component.getFinArea();
+		finArea = component.getPlanformArea();
 		ar = 2 * pow2(span) / finArea;
 		
+		// Check geometry; don't consider points along fin root for this
+		// (doing so will cause spurious jagged fin warnings)
 		Coordinate[] points = component.getFinPoints();
-		
-		// Check for jagged edges
 		geometryWarnings.clear();
 		boolean down = false;
 		for (int i = 1; i < points.length; i++) {
 			if ((points[i].y > points[i - 1].y + 0.001) && down) {
-				geometryWarnings.add(Warning.JAGGED_EDGED_FIN);
+				geometryWarnings.add(Warning.JAGGED_EDGED_FIN, component.toString());
 				break;
 			}
 			if (points[i].y < points[i - 1].y - 0.001) {
 				down = true;
 			}
 		}
+
+		if (finArea < MathUtil.EPSILON) {
+			geometryWarnings.add(Warning.ZERO_AREA_FIN, component.toString());
+		}
+
+		if ((bodyRadius > 0) && (thickness > bodyRadius / 2)){
+			// Add warnings  (radius/2 == diameter/4)
+			geometryWarnings.add(Warning.THICK_FIN, component.toString());
+		}
 		
-		// Calculate the chord lead and trail positions and length
-		
+		// Calculate the chord lead and trail positions and length.  We do need the points
+		// along the root for this
+		points = component.getFinPointsWithRoot();
 		Arrays.fill(chordLead, Double.POSITIVE_INFINITY);
 		Arrays.fill(chordTrail, Double.NEGATIVE_INFINITY);
 		Arrays.fill(chordLength, 0);
@@ -346,8 +288,15 @@ public class FinSetCalc extends RocketComponentCalc {
 			
 			for (int i = i1; i <= i2; i++) {
 				// Intersection point (x,y)
+				// Note that y can be outside the bounds of the line
+				// defined by (x1, y1) (x2 y2) so x can similarly be outside
+				// the bounds.  If the line is nearly horizontal, it can be
+				// 'way outside.  We want to get the whole "strip", so we
+				// don't clamp y; however, we do clamp x to avoid numerical
+				// instabilities
 				double y = i * span / (DIVISIONS - 1);
-				double x = (y - y2) / (y1 - y2) * x1 + (y1 - y) / (y1 - y2) * x2;
+				double x = MathUtil.clamp((y - y2) / (y1 - y2) * x1 + (y1 - y) / (y1 - y2) * x2,
+										  Math.min(x1, x2), Math.max(x1, x2));
 				if (x < chordLead[i])
 					chordLead[i] = x;
 				if (x > chordTrail[i])
@@ -392,7 +341,7 @@ public class FinSetCalc extends RocketComponentCalc {
 		cosGammaLead = 0;
 		rollSum = 0;
 		double area = 0;
-		double radius = component.getBodyRadius();
+		double radius = component.getFinFront().y;
 		
 		final double dy = span / (DIVISIONS - 1);
 		for (int i = 0; i < DIVISIONS; i++) {
@@ -400,7 +349,7 @@ public class FinSetCalc extends RocketComponentCalc {
 			double y = i * dy;
 			
 			macLength += length * length;
-			logger.debug("macLength = {}, length = {}, i = {}", macLength, length, i);
+			//logger.debug("macLength = {}, length = {}, i = {}", macLength, length, i);
 			macSpan += y * length;
 			macLead += chordLead[i] * length;
 			area += length;
@@ -416,12 +365,11 @@ public class FinSetCalc extends RocketComponentCalc {
 		}
 		
 		macLength *= dy;
-		logger.debug("macLength = {}", macLength);
+		//logger.debug("macLength = {}", macLength);
 		macSpan *= dy;
 		macLead *= dy;
 		area *= dy;
 		rollSum *= dy;
-		
 		macLength /= area;
 		macSpan /= area;
 		macLead /= area;
@@ -439,8 +387,7 @@ public class FinSetCalc extends RocketComponentCalc {
 	private static final PolyInterpolator cnaInterpolator = new PolyInterpolator(
 			new double[] { CNA_SUBSONIC, CNA_SUPERSONIC },
 			new double[] { CNA_SUBSONIC, CNA_SUPERSONIC },
-			new double[] { CNA_SUBSONIC }
-			);
+			new double[] { CNA_SUBSONIC });
 	/* Pre-calculate the values for K1, K2 and K3 */
 	static {
 		// Up to Mach 5
@@ -528,17 +475,17 @@ public class FinSetCalc extends RocketComponentCalc {
 					(conditions.getRefArea() * conditions.getRefLength());
 			
 			//			System.out.println("SPECIAL: " + 
-			//					(MathUtil.sign(rollRate) *component.getFinCount() * sum));
-			return MathUtil.sign(rollRate) * finCount * sum;
+			//					(MathUtil.sign(rollRate) * sum));
+			return MathUtil.sign(rollRate) * sum;
 		}
 		
 		if (mach <= CNA_SUBSONIC) {
 			//			System.out.println("BASIC:   "+
-			//					(component.getFinCount() * 2*Math.PI * rollRate * rollSum / 
+			//					(2*Math.PI * rollRate * rollSum / 
 			//			(conditions.getRefArea() * conditions.getRefLength() * 
 			//					conditions.getVelocity() * conditions.getBeta())));
 			
-			return finCount * 2 * Math.PI * rollRate * rollSum /
+			return 2 * Math.PI * rollRate * rollSum /
 					(conditions.getRefArea() * conditions.getRefLength() *
 							conditions.getVelocity() * conditions.getBeta());
 		}
@@ -559,7 +506,7 @@ public class FinSetCalc extends RocketComponentCalc {
 						* chordLength[i] * (bodyRadius + y);
 			}
 			
-			return finCount * sum * span / (DIVISIONS - 1) /
+			return sum * span / (DIVISIONS - 1) /
 					(conditions.getRefArea() * conditions.getRefLength());
 		}
 		
@@ -668,13 +615,29 @@ public class FinSetCalc extends RocketComponentCalc {
 	//		}
 	//		
 	//	}
+
+	@Override
+	public double calculateFrictionCD(FlightConditions conditions, double componentCf, WarningSet warnings) {
+		// a fin with 0 area contributes no drag
+		if (finArea < MathUtil.EPSILON) {
+			return 0.0;
+		}
+		
+		double cd = componentCf * (1 + 2 * thickness / macLength) * 2 * finArea / conditions.getRefArea();
+		return cd;
+	}
 	
 	@Override
-	public double calculatePressureDragForce(FlightConditions conditions,
-			double stagnationCD, double baseCD, WarningSet warnings) {
+	public double calculatePressureCD(FlightConditions conditions,
+									  double stagnationCD, double baseCD, WarningSet warnings) {
 		
+		// a fin with 0 area contributes no drag
+		if (finArea < MathUtil.EPSILON) {
+			return 0.0;
+		}
+
 		double mach = conditions.getMach();
-		double drag = 0;
+		double cd = 0;
 		
 		// Pressure fore-drag
 		if (crossSection == FinSet.CrossSection.AIRFOIL ||
@@ -682,34 +645,34 @@ public class FinSetCalc extends RocketComponentCalc {
 			
 			// Round leading edge
 			if (mach < 0.9) {
-				drag = Math.pow(1 - pow2(mach), -0.417) - 1;
+				cd = Math.pow(1 - pow2(mach), -0.417) - 1;
 			} else if (mach < 1) {
-				drag = 1 - 1.785 * (mach - 0.9);
+				cd = 1 - 1.785 * (mach - 0.9);
 			} else {
-				drag = 1.214 - 0.502 / pow2(mach) + 0.1095 / pow2(pow2(mach));
+				cd = 1.214 - 0.502 / pow2(mach) + 0.1095 / pow2(pow2(mach));
 			}
 			
 		} else if (crossSection == FinSet.CrossSection.SQUARE) {
-			drag = stagnationCD;
+			cd = stagnationCD;
 		} else {
 			throw new UnsupportedOperationException("Unsupported fin profile: " + crossSection);
 		}
 		
 		// Slanted leading edge
-		drag *= pow2(cosGammaLead);
+		cd *= pow2(cosGammaLead);
 		
 		// Trailing edge drag
 		if (crossSection == FinSet.CrossSection.SQUARE) {
-			drag += baseCD;
+			cd += baseCD;
 		} else if (crossSection == FinSet.CrossSection.ROUNDED) {
-			drag += baseCD / 2;
+			cd += baseCD / 2;
 		}
 		// Airfoil assumed to have zero base drag
 		
 		// Scale to correct reference area
-		drag *= finCount * span * thickness / conditions.getRefArea();
+		cd *= span * thickness / conditions.getRefArea();
 		
-		return drag;
+		return cd;
 	}
 	
 	private void calculateInterferenceFinCount(FinSet component) {

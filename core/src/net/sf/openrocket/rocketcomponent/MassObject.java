@@ -5,6 +5,7 @@ import static net.sf.openrocket.util.MathUtil.pow2;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import net.sf.openrocket.rocketcomponent.position.AxialMethod;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 
@@ -20,7 +21,9 @@ import net.sf.openrocket.util.MathUtil;
  */
 public abstract class MassObject extends InternalComponent {
 	
-	private double radius;
+	protected double radius;
+	private boolean autoRadius = false;
+	private double volume;		// (Packed) volume of the object
 	
 	private double radialPosition;
 	private double radialDirection;
@@ -38,37 +41,124 @@ public abstract class MassObject extends InternalComponent {
 		
 		this.length = length;
 		this.radius = radius;
+		updateVolume(radius);
 		
-		this.setRelativePosition(Position.TOP);
-		this.setPositionValue(0.0);
+		this.setAxialMethod( AxialMethod.TOP);
+		this.setAxialOffset(0.0);
 	}
 	
-	
+	@Override
+	public boolean isAfter(){ 
+		return false;
+	}
+
+	private void updateVolume(double radius) {
+		volume = Math.pow(radius, 2) * length;		// Math.PI left out, not needed
+	}
+
+	@Override
+	public double getLength() {
+		if (autoRadius) {
+			length = getAutoLength();
+		}
+		return length;
+	}
+
 	public void setLength(double length) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof MassObject) {
+				((MassObject) listener).setLength(length);
+			}
+		}
+
 		length = Math.max(length, 0);
+
 		if (MathUtil.equals(this.length, length)) {
 			return;
 		}
 		this.length = length;
+		updateVolume(autoRadius ? getAutoRadius() : radius);
+
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
+	}
+
+	/**
+	 * Calculate the length from the current volume.
+	 */
+	private double getAutoLength() {
+		// Calculate the volume using the auto radius and the new "auto" length, and transform that back
+		// to the non auto radius situation to set this.length (the volume in both situations is the same).
+		return volume / Math.pow(radius, 2);
 	}
 	
 	
-	public final double getRadius() {
+	public double getRadius() {
+		if (autoRadius) {
+			radius = getAutoRadius();
+			length = getAutoLength();
+		}
+		return radius;
+	}
+
+	/**
+	 * Return the radius determined by its parent component.
+	 * @return the radius determined by its parent component
+	 */
+	public double getAutoRadius() {
+		if (parent == null) {
+			return radius;
+		}
+		if (parent instanceof NoseCone) {
+			return ((NoseCone) parent).getBaseRadius();
+		} else if (parent instanceof Transition) {
+			double foreRadius = ((Transition) parent).getForeRadius();
+			double aftRadius = ((Transition) parent).getAftRadius();
+			return (Math.max(foreRadius, aftRadius));
+		} else if (parent instanceof BodyComponent) {
+			return ((BodyComponent) parent).getInnerRadius();
+		} else if (parent instanceof RingComponent) {
+			return ((RingComponent) parent).getInnerRadius();
+		}
+
 		return radius;
 	}
 	
-	
-	public final void setRadius(double radius) {
+	public void setRadius(double radius) {
 		radius = Math.max(radius, 0);
-		if (MathUtil.equals(this.radius, radius)) {
-			return;
+
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof MassObject) {
+				((MassObject) listener).setRadius(radius);
+			}
 		}
+
+		if (MathUtil.equals(this.radius, radius) && (!autoRadius))
+			return;
+
+		this.autoRadius = false;
 		this.radius = radius;
+		updateVolume(radius);
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
-	
-	
+
+	public boolean isRadiusAutomatic() {
+		return autoRadius;
+	}
+
+	public void setRadiusAutomatic(boolean auto) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof MassObject) {
+				((MassObject) listener).setRadiusAutomatic(auto);
+			}
+		}
+
+		if (autoRadius == auto)
+			return;
+
+		autoRadius = auto;
+
+		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+	}
 	
 	public final double getRadialPosition() {
 		return radialPosition;
@@ -76,6 +166,13 @@ public abstract class MassObject extends InternalComponent {
 	
 	public final void setRadialPosition(double radialPosition) {
 		radialPosition = Math.max(radialPosition, 0);
+
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof MassObject) {
+				((MassObject) listener).setRadialPosition(radialPosition);
+			}
+		}
+
 		if (MathUtil.equals(this.radialPosition, radialPosition)) {
 			return;
 		}
@@ -90,7 +187,13 @@ public abstract class MassObject extends InternalComponent {
 	}
 	
 	public final void setRadialDirection(double radialDirection) {
-		radialDirection = MathUtil.reduce180(radialDirection);
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof MassObject) {
+				((MassObject) listener).setRadialDirection(radialDirection);
+			}
+		}
+
+		radialDirection = MathUtil.reducePi(radialDirection);
 		if (MathUtil.equals(this.radialDirection, radialDirection)) {
 			return;
 		}
@@ -104,34 +207,35 @@ public abstract class MassObject extends InternalComponent {
 	/**
 	 * Shift the coordinates according to the radial position and direction.
 	 */
-	@Override
-	public final Coordinate[] shiftCoordinates(Coordinate[] array) {
-		for (int i = 0; i < array.length; i++) {
-			array[i] = array[i].add(0, shiftY, shiftZ);
-		}
-		return array;
-	}
+//	@Override
+//	protected
+//	final Coordinate[] shiftCoordinates(Coordinate[] array) {
+//		for (int i = 0; i < array.length; i++) {
+//			array[i] = array[i].add(0, shiftY, shiftZ);
+//		}
+//		return array;
+//	}
 	
 	@Override
 	public final Coordinate getComponentCG() {
-		return new Coordinate(length / 2, shiftY, shiftZ, getComponentMass());
+		return new Coordinate(getLength() / 2, shiftY, shiftZ, getComponentMass());
 	}
 	
 	@Override
 	public final double getLongitudinalUnitInertia() {
-		return (3 * pow2(radius) + pow2(length)) / 12;
+		return (3 * pow2(getRadius()) + pow2(getLength())) / 12;
 	}
 	
 	@Override
 	public final double getRotationalUnitInertia() {
-		return pow2(radius) / 2;
+		return pow2(getRadius()) / 2;
 	}
 	
 	@Override
 	public final Collection<Coordinate> getComponentBounds() {
 		Collection<Coordinate> c = new ArrayList<Coordinate>();
-		addBound(c, 0, radius);
-		addBound(c, length, radius);
+		addBound(c, 0, getRadius());
+		addBound(c, getLength(), getRadius());
 		return c;
 	}
 	

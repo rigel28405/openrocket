@@ -13,6 +13,20 @@ import java.io.InputStream;
 
 import javax.swing.Action;
 
+import org.jmock.Mockery;
+import org.jmock.integration.junit4.JMock;
+import org.jmock.integration.junit4.JUnit4Mockery;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Module;
+import com.google.inject.Provider;
+import com.google.inject.util.Modules;
+
 import net.sf.openrocket.aerodynamics.AerodynamicCalculator;
 import net.sf.openrocket.aerodynamics.BarrowmanCalculator;
 import net.sf.openrocket.aerodynamics.FlightConditions;
@@ -28,14 +42,14 @@ import net.sf.openrocket.file.motor.GeneralMotorLoader;
 import net.sf.openrocket.gui.main.UndoRedoAction;
 import net.sf.openrocket.l10n.DebugTranslator;
 import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.masscalc.BasicMassCalculator;
 import net.sf.openrocket.masscalc.MassCalculator;
-import net.sf.openrocket.masscalc.MassCalculator.MassCalcType;
-import net.sf.openrocket.motor.Motor;
+import net.sf.openrocket.masscalc.RigidBody;
 import net.sf.openrocket.motor.ThrustCurveMotor;
 import net.sf.openrocket.plugin.PluginModule;
-import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.rocketcomponent.EngineBlock;
+import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
+import net.sf.openrocket.rocketcomponent.InnerTube;
 import net.sf.openrocket.rocketcomponent.MassComponent;
 import net.sf.openrocket.rocketcomponent.NoseCone;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
@@ -44,20 +58,6 @@ import net.sf.openrocket.simulation.exception.SimulationException;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.utils.CoreServicesModule;
-
-import org.jmock.Mockery;
-import org.jmock.integration.junit4.JMock;
-import org.jmock.integration.junit4.JUnit4Mockery;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Module;
-import com.google.inject.Provider;
-import com.google.inject.util.Modules;
 
 /**
  * This class contains various integration tests that simulate user actions that
@@ -71,8 +71,7 @@ public class IntegrationTest {
 	private Action undoAction, redoAction;
 	
 	private AerodynamicCalculator aeroCalc = new BarrowmanCalculator();
-	private MassCalculator massCalc = new BasicMassCalculator();
-	private Configuration config;
+	private FlightConfigurationId fcid;
 	private FlightConditions conditions;
 	private String massComponentID = null;
 	
@@ -113,15 +112,17 @@ public class IntegrationTest {
 		
 		undoAction = UndoRedoAction.newUndoAction(document);
 		redoAction = UndoRedoAction.newRedoAction(document);
-		config = document.getSimulation(0).getConfiguration();
+        fcid = document.getSimulation(0).getFlightConfigurationId();
+		FlightConfiguration config = document.getRocket().getFlightConfiguration(fcid);
 		conditions = new FlightConditions(config);
 		
 		// Test undo state
 		checkUndoState(null, null);
-		
+		 
 		// Compute cg+cp + altitude
+	    //   double cgx, double mass, double cpx, double cna)
 		checkCgCp(0.248, 0.0645, 0.320, 12.0);
-		checkAlt(48.2);
+		checkAlt(48.8);
 		
 		// Mass modification
 		document.addUndoPosition("Modify mass");
@@ -131,7 +132,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.230, 0.0745, 0.320, 12.0);
-		checkAlt(37.2);
+		checkAlt(37.4);
 		
 		// Non-change
 		document.addUndoPosition("No change");
@@ -154,7 +155,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.163, 0.0613, 0.275, 9.95);
-		checkAlt(45.0);
+		checkAlt(45.6);
 		
 		// Undo "Remove component" change
 		undoAction.actionPerformed(new ActionEvent(this, 0, "foo"));
@@ -163,7 +164,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.230, 0.0745, 0.320, 12.0);
-		checkAlt(37.2);
+		checkAlt(37.4);
 		
 		// Undo "Name change" change
 		undoAction.actionPerformed(new ActionEvent(this, 0, "foo"));
@@ -180,7 +181,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.248, 0.0645, 0.320, 12.0);
-		checkAlt(48.2);
+		checkAlt(48.87);
 		
 		// Redo "Modify mass" change
 		redoAction.actionPerformed(new ActionEvent(this, 0, "foo"));
@@ -189,7 +190,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.230, 0.0745, 0.320, 12.0);
-		checkAlt(37.2);
+		checkAlt(37.4);
 		
 		// Mass modification
 		document.addUndoPosition("Modify mass2");
@@ -199,7 +200,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.223, 0.0795, 0.320, 12.0);
-		checkAlt(32.7);
+		checkAlt(33);
 		
 		// Perform component movement
 		document.startUndo("Move component");
@@ -216,7 +217,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.221, 0.0797, 0.320, 12.0);
-		checkAlt(32.7);
+		checkAlt(33);
 		
 		// Modify mass without setting undo description
 		massComponent().setComponentMass(0.020);
@@ -233,7 +234,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.221, 0.0797, 0.320, 12.0);
-		checkAlt(32.7);
+		checkAlt(33);
 		
 		// Undo "Move component" change
 		undoAction.actionPerformed(new ActionEvent(this, 0, "foo"));
@@ -242,7 +243,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.223, 0.0795, 0.320, 12.0);
-		checkAlt(32.7);
+		checkAlt(33);
 		
 		// Redo "Move component" change
 		redoAction.actionPerformed(new ActionEvent(this, 0, "foo"));
@@ -251,7 +252,7 @@ public class IntegrationTest {
 		
 		// Check cg+cp + altitude
 		checkCgCp(0.221, 0.0797, 0.320, 12.0);
-		checkAlt(32.7);
+		checkAlt(33);
 		
 	}
 	
@@ -265,8 +266,8 @@ public class IntegrationTest {
 		InputStream is = IntegrationTest.class.getResourceAsStream("Estes_A8.rse");
 		assertNotNull("Problem in unit test, cannot find Estes_A8.rse", is);
 		try {
-			for (Motor m : loader.load(is, "Estes_A8.rse")) {
-				return (ThrustCurveMotor) m;
+			for (ThrustCurveMotor.Builder m : loader.load(is, "Estes_A8.rse")) {
+				return m.build();
 			}
 			is.close();
 		} catch (IOException e) {
@@ -327,13 +328,13 @@ public class IntegrationTest {
 	}
 	
 	private void checkCgCp(double cgx, double mass, double cpx, double cna) {
-		Coordinate cg, cp;
-		
-		cg = massCalc.getCG(config, MassCalcType.LAUNCH_MASS);
+		FlightConfiguration config = document.getRocket().getFlightConfiguration(fcid);
+		final RigidBody launchData = MassCalculator.calculateLaunch(config);
+		final Coordinate cg = launchData.getCenterOfMass();
 		assertEquals(cgx, cg.x, 0.001);
 		assertEquals(mass, cg.weight, 0.0005);
 		
-		cp = aeroCalc.getWorstCP(config, conditions, null);
+		final Coordinate cp = aeroCalc.getWorstCP(config, conditions, null);
 		assertEquals(cpx, cp.x, 0.001);
 		assertEquals(cna, cp.weight, 0.1);
 	}
@@ -357,7 +358,7 @@ public class IntegrationTest {
 		
 		OpenRocketDocument rocketDoc = null;
 		try {
-			rocketDoc = loader.load(is);
+			rocketDoc = loader.load(is, fileName);
 		} catch (RocketLoadException e) {
 			fail("RocketLoadException while loading file " + fileName + " : " + e.getMessage());
 		}

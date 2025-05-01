@@ -2,13 +2,15 @@ package net.sf.openrocket.gui.figure3d;
 
 import java.util.HashMap;
 
-import javax.media.opengl.GL;
-import javax.media.opengl.GL2;
-import javax.media.opengl.GL2ES1;
-import javax.media.opengl.GLAutoDrawable;
-import javax.media.opengl.fixedfunc.GLLightingFunc;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2ES1;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.fixedfunc.GLLightingFunc;
 
+import net.sf.openrocket.gui.figure3d.geometry.Geometry;
 import net.sf.openrocket.gui.figure3d.geometry.Geometry.Surface;
+import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.motor.Motor;
 import net.sf.openrocket.rocketcomponent.BodyTube;
 import net.sf.openrocket.rocketcomponent.ExternalComponent;
@@ -51,13 +53,6 @@ public class FigureRenderer extends RocketRenderer {
 		gl.glEnable(GLLightingFunc.GL_NORMALIZE);
 	}
 	
-	
-	
-	@Override
-	public boolean isDrawn(RocketComponent c) {
-		return true;
-	}
-	
 	@Override
 	public boolean isDrawnTransparent(RocketComponent c) {
 		if (c instanceof BodyTube)
@@ -78,15 +73,15 @@ public class FigureRenderer extends RocketRenderer {
 	private static final HashMap<Class<?>, Color> defaultColorCache = new HashMap<Class<?>, Color>();
 	
 	@Override
-	public void renderComponent(GL2 gl, RocketComponent c, float alpha) {
-		
+	public void renderComponent(GL2 gl, Geometry geom, float alpha) {
+		RocketComponent c = geom.getComponent();
 		gl.glLightModeli(GL2ES1.GL_LIGHT_MODEL_TWO_SIDE, 1);
 		Color figureColor = c.getColor();
 		if (figureColor == null) {
 			if (defaultColorCache.containsKey(c.getClass())) {
 				figureColor = defaultColorCache.get(c.getClass());
 			} else {
-				figureColor = Application.getPreferences().getDefaultColor(c.getClass());
+				figureColor = ((SwingPreferences) Application.getPreferences()).getDefaultColor(c.getClass());
 				defaultColorCache.put(c.getClass(), figureColor);
 			}
 		}
@@ -100,9 +95,9 @@ public class FigureRenderer extends RocketRenderer {
 		gl.glMaterialfv(GL.GL_FRONT, GLLightingFunc.GL_DIFFUSE, color, 0);
 		gl.glMaterialfv(GL.GL_FRONT, GLLightingFunc.GL_AMBIENT, color, 0);
 		
-		cr.getGeometry(c, Surface.INSIDE).render(gl);
+		geom.render(gl,Surface.INSIDE);
 		
-		//OUtside
+		//Outside
 		// Set up the front A&D color
 		convertColor(figureColor, color);
 		color[3] = alpha;
@@ -120,8 +115,8 @@ public class FigureRenderer extends RocketRenderer {
 		gl.glMaterialfv(GL.GL_FRONT, GLLightingFunc.GL_SPECULAR, color, 0);
 		gl.glMateriali(GL.GL_FRONT, GLLightingFunc.GL_SHININESS, getShine(c));
 		
-		cr.getGeometry(c, Surface.OUTSIDE).render(gl);
-		cr.getGeometry(c, Surface.EDGES).render(gl);
+		geom.render(gl, Surface.OUTSIDE);
+		geom.render(gl, Surface.EDGES);
 		
 		color[0] = color[1] = color[2] = 0;
 		gl.glMaterialfv(GL.GL_FRONT, GLLightingFunc.GL_SPECULAR, color, 0);

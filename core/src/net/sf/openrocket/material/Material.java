@@ -19,11 +19,12 @@ import net.sf.openrocket.util.MathUtil;
 public abstract class Material implements Comparable<Material> {
 	
 	private static final Translator trans = Application.getTranslator();
-	
+
 	public enum Type {
-		LINE("Databases.materials.types.Line", UnitGroup.UNITS_DENSITY_LINE),
+		BULK("Databases.materials.types.Bulk", UnitGroup.UNITS_DENSITY_BULK),
 		SURFACE("Databases.materials.types.Surface", UnitGroup.UNITS_DENSITY_SURFACE),
-		BULK("Databases.materials.types.Bulk", UnitGroup.UNITS_DENSITY_BULK);
+		LINE("Databases.materials.types.Line", UnitGroup.UNITS_DENSITY_LINE),
+		CUSTOM("Databases.materials.types.Custom", UnitGroup.UNITS_DENSITY_BULK);
 		
 		private final String name;
 		private final UnitGroup units;
@@ -82,6 +83,18 @@ public abstract class Material implements Comparable<Material> {
 		@Override
 		public Type getType() {
 			return Type.BULK;
+		}
+	}
+	
+
+	public static class Custom extends Material {
+		Custom(String name, double density, boolean userDefined) {
+			super(name, density, userDefined);
+		}
+		
+		@Override
+		public Type getType() {
+			return Type.CUSTOM;
 		}
 	}
 	
@@ -187,6 +200,9 @@ public abstract class Material implements Comparable<Material> {
 			
 		case BULK:
 			return new Material.Bulk(name, density, userDefined);
+		
+		case CUSTOM:
+			return new Material.Custom(name, density, userDefined);
 			
 		default:
 			throw new IllegalArgumentException("Unknown material type: " + type);

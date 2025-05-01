@@ -1,6 +1,6 @@
 package net.sf.openrocket.gui.dialogs.preferences;
 
-import java.awt.Component;
+import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -9,32 +9,39 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
-import javax.swing.ListCellRenderer;
-
 import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.gui.SpinnerEditor;
 import net.sf.openrocket.gui.adaptors.DoubleModel;
 import net.sf.openrocket.gui.adaptors.EnumModel;
 import net.sf.openrocket.gui.components.BasicSlider;
+import net.sf.openrocket.gui.components.StyledLabel;
 import net.sf.openrocket.gui.components.UnitSelector;
-import net.sf.openrocket.gui.util.Icons;
+import net.sf.openrocket.gui.util.GUIUtil;
+import net.sf.openrocket.gui.util.UITheme;
 import net.sf.openrocket.simulation.RK4SimulationStepper;
-import net.sf.openrocket.simulation.listeners.SimulationListener;
 import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.GeodeticComputationStrategy;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 public class SimulationPreferencesPanel extends PreferencesPanel {
+	private static final long serialVersionUID = 7983195730016979888L;
+
+	private static Color darkWarningColor;
+
+	static {
+		initColors();
+	}
 
 	/*
 	 * private GeodeticComputationStrategy geodeticComputation =
 	 * GeodeticComputationStrategy.SPHERICAL;
 	 */
 
+
 	public SimulationPreferencesPanel() {
-		super(new MigLayout("fill"));
+		super(new MigLayout("fillx"));
 
 		// Confirm deletion of simulations:
 		final JCheckBox confirmDelete = new JCheckBox(
@@ -43,7 +50,7 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		confirmDelete.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				preferences.setAutoRunSimulations(confirmDelete.isSelected());
+				preferences.setConfirmSimDeletion(confirmDelete.isSelected());
 			}
 		});
 		this.add(confirmDelete, "wrap, growx, sg combos ");
@@ -62,12 +69,11 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		});
 		this.add(automaticallyRunSimsBox, "wrap, growx, sg combos ");
 
-		GeodeticComputationStrategy geodeticComputation = GeodeticComputationStrategy.SPHERICAL;
+		//GeodeticComputationStrategy geodeticComputation = GeodeticComputationStrategy.SPHERICAL;
 
 		JPanel sub, subsub;
 		String tip;
 		JLabel label;
-		DoubleModel m;
 		JSpinner spin;
 		UnitSelector unit;
 		BasicSlider slider;
@@ -77,11 +83,19 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		// // Simulator options
 		sub.setBorder(BorderFactory.createTitledBorder(trans
 				.get("simedtdlg.border.Simopt")));
-		this.add(sub, "growx, growy, aligny 0");
+		this.add(sub, "grow, aligny 0, gaptop 40lp");
 
 		// Separate panel for computation methods, as they use a different
 		// layout
 		subsub = new JPanel(new MigLayout("insets 0, fill", "[grow][min!][min!][]"));
+
+		// // Warning
+		StyledLabel warning = new StyledLabel(String.format(
+				"<html>%s</html>", trans.get("pref.dlg.lbl.launchWarning")),
+				0, StyledLabel.Style.BOLD);
+		warning.setFontColor(darkWarningColor);
+		warning.setToolTipText(trans.get("pref.dlg.lbl.launchWarning.ttip"));
+		subsub.add(warning, "spanx, wrap para");
 
 		// // Calculation method:
 		tip = trans.get("simedtdlg.lbl.ttip.Calcmethod");
@@ -112,13 +126,14 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 
 		EnumModel<GeodeticComputationStrategy> gcsModel = new EnumModel<GeodeticComputationStrategy>(
 				preferences, "GeodeticComputation");
-		final JComboBox gcsCombo = new JComboBox(gcsModel);
+		final JComboBox<GeodeticComputationStrategy> gcsCombo = new JComboBox<GeodeticComputationStrategy>(gcsModel);
 		ActionListener gcsTTipListener = new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				GeodeticComputationStrategy gcs = (GeodeticComputationStrategy) gcsCombo
 						.getSelectedItem();
 				gcsCombo.setToolTipText(gcs.getDescription());
+				gcsCombo.repaint(); // On some machines, the combobox did not visually update to the selected item
 			}
 		};
 		gcsCombo.addActionListener(gcsTTipListener);
@@ -137,25 +152,25 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		label.setToolTipText(tip);
 		subsub.add(label, "gapright para");
 
-		m = new DoubleModel(preferences, "TimeStep", UnitGroup.UNITS_TIME_STEP,
-				0, 1);
+		DoubleModel m_ts = new DoubleModel(preferences, "TimeStep", UnitGroup.UNITS_TIME_STEP,
+				0.01, 1);
 
-		spin = new JSpinner(m.getSpinnerModel());
+		spin = new JSpinner(m_ts.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin));
 		spin.setToolTipText(tip);
 		subsub.add(spin, "");
 
-		unit = new UnitSelector(m);
+		unit = new UnitSelector(m_ts);
 		unit.setToolTipText(tip);
 		subsub.add(unit, "");
-		slider = new BasicSlider(m.getSliderModel(0, 0.2));
+		slider = new BasicSlider(m_ts.getSliderModel(0.01, 0.2));
 		slider.setToolTipText(tip);
 		subsub.add(slider, "w 100");
 
 		sub.add(subsub, "spanx, wrap para");
 
 		// Reset to default button
-		JButton button = new JButton(trans.get("simedtdlg.but.resettodefault"));
+		JButton button = new SelectColorButton(trans.get("simedtdlg.but.resettodefault"));
 		// Reset the time step to its default value (
 		button.setToolTipText(trans.get("simedtdlg.but.ttip.resettodefault")
 				+ UnitGroup.UNITS_SHORT_TIME
@@ -164,10 +179,9 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				preferences
-						.setTimeStep(RK4SimulationStepper.RECOMMENDED_TIME_STEP);
-				preferences
-						.setGeodeticComputation(GeodeticComputationStrategy.SPHERICAL);
+				m_ts.setValue(RK4SimulationStepper.RECOMMENDED_TIME_STEP);
+				gcsModel.setSelectedItem(GeodeticComputationStrategy.SPHERICAL);
+				gcsCombo.repaint();
 			}
 		});
 
@@ -233,47 +247,47 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 		 */
 	}
 
-	private class ListenerCellRenderer extends JLabel implements
-			ListCellRenderer {
-
-		@Override
-		public Component getListCellRendererComponent(JList list, Object value,
-				int index, boolean isSelected, boolean cellHasFocus) {
-			String s = value.toString();
-			setText(s);
-
-			// Attempt instantiating, catch any exceptions
-			Exception ex = null;
-			try {
-				Class<?> c = Class.forName(s);
-				@SuppressWarnings("unused")
-				SimulationListener l = (SimulationListener) c.newInstance();
-			} catch (Exception e) {
-				ex = e;
-			}
-
-			if (ex == null) {
-				setIcon(Icons.SIMULATION_LISTENER_OK);
-				// // Listener instantiated successfully.
-				setToolTipText("Listener instantiated successfully.");
-			} else {
-				setIcon(Icons.SIMULATION_LISTENER_ERROR);
-				// // <html>Unable to instantiate listener due to exception:<br>
-				setToolTipText("<html>Unable to instantiate listener due to exception:<br>"
-						+ ex.toString());
-			}
-
-			if (isSelected) {
-				setBackground(list.getSelectionBackground());
-				setForeground(list.getSelectionForeground());
-			} else {
-				setBackground(list.getBackground());
-				setForeground(list.getForeground());
-			}
-			setOpaque(true);
-			return this;
-		}
-	}
+//	private class ListenerCellRenderer extends JLabel implements
+//			ListCellRenderer {
+//
+//		@Override
+//		public Component getListCellRendererComponent(JList list, Object value,
+//				int index, boolean isSelected, boolean cellHasFocus) {
+//			String s = value.toString();
+//			setText(s);
+//
+//			// Attempt instantiating, catch any exceptions
+//			Exception ex = null;
+//			try {
+//				Class<?> c = Class.forName(s);
+//				@SuppressWarnings("unused")
+//				SimulationListener l = (SimulationListener) c.newInstance();
+//			} catch (Exception e) {
+//				ex = e;
+//			}
+//
+//			if (ex == null) {
+//				setIcon(Icons.SIMULATION_LISTENER_OK);
+//				// // Listener instantiated successfully.
+//				setToolTipText("Listener instantiated successfully.");
+//			} else {
+//				setIcon(Icons.SIMULATION_LISTENER_ERROR);
+//				// // <html>Unable to instantiate listener due to exception:<br>
+//				setToolTipText("<html>Unable to instantiate listener due to exception:<br>"
+//						+ ex.toString());
+//			}
+//
+//			if (isSelected) {
+//				setBackground(list.getSelectionBackground());
+//				setForeground(list.getSelectionForeground());
+//			} else {
+//				setBackground(list.getBackground());
+//				setForeground(list.getForeground());
+//			}
+//			setOpaque(true);
+//			return this;
+//		}
+//	}
 
 	/*
 	 * private class ListenerListModel extends AbstractListModel {
@@ -288,4 +302,13 @@ public class SimulationPreferencesPanel extends PreferencesPanel {
 	 * public void fireContentsChanged() { super.fireContentsChanged(this, 0,
 	 * getSize()); } }
 	 */
+
+	private static void initColors() {
+		updateColors();
+		UITheme.Theme.addUIThemeChangeListener(SimulationPreferencesPanel::updateColors);
+	}
+
+	private static void updateColors() {
+		darkWarningColor = GUIUtil.getUITheme().getDarkWarningColor();
+	}
 }

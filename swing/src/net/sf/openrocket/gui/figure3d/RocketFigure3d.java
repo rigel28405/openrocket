@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -12,57 +13,60 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.media.opengl.GL;
-import javax.media.opengl.GL2;
-import javax.media.opengl.GLAutoDrawable;
-import javax.media.opengl.GLCapabilities;
-import javax.media.opengl.GLEventListener;
-import javax.media.opengl.GLProfile;
-import javax.media.opengl.GLRunnable;
-import javax.media.opengl.awt.GLCanvas;
-import javax.media.opengl.awt.GLJPanel;
-import javax.media.opengl.fixedfunc.GLLightingFunc;
-import javax.media.opengl.fixedfunc.GLMatrixFunc;
-import javax.media.opengl.glu.GLU;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLEventListener;
+import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.GLRunnable;
+import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.awt.GLJPanel;
+import com.jogamp.opengl.fixedfunc.GLLightingFunc;
+import com.jogamp.opengl.fixedfunc.GLMatrixFunc;
+import com.jogamp.opengl.glu.GLU;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.event.MouseInputAdapter;
 
+import net.sf.openrocket.gui.util.GUIUtil;
+import net.sf.openrocket.gui.util.UITheme;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.jogamp.opengl.util.awt.Overlay;
+
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.gui.figureelements.CGCaret;
 import net.sf.openrocket.gui.figureelements.CPCaret;
 import net.sf.openrocket.gui.figureelements.FigureElement;
 import net.sf.openrocket.gui.main.Splash;
-import net.sf.openrocket.rocketcomponent.Configuration;
+import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.startup.Preferences;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.jogamp.opengl.util.awt.Overlay;
+import net.sf.openrocket.util.BoundingBox;
 
 /*
  * @author Bill Kuker <bkuker@billkuker.com>
  */
 public class RocketFigure3d extends JPanel implements GLEventListener {
 	
-	public static final int TYPE_FIGURE = 0;
-	public static final int TYPE_UNFINISHED = 1;
-	public static final int TYPE_FINISHED = 2;
+	public static final int TYPE_FIGURE = 2;
+	public static final int TYPE_UNFINISHED = 3;
+	public static final int TYPE_FINISHED = 4;
 	
 	private static final long serialVersionUID = 1L;
 	private static final Logger log = LoggerFactory.getLogger(RocketFigure3d.class);
-	
+
 	static {
 		//this allows the GL canvas and things like the motor selection
 		//drop down to z-order themselves.
@@ -74,13 +78,14 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 	private static final int CARET_SIZE = 20;
 	
 	private final OpenRocketDocument document;
-	private final Configuration configuration;
+	private final Rocket rkt;
 	private Component canvas;
 	
 	
 	private Overlay extrasOverlay, caretOverlay;
 	private BufferedImage cgCaretRaster, cpCaretRaster;
 	private volatile boolean redrawExtras = true;
+	private boolean drawCarets = true;
 	
 	private final ArrayList<FigureElement> relativeExtra = new ArrayList<FigureElement>();
 	private final ArrayList<FigureElement> absoluteExtra = new ArrayList<FigureElement>();
@@ -94,13 +99,19 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 	float[] lightPosition = new float[] { 1, 4, 1, 0 };
 	
 	RocketRenderer rr = new FigureRenderer();
+
+	private static Color backgroundColor;
+
+	static {
+		initColors();
+	}
 	
-	public RocketFigure3d(final OpenRocketDocument document, final Configuration config) {
+	public RocketFigure3d(final OpenRocketDocument document) {
 		this.document = document;
-		this.configuration = config;
+		this.rkt = document.getRocket();
 		this.setLayout(new BorderLayout());
-		
-		//Only initizlize GL if 3d is enabled.
+
+		// Only initialize GL if 3d is enabled.
 		if (is3dEnabled()) {
 			//Fixes a linux / X bug: Splash must be closed before GL Init
 			SplashScreen splash = Splash.getSplashScreen();
@@ -109,6 +120,15 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 			
 			initGLCanvas();
 		}
+	}
+
+	private static void initColors() {
+		updateColors();
+		UITheme.Theme.addUIThemeChangeListener(RocketFigure3d::updateColors);
+	}
+
+	private static void updateColors() {
+		backgroundColor = GUIUtil.getUITheme().getBackgroundColor();
 	}
 	
 	public void flushTextureCaches() {
@@ -284,16 +304,18 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 	public void display(final GLAutoDrawable drawable) {
 		GL2 gl = drawable.getGL().getGL2();
 		GLU glu = new GLU();
-		
-		gl.glEnable(GL.GL_MULTISAMPLE);
-		
-		gl.glClearColor(1, 1, 1, 1);
+
+		gl.glClearColor(backgroundColor.getRed()/255f, backgroundColor.getGreen()/255f,
+				backgroundColor.getBlue()/255f, backgroundColor.getAlpha()/255f);
 		gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 		
 		setupView(gl, glu);
 		
+		final FlightConfiguration configuration = rkt.getSelectedConfiguration();
 		if (pickPoint != null) {
+			gl.glDisable(GL.GL_MULTISAMPLE);
 			gl.glDisable(GLLightingFunc.GL_LIGHTING);
+			
 			final RocketComponent picked = rr.pick(drawable, configuration,
 					pickPoint, pickEvent.isShiftDown() ? selection : null);
 			if (csl != null) {
@@ -302,7 +324,6 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 					@Override
 					public void run() {
 						if (picked == null) {
-							log.debug("unselecting");
 							csl.componentClicked(new RocketComponent[] {}, e);
 						} else {
 							csl.componentClicked(new RocketComponent[] { picked }, e);
@@ -312,58 +333,80 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 				
 			}
 			pickPoint = null;
-			
-			gl.glClearColor(1, 1, 1, 1);
+
+			gl.glClearColor(backgroundColor.getRed()/255f, backgroundColor.getGreen()/255f,
+					backgroundColor.getBlue()/255f, backgroundColor.getAlpha()/255f);
 			gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
-			
+
+			gl.glEnable(GL.GL_MULTISAMPLE);
 			gl.glEnable(GLLightingFunc.GL_LIGHTING);
+
+			updateFigure();
 		}
 		rr.render(drawable, configuration, selection);
 		
-		drawExtras(gl, glu);
-		drawCarets(gl, glu);
+		drawExtras(drawable, gl, glu);
+		if (drawCarets) {
+			drawCarets(drawable, gl, glu);
+		}
 		
-		//GLJPanel with GLSL Flipper relies on this:
+		// GLJPanel with GLSL Flipper relies on this:
 		gl.glFrontFace(GL.GL_CCW);
 		
 	}
 	
-	
-	private void drawCarets(final GL2 gl, final GLU glu) {
-		final Graphics2D og2d = caretOverlay.createGraphics();
+	/**
+	 * Creates a Graphics2D object for the overlay. The resultant Graphics2D
+	 * object has the rendering hints set and the transform to match the
+	 * current GraphicsConfiguration this component is rendered on. This takes
+	 * into account things such as DPI Scaling.
+	 *
+	 * @param overlay the overlay to use when creating the Graphics2D object.
+	 * @return Graphics2D a Graphics2D object for the overlay
+	 */
+	private Graphics2D createOverlayGraphics(final Overlay overlay) {
+		final Graphics2D og2d = overlay.createGraphics();
 		setRenderingHints(og2d);
+		GraphicsConfiguration gconf = getGraphicsConfiguration();
+		if (gconf != null) {
+			og2d.setTransform(gconf.getDefaultTransform());
+		}
+		return og2d;
+	}
+	
+	private void drawCarets(final GLAutoDrawable drawable, final GL2 gl, final GLU glu) {
+		final Graphics2D og2d = createOverlayGraphics(caretOverlay);
 		
 		og2d.setBackground(new Color(0, 0, 0, 0));
-		og2d.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
-		caretOverlay.markDirty(0, 0, canvas.getWidth(), canvas.getHeight());
+		og2d.clearRect(0, 0, drawable.getSurfaceWidth(), drawable.getSurfaceHeight());
+		caretOverlay.markDirty(0, 0, drawable.getSurfaceWidth(), drawable.getSurfaceHeight());
 		
 		// The existing relative Extras don't really work right for 3d.
 		Coordinate pCP = project(cp, gl, glu);
 		Coordinate pCG = project(cg, gl, glu);
 		
 		final int d = CARET_SIZE / 2;
+		double height = canvas.getHeight();
+		
+		/* Need to take the displayScaling into account. If the scaling is not
+		 * taken into account here, the CG and CP carets are placed in the wrong
+		 * location. I *think* that's because the Coordinates returned by project(...)
+		 * are already appropriately scaled - but not 100% certain on that. The
+		 * following does work though.
+		 */
+		double displayScale = getGraphicsConfiguration().getDefaultTransform().getScaleX();
+		AffineTransform cgTransform = AffineTransform.getTranslateInstance(((pCG.x / displayScale) - d), height - ((pCG.y / displayScale) + d));
+		AffineTransform cpTransform = AffineTransform.getTranslateInstance(((pCP.x / displayScale) - d), height - ((pCP.y / displayScale) + d));
 		
 		//z order the carets 
 		if (pCG.z < pCP.z) {
 			//Subtract half of the caret size, so they are centered ( The +/- d in each translate)
 			//Flip the sense of the Y coordinate from GL to normal (Y+ up/down)
-			og2d.drawRenderedImage(
-					cpCaretRaster,
-					AffineTransform.getTranslateInstance((pCP.x - d),
-							canvas.getHeight() - (pCP.y + d)));
-			og2d.drawRenderedImage(
-					cgCaretRaster,
-					AffineTransform.getTranslateInstance((pCG.x - d),
-							canvas.getHeight() - (pCG.y + d)));
+			og2d.drawRenderedImage(cpCaretRaster, cpTransform);
+			og2d.drawRenderedImage(cgCaretRaster, cgTransform);
 		} else {
-			og2d.drawRenderedImage(
-					cgCaretRaster,
-					AffineTransform.getTranslateInstance((pCG.x - d),
-							canvas.getHeight() - (pCG.y + d)));
-			og2d.drawRenderedImage(
-					cpCaretRaster,
-					AffineTransform.getTranslateInstance((pCP.x - d),
-							canvas.getHeight() - (pCP.y + d)));
+			og2d.drawRenderedImage(cgCaretRaster, cgTransform);
+			og2d.drawRenderedImage(cpCaretRaster, cpTransform);
 		}
 		og2d.dispose();
 		
@@ -377,7 +420,7 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 	 * Re-blits the overlay every frame. Only re-renders the overlay
 	 * when needed.
 	 */
-	private void drawExtras(final GL2 gl, final GLU glu) {
+	private void drawExtras(final GLAutoDrawable drawable, final GL2 gl, final GLU glu) {
 		//Only re-render if needed
 		//	redrawExtras: Some external change (new simulation data) means
 		//		the data is out of date.
@@ -386,12 +429,11 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 		if (redrawExtras || extrasOverlay.contentsLost()) {
 			log.debug("Redrawing Overlay");
 			
-			final Graphics2D og2d = extrasOverlay.createGraphics();
-			setRenderingHints(og2d);
+			final Graphics2D og2d = createOverlayGraphics(extrasOverlay);
 			
 			og2d.setBackground(new Color(0, 0, 0, 0));
-			og2d.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
-			extrasOverlay.markDirty(0, 0, canvas.getWidth(), canvas.getHeight());
+			og2d.clearRect(0, 0, drawable.getSurfaceWidth(), drawable.getSurfaceHeight());
+			extrasOverlay.markDirty(0, 0, drawable.getSurfaceWidth(), drawable.getSurfaceHeight());
 			
 			for (FigureElement e : relativeExtra) {
 				e.paint(og2d, 1);
@@ -457,6 +499,8 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 		final double ratio = (double) w / (double) h;
 		fovX = fovY * ratio;
 		
+		// Make sure to set the viewport size to cover the full size
+		gl.glViewport(0, 0, w, h);
 		gl.glMatrixMode(GLMatrixFunc.GL_PROJECTION);
 		gl.glLoadIdentity();
 		glu.gluPerspective(fovY, ratio, 0.1f, 50f);
@@ -465,46 +509,19 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 		redrawExtras = true;
 	}
 	
-	@SuppressWarnings("unused")
-	private static class Bounds {
-		double xMin, xMax, xSize;
-		double yMin, yMax, ySize;
-		double zMin, zMax, zSize;
-		double rMax;
-	}
-	
-	private Bounds cachedBounds = null;
+	private BoundingBox cachedBounds = null;
 	
 	/**
 	 * Calculates the bounds for the current configuration
 	 * 
 	 * @return
 	 */
-	private Bounds calculateBounds() {
-		if (cachedBounds != null) {
-			return cachedBounds;
-		} else {
-			final Bounds b = new Bounds();
-			final Collection<Coordinate> bounds = configuration.getBounds();
-			for (Coordinate c : bounds) {
-				b.xMax = Math.max(b.xMax, c.x);
-				b.xMin = Math.min(b.xMin, c.x);
-				
-				b.yMax = Math.max(b.yMax, c.y);
-				b.yMin = Math.min(b.yMin, c.y);
-				
-				b.zMax = Math.max(b.zMax, c.z);
-				b.zMin = Math.min(b.zMin, c.z);
-				
-				double r = MathUtil.hypot(c.y, c.z);
-				b.rMax = Math.max(b.rMax, r);
-			}
-			b.xSize = b.xMax - b.xMin;
-			b.ySize = b.yMax - b.yMin;
-			b.zSize = b.zMax - b.zMin;
-			cachedBounds = b;
-			return b;
+	private BoundingBox calculateBounds() {
+		if (cachedBounds == null) {
+			final FlightConfiguration configuration = rkt.getSelectedConfiguration();
+			cachedBounds = configuration.getBoundingBox();
 		}
+		return cachedBounds;
 	}
 	
 	private void setupView(final GL2 gl, final GLU glu) {
@@ -512,16 +529,18 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 		
 		gl.glLightfv(GLLightingFunc.GL_LIGHT1, GLLightingFunc.GL_POSITION,
 				lightPosition, 0);
-		
+
 		// Get the bounds
-		final Bounds b = calculateBounds();
+		final BoundingBox b = calculateBounds();
 		
 		// Calculate the distance needed to fit the bounds in both the X and Y
 		// direction
 		// Add 10% for space around it.
-		final double dX = (b.xSize * 1.2 / 2.0)
+		final double maxR = Math.max( Math.hypot(b.min.y, b.min.z),
+				Math.hypot(b.max.y, b.max.z));
+		final double dX = (b.span().x * 1.2 / 2.0)
 				/ Math.tan(Math.toRadians(fovX / 2.0));
-		final double dY = (b.rMax * 2.0 * 1.2 / 2.0)
+		final double dY = (2*maxR * 1.2 / 2.0)
 				/ Math.tan(Math.toRadians(fovY / 2.0));
 		
 		// Move back the greater of the 2 distances
@@ -531,7 +550,7 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 		gl.glRotated(roll * (180.0 / Math.PI), 1, 0, 0);
 		
 		// Center the rocket in the view.
-		gl.glTranslated(-b.xMin - b.xSize / 2.0, 0, 0);
+		gl.glTranslated(-b.min.x - b.span().x / 2.0, 0, 0);
 		
 		//Change to LEFT Handed coordinates
 		gl.glScaled(1, 1, -1);
@@ -589,14 +608,14 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 	private void setRoll(final double rot) {
 		if (MathUtil.equals(roll, rot))
 			return;
-		this.roll = MathUtil.reduce360(rot);
+		this.roll = MathUtil.reduce2Pi(rot);
 		internalRepaint();
 	}
 	
 	private void setYaw(final double rot) {
 		if (MathUtil.equals(yaw, rot))
 			return;
-		this.yaw = MathUtil.reduce360(rot);
+		this.yaw = MathUtil.reduce2Pi(rot);
 		internalRepaint();
 	}
 	
@@ -716,5 +735,12 @@ public class RocketFigure3d extends JPanel implements GLEventListener {
 			});
 		}
 	}
-	
+
+	public boolean isDrawCarets() {
+		return drawCarets;
+	}
+
+	public void setDrawCarets(boolean drawCarets) {
+		this.drawCarets = drawCarets;
+	}
 }

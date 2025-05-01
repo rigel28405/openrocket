@@ -20,7 +20,6 @@ import net.sf.openrocket.rocketcomponent.DeploymentConfiguration.DeployEvent;
 import net.sf.openrocket.rocketcomponent.EllipticalFinSet;
 import net.sf.openrocket.rocketcomponent.FinSet;
 import net.sf.openrocket.rocketcomponent.FreeformFinSet;
-import net.sf.openrocket.rocketcomponent.IgnitionConfiguration;
 import net.sf.openrocket.rocketcomponent.InternalComponent;
 import net.sf.openrocket.rocketcomponent.LaunchLug;
 import net.sf.openrocket.rocketcomponent.MassComponent;
@@ -57,7 +56,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 		 */
 		
 		addModifier("optimization.modifier.nosecone.length", UnitGroup.UNITS_LENGTH, 1.0, NoseCone.class, "Length");
-		addModifier("optimization.modifier.nosecone.diameter", UnitGroup.UNITS_LENGTH, 2.0, NoseCone.class, "AftRadius", "isAftRadiusAutomatic");
+		addModifier("optimization.modifier.nosecone.diameter", UnitGroup.UNITS_LENGTH, 2.0, NoseCone.class, "BaseRadius", "isBaseRadiusAutomatic");
 		addModifier("optimization.modifier.nosecone.thickness", UnitGroup.UNITS_LENGTH, 1.0, NoseCone.class, "Thickness", "isFilled");
 		
 		addModifier("optimization.modifier.transition.length", UnitGroup.UNITS_LENGTH, 1.0, Transition.class, "Length");
@@ -129,8 +128,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 		Rocket rocket = document.getRocket();
 		
 		// Simulation is used to calculate default min/max values
-		Simulation simulation = new Simulation(rocket);
-		simulation.getConfiguration().setFlightConfigurationID(null);
+		Simulation simulation = new Simulation(document, rocket);
 		
 		for (RocketComponent c : rocket) {
 			
@@ -191,20 +189,21 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 					setDefaultMinMax(mod, simulation);
 					modifiers.add(mod);
 					
-					mod = new FlightConfigurationModifier<IgnitionConfiguration>(
-							trans.get("optimization.modifier.motormount.delay"),
-							trans.get("optimization.modifier.motormount.delay.desc"),
-							c, UnitGroup.UNITS_SHORT_TIME,
-							1.0,
-							c.getClass(),
-							c.getID(),
-							"IgnitionConfiguration",
-							IgnitionConfiguration.class,
-							"IgnitionDelay");
-					
-					mod.setMinValue(0);
-					mod.setMaxValue(5);
-					modifiers.add(mod);
+//	TODO: reimplement motor ignition optimization				
+//					mod = new FlightConfigurationModifier<MotorInstance>(
+//							trans.get("optimization.modifier.motormount.delay"),
+//							trans.get("optimization.modifier.motormount.delay.desc"),
+//							c, UnitGroup.UNITS_SHORT_TIME,
+//							1.0,
+//							c.getClass(),
+//							c.getID(),
+//							"IgnitionConfiguration",
+//							IgnitionConfiguration.class,
+//							"IgnitionDelay");
+//					
+//					mod.setMinValue(0);
+//					mod.setMaxValue(5);
+//					modifiers.add(mod);
 				}
 			}
 			
@@ -216,7 +215,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 						trans.get("optimization.modifier.internalcomponent.position"),
 						trans.get("optimization.modifier.internalcomponent.position.desc"),
 						c, UnitGroup.UNITS_LENGTH,
-						1.0, c.getClass(), c.getID(), "PositionValue");
+						1.0, c.getClass(), c.getID(), "AxialOffset");
 				mod.setMinValue(0);
 				mod.setMaxValue(parent.getLength());
 				modifiers.add(mod);
@@ -230,7 +229,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 						trans.get("optimization.modifier.finset.position"),
 						trans.get("optimization.modifier.finset.position.desc"),
 						c, UnitGroup.UNITS_LENGTH,
-						1.0, c.getClass(), c.getID(), "PositionValue");
+						1.0, c.getClass(), c.getID(), "AxialOffset");
 				mod.setMinValue(0);
 				mod.setMaxValue(parent.getLength());
 				modifiers.add(mod);
@@ -244,7 +243,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 						trans.get("optimization.modifier.launchlug.position"),
 						trans.get("optimization.modifier.launchlug.position.desc"),
 						c, UnitGroup.UNITS_LENGTH,
-						1.0, c.getClass(), c.getID(), "PositionValue");
+						1.0, c.getClass(), c.getID(), "AxialOffset");
 				mod.setMinValue(0);
 				mod.setMaxValue(parent.getLength());
 				modifiers.add(mod);
@@ -253,8 +252,6 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 			
 			// Recovery device deployment altitude and delay
 			if (c instanceof RecoveryDevice) {
-				RecoveryDevice device = (RecoveryDevice) c;
-				
 				SimulationModifier mod = new FlightConfigurationModifier<DeploymentConfiguration>(
 						trans.get("optimization.modifier.recoverydevice.deployDelay"),
 						trans.get("optimization.modifier.recoverydevice.deployDelay.desc"),
@@ -263,7 +260,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 						1.0,
 						c.getClass(),
 						c.getID(),
-						"DeploymentConfiguration",
+						"DeploymentConfigurations",
 						DeploymentConfiguration.class,
 						"DeployDelay");
 				
@@ -279,7 +276,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 						1.0,
 						c.getClass(),
 						c.getID(),
-						"DeploymentConfiguration",
+						"DeploymentConfigurations",
 						DeploymentConfiguration.class,
 						"DeployAltitude") {
 					
@@ -298,7 +295,7 @@ public class DefaultSimulationModifierService implements SimulationModifierServi
 			// Conditional shape parameter of Transition
 			if (c instanceof Transition) {
 				Transition transition = (Transition) c;
-				Transition.Shape shape = transition.getType();
+				Transition.Shape shape = transition.getShapeType();
 				if (shape.usesParameter()) {
 					SimulationModifier mod = new GenericComponentModifier(
 							trans.get("optimization.modifier." + c.getClass().getSimpleName().toLowerCase(Locale.ENGLISH) + ".shapeparameter"),

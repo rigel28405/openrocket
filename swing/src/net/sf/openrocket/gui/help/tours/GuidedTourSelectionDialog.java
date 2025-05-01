@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextPane;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -25,12 +26,16 @@ import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.gui.components.StyledLabel;
 import net.sf.openrocket.gui.components.StyledLabel.Style;
 import net.sf.openrocket.gui.util.GUIUtil;
+import net.sf.openrocket.gui.util.Icons;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.Named;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
+import org.fife.ui.rtextarea.IconGroup;
 
 public class GuidedTourSelectionDialog extends JDialog {
-	
+	private static final long serialVersionUID = -3643116444821710259L;
+
 	private static final Translator trans = Application.getTranslator();
 	
 	private static GuidedTourSelectionDialog instance = null;
@@ -41,7 +46,7 @@ public class GuidedTourSelectionDialog extends JDialog {
 	
 	private SlideShowDialog slideShowDialog;
 	
-	private JList tourList;
+	private JList<Named<SlideSet>> tourList;
 	private JEditorPane tourDescription;
 	private JLabel tourLength;
 	
@@ -56,7 +61,7 @@ public class GuidedTourSelectionDialog extends JDialog {
 		
 		panel.add(new StyledLabel(trans.get("lbl.selectTour"), Style.BOLD), "spanx, wrap rel");
 		
-		tourList = new JList(new TourListModel());
+		tourList = new JList<Named<SlideSet>>(new TourListModel());
 		tourList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		tourList.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
 			@Override
@@ -82,6 +87,7 @@ public class GuidedTourSelectionDialog extends JDialog {
 		
 		tourDescription = new JEditorPane("text/html", "");
 		tourDescription.setEditable(false);
+		tourDescription.putClientProperty(JTextPane.HONOR_DISPLAY_PROPERTIES, true);
 		StyleSheet ss = slideSetManager.getSlideSet(tourNames.get(0)).getStyleSheet();
 		((HTMLDocument) tourDescription.getDocument()).getStyleSheet().addStyleSheet(ss);
 		sub.add(new JScrollPane(tourDescription), "grow, wrap rel");
@@ -89,7 +95,8 @@ public class GuidedTourSelectionDialog extends JDialog {
 		tourLength = new StyledLabel(-1);
 		sub.add(tourLength, "wrap unrel");
 		
-		JButton start = new JButton(trans.get("btn.start"));
+		JButton start = new SelectColorButton(trans.get("btn.start"));
+		start.setIcon(Icons.HELP_TOURS);
 		start.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -102,7 +109,7 @@ public class GuidedTourSelectionDialog extends JDialog {
 		
 		
 		
-		JButton close = new JButton(trans.get("button.close"));
+		JButton close = new SelectColorButton(trans.get("button.close"));
 		close.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -157,15 +164,15 @@ public class GuidedTourSelectionDialog extends JDialog {
 	}
 	
 	
-	@SuppressWarnings("unchecked")
 	private SlideSet getSelectedSlideSet() {
-		return ((Named<SlideSet>) tourList.getSelectedValue()).get();
+		return tourList.getSelectedValue().get();
 	}
 	
-	private class TourListModel extends AbstractListModel {
-		
+	private class TourListModel extends AbstractListModel<Named<SlideSet>> {
+		private static final long serialVersionUID = -4031709944507449410L;
+
 		@Override
-		public Object getElementAt(int index) {
+		public Named<SlideSet> getElementAt(int index) {
 			String name = tourNames.get(index);
 			SlideSet set = slideSetManager.getSlideSet(name);
 			return new Named<SlideSet>(set, set.getTitle());

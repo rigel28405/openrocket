@@ -1,14 +1,13 @@
 package net.sf.openrocket.rocketcomponent;
 
-import java.util.EventObject;
-import java.util.List;
-
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.simulation.FlightEvent;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.util.ArrayList;
 import net.sf.openrocket.util.MathUtil;
-import net.sf.openrocket.util.StateChangeListener;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 
 public class StageSeparationConfiguration implements FlightConfigurableParameter<StageSeparationConfiguration> {
 	
@@ -16,7 +15,7 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		//// Upper stage motor ignition
 		UPPER_IGNITION(trans.get("Stage.SeparationEvent.UPPER_IGNITION")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				if (e.getType() != FlightEvent.Type.IGNITION)
 					return false;
 				
@@ -28,7 +27,7 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		//// Current stage motor ignition
 		IGNITION(trans.get("Stage.SeparationEvent.IGNITION")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				if (e.getType() != FlightEvent.Type.IGNITION)
 					return false;
 				
@@ -40,7 +39,7 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		//// Current stage motor burnout
 		BURNOUT(trans.get("Stage.SeparationEvent.BURNOUT")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				if (e.getType() != FlightEvent.Type.BURNOUT)
 					return false;
 				
@@ -52,7 +51,7 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		//// Current stage ejection charge
 		EJECTION(trans.get("Stage.SeparationEvent.EJECTION")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				if (e.getType() != FlightEvent.Type.EJECTION_CHARGE)
 					return false;
 				
@@ -64,14 +63,14 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		//// Launch
 		LAUNCH(trans.get("Stage.SeparationEvent.LAUNCH")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				return e.getType() == FlightEvent.Type.LAUNCH;
 			}
 		},
 		//// Never
 		NEVER(trans.get("Stage.SeparationEvent.NEVER")) {
 			@Override
-			public boolean isSeparationEvent(FlightEvent e, Stage stage) {
+			public boolean isSeparationEvent(FlightEvent e, AxialStage stage) {
 				return false;
 			}
 		},
@@ -87,7 +86,7 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 		/**
 		 * Test whether a specific event is a stage separation event.
 		 */
-		public abstract boolean isSeparationEvent(FlightEvent e, Stage stage);
+		public abstract boolean isSeparationEvent(FlightEvent e, AxialStage stage);
 		
 		@Override
 		public String toString() {
@@ -98,17 +97,21 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 	
 	private static final Translator trans = Application.getTranslator();
 	
-	private final List<StateChangeListener> listeners = new ArrayList<StateChangeListener>();
 	
-	private SeparationEvent separationEvent = SeparationEvent.UPPER_IGNITION;
+	private SeparationEvent separationEvent = SeparationEvent.EJECTION;
 	private double separationDelay = 0;
-	
-	
+
+	private final List<StageSeparationConfiguration> configListeners = new LinkedList<>();
+		
 	public SeparationEvent getSeparationEvent() {
 		return separationEvent;
 	}
 	
 	public void setSeparationEvent(SeparationEvent separationEvent) {
+		for (StageSeparationConfiguration listener : configListeners) {
+			listener.setSeparationEvent(separationEvent);
+		}
+
 		if (separationEvent == null) {
 			throw new NullPointerException("separationEvent is null");
 		}
@@ -124,6 +127,10 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 	}
 	
 	public void setSeparationDelay(double separationDelay) {
+		for (StageSeparationConfiguration listener : configListeners) {
+			listener.setSeparationDelay(separationDelay);
+		}
+
 		if (MathUtil.equals(this.separationDelay, separationDelay)) {
 			return;
 		}
@@ -142,28 +149,61 @@ public class StageSeparationConfiguration implements FlightConfigurableParameter
 	
 	@Override
 	public StageSeparationConfiguration clone() {
+        return copy(null);
+    }
+
+    public StageSeparationConfiguration copy( final FlightConfigurationId copyId){
 		StageSeparationConfiguration clone = new StageSeparationConfiguration();
 		clone.separationEvent = this.separationEvent;
 		clone.separationDelay = this.separationDelay;
 		return clone;
 	}
-	
+
 	@Override
-	public void addChangeListener(StateChangeListener listener) {
-		listeners.add(listener);
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		StageSeparationConfiguration that = (StageSeparationConfiguration) o;
+		return Double.compare(that.separationDelay, separationDelay) == 0 && separationEvent == that.separationEvent;
 	}
-	
+
 	@Override
-	public void removeChangeListener(StateChangeListener listener) {
-		listeners.remove(listener);
+	public int hashCode() {
+		return Objects.hash(separationEvent, separationDelay);
 	}
-	
+
 	private void fireChangeEvent() {
-		EventObject event = new EventObject(this);
-		Object[] list = listeners.toArray();
-		for (Object l : list) {
-			((StateChangeListener) l).stateChanged(event);
+
+	}
+	
+
+	@Override
+	public void update(){
+	}
+
+	/**
+	 * Add a new config listener that will undergo the same configuration changes as this configuration.
+	 * @param listener new config listener
+	 * @return true if listener was successfully added, false if not
+	 */
+	public boolean addConfigListener(StageSeparationConfiguration listener) {
+		if (listener == null) {
+			return false;
 		}
+		configListeners.add(listener);
+		return true;
+	}
+
+	public void removeConfigListener(StageSeparationConfiguration listener) {
+		configListeners.remove(listener);
+	}
+
+	public void clearConfigListeners() {
+		configListeners.clear();
+	}
+
+	public List<StageSeparationConfiguration> getConfigListeners() {
+		return configListeners;
 	}
 	
 }

@@ -50,10 +50,12 @@ public class Databases {
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Cardboard", 680));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Carbon fiber", 1780));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Cork", 240));
+		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Delrin", 1420));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Depron (XPS)", 40));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Fiberglass", 1850));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Kraft phenolic", 950));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Maple", 755));
+		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Nylon", 1150));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Paper (office)", 820));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Pine", 530));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Plywood (birch)", 630));
@@ -67,6 +69,9 @@ public class Databases {
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Titanium", 4500));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Quantum tubing", 1050));
 		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "Blue tube", 1300));
+		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "PLA - 100% infill", 1250));
+		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "PETG - 100% infill", 1250));
+		BULK_MATERIAL.add(newMaterial(Material.Type.BULK, "ABS - 100% infill", 1050));
 		
 		SURFACE_MATERIAL.add(newMaterial(Material.Type.SURFACE, "Ripstop nylon", 0.067));
 		SURFACE_MATERIAL.add(newMaterial(Material.Type.SURFACE, "Mylar", 0.021));
@@ -88,6 +93,37 @@ public class Databases {
 		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Tubular nylon (11 mm, 7/16 in)", 0.013));
 		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Tubular nylon (14 mm, 9/16 in)", 0.016));
 		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Tubular nylon (25 mm, 1 in)", 0.029));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar thread 138  (0.4 mm, 1/64 in)", 0.00014808));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar thread 207  (0.5 mm, 1/64 in)", 0.00023622));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar thread 346  (0.7 mm, 1/32 in)", 0.00047243));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar thread 415  (0.8 mm, 1/32 in)", 0.00055117));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar thread 800 (1.1 mm, 3/64 in)", 0.00099211));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (3.2 mm, 1/8 in)", 0.00967306));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (4.8 mm, 3/16 in)", 0.01785797));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (6.4 mm, 1/4 in)", 0.02976328));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (7.9 mm, 5/16 in)", 0.04464491));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (10 mm, 3/8 in)", 0.05952655));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (11 mm, 7/16 in)", 0.07440819));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (13 mm, 1/2 in)", 0.11607678));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (14 mm, 9/16 in)", 0.20834293));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (16 mm, 5/8 in)", 0.28721562));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (19 mm, 3/4 in)", 0.3497185));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Kevlar 12-strand (25 mm, 1 in)", 0.45686629));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Nylon flat webbing md. (10 mm, 3/8 in)", 0.00951444));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Nylon flat webbing md. (13 mm, 1/2  in)", 0.01334208));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Nylon flat webbing md. (16 mm, 5/8 in)", 0.01618548));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Nylon flat webbing lg. (14 mm, 9/16 in)", 0.02723097));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Nylon flat webbing lg. (25 mm, 1 in)", 0.03969816));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Paraline small IIIA (6.4 mm, 1.4 in)", 0.00371829));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic rubber band (flat 3.2 mm, 1/8 in)", 0.00297638));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic rubber band (flat 6.4 mm, 1/4 in)", 0.00613107));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (flat 3.2 mm, 1/8 in)", 0.00106));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (flat 4 mm, 5/32 in)", 0.002));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (flat 6.4 mm, 1/4 in)", 0.00254));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (round 2 mm, 1/16 in)", 0.0035));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (round 2.5 mm, 3/32 in)", 0.0038));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (flat 10 mm, 3/8 in)", 0.00381));
+		LINE_MATERIAL.add(newMaterial(Material.Type.LINE, "Elastic braided cord (flat 13 mm, 1/2 in)", 0.00551172));
 		
 		
 		// Add user-defined materials
@@ -117,7 +153,13 @@ public class Databases {
 		BULK_MATERIAL.addDatabaseListener(listener);
 	}
 	
-	
+	/**
+	 * builds a new material based on the parameters given
+	 * @param type		The type of material
+	 * @param baseName	the name of material
+	 * @param density	density
+	 * @return	a new object with the material data
+	 */
 	private static Material newMaterial(Type type, String baseName, double density) {
 		String name = trans.get("material", baseName);
 		return Material.newMaterial(type, name, density, false);
@@ -145,21 +187,7 @@ public class Databases {
 	 * @return			the material, or <code>null</code> if not found.
 	 */
 	public static Material findMaterial(Material.Type type, String baseName) {
-		Database<Material> db;
-		switch (type) {
-		case BULK:
-			db = BULK_MATERIAL;
-			break;
-		case SURFACE:
-			db = SURFACE_MATERIAL;
-			break;
-		case LINE:
-			db = LINE_MATERIAL;
-			break;
-		default:
-			throw new IllegalArgumentException("Illegal material type: " + type);
-		}
-		
+		Database<Material> db = getDatabase(type);		
 		String name = trans.get("material", baseName);
 		
 		for (Material m : db) {
@@ -168,6 +196,24 @@ public class Databases {
 			}
 		}
 		return null;
+	}
+	
+	/**
+	 * gets the specific database with the given type
+	 * @param 	type	the desired type
+	 * @return	the database of the type given
+	 */
+	private static Database<Material> getDatabase(Material.Type type){
+		switch (type) {
+		case BULK:
+			return BULK_MATERIAL;
+		case SURFACE:
+			return SURFACE_MATERIAL;
+		case LINE:
+			return LINE_MATERIAL;
+		default:
+			throw new IllegalArgumentException("Illegal material type: " + type);
+		}
 	}
 	
 	
@@ -179,26 +225,12 @@ public class Databases {
 	 * the provided name if unable to do so.
 	 * 
 	 * @param type			the material type.
-	 * @param baseName			the base name of the material.
+	 * @param baseName		the base name of the material.
 	 * @param density		the density of the material.
 	 * @return				the material object from the database or a new material.
 	 */
 	public static Material findMaterial(Material.Type type, String baseName, double density) {
-		Database<Material> db;
-		switch (type) {
-		case BULK:
-			db = BULK_MATERIAL;
-			break;
-		case SURFACE:
-			db = SURFACE_MATERIAL;
-			break;
-		case LINE:
-			db = LINE_MATERIAL;
-			break;
-		default:
-			throw new IllegalArgumentException("Illegal material type: " + type);
-		}
-		
+		Database<Material> db = getDatabase(type);
 		String name = trans.get("material", baseName);
 		
 		for (Material m : db) {

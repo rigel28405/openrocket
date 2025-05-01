@@ -90,8 +90,11 @@ public abstract class Unit {
 	 * @return       A string representation of the number in these units.
 	 */
 	public String toString(double value) {
-		double val = toUnit(value);
+		if (Double.isNaN(value))
+			return "N/A";
 		
+		double val = toUnit(value);
+
 		if (Math.abs(val) > 1E6) {
 			return expFormat.format(val);
 		}
@@ -114,7 +117,7 @@ public abstract class Unit {
 		double sign = Math.signum(val);
 		val = Math.abs(val);
 		double mul = 1.0;
-		while (val < 100) {
+		while (val < 100 && mul < 1000) {
 			mul *= 10;
 			val *= 10;
 		}
@@ -178,14 +181,14 @@ public abstract class Unit {
 	 */
 	public abstract double getPreviousValue(double value);
 	
-	//public abstract ArrayList<Tick> getTicks(double start, double end, double scale);
-	
-	/**
-	 * Return ticks in the range start - end (in current units).  minor is the minimum
-	 * distance between minor, non-notable ticks and major the minimum distance between
-	 * major non-notable ticks.  The values are in current units, i.e. no conversion is
-	 * performed.
-	 */
+    /**
+     * Return ticks in the range start - end (in current units).  
+     * 
+     * @param start start of interval to draw
+     * @param end end of interval to draw
+     * @param minor the minimum distance between minor, non-notable ticks 
+     * @param major the minimum distance between major, non-notable ticks
+     */
 	public abstract Tick[] getTicks(double start, double end, double minor, double major);
 	
 	/**

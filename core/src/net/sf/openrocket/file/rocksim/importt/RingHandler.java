@@ -5,9 +5,11 @@ package net.sf.openrocket.file.rocksim.importt;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.aerodynamics.WarningSet;
+import org.xml.sax.SAXException;
+
+import net.sf.openrocket.logging.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
-import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
+import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
 import net.sf.openrocket.file.simplesax.ElementHandler;
 import net.sf.openrocket.file.simplesax.PlainTextHandler;
 import net.sf.openrocket.material.Material;
@@ -17,8 +19,6 @@ import net.sf.openrocket.rocketcomponent.EngineBlock;
 import net.sf.openrocket.rocketcomponent.RingComponent;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.TubeCoupler;
-
-import org.xml.sax.SAXException;
 
 /**
  * A SAX handler for centering rings, tube couplers, and bulkheads.
@@ -66,19 +66,19 @@ class RingHandler extends PositionDependentHandler<CenteringRing> {
 		super.closeElement(element, attributes, content, warnings);
 		
 		try {
-			if (RocksimCommonConstants.OD.equals(element)) {
-				ring.setOuterRadius(Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
+			if (RockSimCommonConstants.OD.equals(element)) {
+				ring.setOuterRadius(Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
 			}
-			if (RocksimCommonConstants.ID.equals(element)) {
-				ring.setInnerRadius(Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
+			if (RockSimCommonConstants.ID.equals(element)) {
+				ring.setInnerRadius(Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
 			}
-			if (RocksimCommonConstants.LEN.equals(element)) {
-				ring.setLength(Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+			if (RockSimCommonConstants.LEN.equals(element)) {
+				ring.setLength(Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
 			}
-			if (RocksimCommonConstants.MATERIAL.equals(element)) {
+			if (RockSimCommonConstants.MATERIAL.equals(element)) {
 				setMaterialName(content);
 			}
-			if (RocksimCommonConstants.USAGE_CODE.equals(element)) {
+			if (RockSimCommonConstants.USAGE_CODE.equals(element)) {
 				usageCode = Integer.parseInt(content);
 			}
 		} catch (NumberFormatException nfe) {
@@ -173,21 +173,10 @@ class RingHandler extends PositionDependentHandler<CenteringRing> {
 		result.setLength(ring.getLength());
 		result.setName(ring.getName());
 		setOverride(result, ring.isOverrideSubcomponentsEnabled(), ring.getOverrideMass(), ring.getOverrideCGX());
-		result.setRelativePosition(ring.getRelativePosition());
-		result.setPositionValue(ring.getPositionValue());
+		result.setAxialMethod(ring.getAxialMethod());
+		result.setAxialOffset(ring.getAxialOffset());
 		result.setMaterial(ring.getMaterial());
 		result.setThickness(result.getThickness());
-	}
-	
-	/**
-	 * Set the relative position onto the component.  This cannot be done directly because setRelativePosition is not
-	 * public in all components.
-	 *
-	 * @param position the OpenRocket position
-	 */
-	@Override
-	public void setRelativePosition(RocketComponent.Position position) {
-		ring.setRelativePosition(position);
 	}
 	
 	@Override
@@ -195,7 +184,7 @@ class RingHandler extends PositionDependentHandler<CenteringRing> {
 		super.endHandler(element, attributes, content, warnings);
 		
 		// The <Ring> XML element in Rocksim design file is used for many types of components, unfortunately.
-		// Additional subelements are used to indicate the type of the rocket component. When parsing using SAX
+		// Additional sub-elements are used to indicate the type of the rocket component. When parsing using SAX
 		// this poses a problem because we can't "look ahead" to see what type is being represented at the start
 		// of parsing - something that would be nice to do so that we can instantiate the correct OR component
 		// at the start, then just call setters for the appropriate data.

@@ -15,15 +15,10 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
+import javax.swing.border.Border;
 
-import net.miginfocom.swing.MigLayout;
-import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.Icons;
-import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.motor.ThrustCurveMotor;
-import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.unit.UnitGroup;
-
+import net.sf.openrocket.gui.util.UITheme;
+import net.sf.openrocket.util.StringUtils;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -34,21 +29,36 @@ import org.jfree.chart.title.TextTitle;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
+import net.miginfocom.swing.MigLayout;
+import net.sf.openrocket.gui.util.GUIUtil;
+import net.sf.openrocket.gui.util.Icons;
+import net.sf.openrocket.l10n.Translator;
+import net.sf.openrocket.motor.ThrustCurveMotor;
+import net.sf.openrocket.startup.Application;
+import net.sf.openrocket.unit.UnitGroup;
+
+@SuppressWarnings("serial")
 class MotorInformationPanel extends JPanel {
-	
+	private static final Translator trans = Application.getTranslator();
+
 	private static final int ZOOM_ICON_POSITION_NEGATIVE_X = 50;
 	private static final int ZOOM_ICON_POSITION_POSITIVE_Y = 12;
 
-	private static final Color NO_COMMENT_COLOR = Color.GRAY;
-	private static final Color WITH_COMMENT_COLOR = Color.BLACK;
-
-	private static final Translator trans = Application.getTranslator();
+	private static Color NO_COMMENT_COLOR;
+	private static Color WITH_COMMENT_COLOR;
+	private static Color textColor;
+	private static Color dimTextColor;
+	private static Color backgroundColor;
+	private static Color gridColor;
+	private static Border border;
 
 	// Motors in set
 	private List<ThrustCurveMotor> selectedMotorSet;
 	// Selected motor
 	private ThrustCurveMotor selectedMotor;
-	
+
+	private final JLabel designationLabel;
+	private final JLabel commonNameLabel;
 	private final JLabel totalImpulseLabel;
 	private final JLabel classificationLabel;
 	private final JLabel avgThrustLabel;
@@ -56,7 +66,11 @@ class MotorInformationPanel extends JPanel {
 	private final JLabel burnTimeLabel;
 	private final JLabel launchMassLabel;
 	private final JLabel emptyMassLabel;
+	private final JLabel motorTypeLabel;
+	private final JLabel caseInfoLabel;
+	private final JLabel propInfoLabel;
 	private final JLabel dataPointsLabel;
+	private final JLabel compatibleCasesLabel;
 	private final JLabel digestLabel;
 
 	private final JTextArea comment;
@@ -67,18 +81,32 @@ class MotorInformationPanel extends JPanel {
 	private final ChartPanel chartPanel;
 	private final JLabel zoomIcon;
 
+	static {
+		initColors();
+	}
+
 	public MotorInformationPanel() {
 		super(new MigLayout("fill"));
 		
 		// Thrust curve info
-		//// Total impulse:
 		{
+			//// Designation
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Designation")));
+			designationLabel = new JLabel();
+			this.add(designationLabel, "wrap");
+
+			//// Common name
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.CommonName")));
+			commonNameLabel = new JLabel();
+			this.add(commonNameLabel, "wrap");
+		
+			//// Total impulse:
 			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Totalimpulse")));
 			totalImpulseLabel = new JLabel();
 			this.add(totalImpulseLabel, "split");
 
 			classificationLabel = new JLabel();
-			classificationLabel.setEnabled(false); // Gray out
+			classificationLabel.setForeground(dimTextColor);
 			this.add(classificationLabel, "gapleft unrel, wrap");
 
 			//// Avg. thrust:
@@ -106,11 +134,31 @@ class MotorInformationPanel extends JPanel {
 			emptyMassLabel = new JLabel();
 			this.add(emptyMassLabel, "wrap");
 
+			//// Motor type
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Motortype")));
+			motorTypeLabel = new JLabel();
+			this.add(motorTypeLabel, "wrap");
+
+			//// case info:
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Caseinfo")));
+			caseInfoLabel = new JLabel();
+			this.add(caseInfoLabel, "wrap");
+			
+			//// prop info:
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Propinfo")));
+			propInfoLabel = new JLabel();
+			this.add(propInfoLabel, "wrap");
+			
+			//// compatible cases:
+			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.CompatibleCases")));
+			compatibleCasesLabel = new JLabel();
+			this.add(compatibleCasesLabel, "wrap");
+			
 			//// Data points:
 			this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Datapoints")));
 			dataPointsLabel = new JLabel();
 			this.add(dataPointsLabel, "wrap para");
-
+			
 			if (System.getProperty("openrocket.debug.motordigest") != null) {
 				//// Digest:
 				this.add(new JLabel(trans.get("TCMotorSelPan.lbl.Digest")));
@@ -122,6 +170,7 @@ class MotorInformationPanel extends JPanel {
 
 
 			comment = new JTextArea(5, 5);
+			comment.setBorder(border);
 			GUIUtil.changeFontSize(comment, -2);
 			withCommentFont = comment.getFont();
 			noCommentFont = withCommentFont.deriveFont(Font.ITALIC);
@@ -129,7 +178,7 @@ class MotorInformationPanel extends JPanel {
 			comment.setWrapStyleWord(true);
 			comment.setEditable(false);
 			JScrollPane scrollpane = new JScrollPane(comment);
-			this.add(scrollpane, "spanx, growx, wrap para");
+			this.add(scrollpane, "spanx, grow, pushy, wrap para");
 		}
 
 		// Thrust curve plot
@@ -148,15 +197,17 @@ class MotorInformationPanel extends JPanel {
 			// Add the data and formatting to the plot
 			XYPlot plot = chart.getXYPlot();
 
-			changeLabelFont(plot.getRangeAxis(), -2);
-			changeLabelFont(plot.getDomainAxis(), -2);
+			changeLabelFont(plot.getRangeAxis(), -2, textColor);
+			changeLabelFont(plot.getDomainAxis(), -2, textColor);
 
 			//// Thrust curve:
-			chart.setTitle(new TextTitle(trans.get("TCMotorSelPan.title.Thrustcurve"), this.getFont()));
+			TextTitle title = new TextTitle(trans.get("TCMotorSelPan.title.Thrustcurve"), this.getFont());
+			title.setPaint(textColor);
+			chart.setTitle(title);
 			chart.setBackgroundPaint(this.getBackground());
-			plot.setBackgroundPaint(Color.WHITE);
-			plot.setDomainGridlinePaint(Color.LIGHT_GRAY);
-			plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
+			plot.setBackgroundPaint(backgroundColor);
+			plot.setDomainGridlinePaint(gridColor);
+			plot.setRangeGridlinePaint(gridColor);
 
 			chartPanel = new ChartPanel(chart,
 					false, // properties
@@ -199,10 +250,27 @@ class MotorInformationPanel extends JPanel {
 			this.add(layer, "width 300:300:, height 180:180:, grow, spanx");
 		}
 	}
+
+	private static void initColors() {
+		updateColors();
+		UITheme.Theme.addUIThemeChangeListener(MotorInformationPanel::updateColors);
+	}
+
+	private static void updateColors() {
+		NO_COMMENT_COLOR = GUIUtil.getUITheme().getDimTextColor();
+		WITH_COMMENT_COLOR = GUIUtil.getUITheme().getTextColor();
+		textColor = GUIUtil.getUITheme().getTextColor();
+		dimTextColor = GUIUtil.getUITheme().getDimTextColor();
+		backgroundColor = GUIUtil.getUITheme().getBackgroundColor();
+		gridColor = GUIUtil.getUITheme().getFinPointGridMajorLineColor();
+		border = GUIUtil.getUITheme().getBorder();
+	}
 	
 	public void clearData() {
 		selectedMotor = null;
 		selectedMotorSet = null;
+		designationLabel.setText("");
+		commonNameLabel.setText("");
 		totalImpulseLabel.setText("");
 		totalImpulseLabel.setToolTipText(null);
 		classificationLabel.setText("");
@@ -212,6 +280,10 @@ class MotorInformationPanel extends JPanel {
 		burnTimeLabel.setText("");
 		launchMassLabel.setText("");
 		emptyMassLabel.setText("");
+		motorTypeLabel.setText("");
+		caseInfoLabel.setText("");
+		propInfoLabel.setText("");
+		compatibleCasesLabel.setText("");
 		dataPointsLabel.setText("");
 		if (digestLabel != null) {
 			digestLabel.setText("");
@@ -229,8 +301,10 @@ class MotorInformationPanel extends JPanel {
 		
 		this.selectedMotorSet = motors;
 		this.selectedMotor = selectedMotor;
-		
+
 		// Update thrust curve data
+		designationLabel.setText(selectedMotor.getDesignation());
+		commonNameLabel.setText(selectedMotor.getCommonName());
 		double impulse = selectedMotor.getTotalImpulseEstimate();
 		MotorClass mc = MotorClass.getMotorClass(impulse);
 		totalImpulseLabel.setText(UnitGroup.UNITS_IMPULSE.getDefaultUnit().toStringUnit(impulse));
@@ -245,10 +319,15 @@ class MotorInformationPanel extends JPanel {
 		burnTimeLabel.setText(UnitGroup.UNITS_SHORT_TIME.getDefaultUnit().toStringUnit(
 				selectedMotor.getBurnTimeEstimate()));
 		launchMassLabel.setText(UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(
-				selectedMotor.getLaunchCG().weight));
+				selectedMotor.getLaunchMass()));
 		emptyMassLabel.setText(UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(
-				selectedMotor.getEmptyCG().weight));
+				selectedMotor.getBurnoutMass()));
+		motorTypeLabel.setText(selectedMotor.getMotorType().getName());
+		caseInfoLabel.setText(selectedMotor.getCaseInfo());
+		propInfoLabel.setText(selectedMotor.getPropellantInfo());
+		compatibleCasesLabel.setText("<html>" + StringUtils.join(", ",selectedMotor.getCompatibleCases()) + "<html>");
 		dataPointsLabel.setText("" + (selectedMotor.getTimePoints().length - 1));
+
 		if (digestLabel != null) {
 			digestLabel.setText(selectedMotor.getDigest());
 		}
@@ -281,6 +360,7 @@ class MotorInformationPanel extends JPanel {
 
 		plot.setDataset(dataset);
 
+		invalidate();
 	}
 	
 	private void setComment(String s) {
@@ -298,10 +378,11 @@ class MotorInformationPanel extends JPanel {
 		comment.setCaretPosition(0);
 	}
 
-	void changeLabelFont(ValueAxis axis, float size) {
+	void changeLabelFont(ValueAxis axis, float size, Color color) {
 		Font font = axis.getTickLabelFont();
 		font = font.deriveFont(font.getSize2D() + size);
 		axis.setTickLabelFont(font);
+		axis.setTickLabelPaint(color);
 	}
 
 	/**

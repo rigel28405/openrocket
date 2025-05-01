@@ -1,5 +1,6 @@
 package net.sf.openrocket.aerodynamics;
 
+import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.Coordinate;
@@ -51,7 +52,7 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 
 	
 	/** Axial drag coefficient, CA */
-	private double Caxial = Double.NaN;
+	private double CDaxial = Double.NaN;
 	
 	/** Total drag force coefficient, parallel to the airflow. */
 	private double CD = Double.NaN;
@@ -64,19 +65,40 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	
 	/** Drag coefficient due to friction drag. */
 	private double frictionCD = Double.NaN;
-	
+
+	/** Drag coefficient from overrides */
+	private double overrideCD = Double.NaN;
 	
 	private double pitchDampingMoment = Double.NaN;
 	private double yawDampingMoment = Double.NaN;
 	
 	private int modID = 0;
+
+	private boolean axisymmetric = true; 
 	
 	
+	public boolean isAxisymmetric(){
+		return this.axisymmetric;
+	}
+	
+	public void setAxisymmetric( final boolean isSym ){
+		this.axisymmetric = isSym;
+	}
+	
+	/**
+	 * gives a new component to be linked with
+	 * changes it's modification id
+	 * @param component		The rocket component
+	 */
 	public void setComponent(RocketComponent component) {
 		this.component = component;
 		modID++;
 	}
 
+	/**
+	 * 
+	 * @return the actual component linked with this 
+	 */
 	public RocketComponent getComponent() {
 		return component;
 	}
@@ -162,13 +184,13 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 		return CrollForce;
 	}
 
-	public void setCaxial(double caxial) {
-		Caxial = caxial;
+	public void setCDaxial(double cdaxial) {
+		CDaxial = cdaxial;
 		modID++;
 	}
 
-	public double getCaxial() {
-		return Caxial;
+	public double getCDaxial() {
+		return CDaxial;
 	}
 
 	public void setCD(double cD) {
@@ -177,6 +199,11 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	}
 
 	public double getCD() {
+		if (component == null) return CD;
+		if (component.isCDOverriddenByAncestor()) return 0;
+		if (component.isCDOverridden()) {
+			return component.getOverrideCD();
+		}
 		return CD;
 	}
 
@@ -186,6 +213,11 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	}
 
 	public double getPressureCD() {
+		if(component == null) return pressureCD;
+		if(component.isCDOverridden() ||
+		   component.isCDOverriddenByAncestor()) {
+			return 0;
+		}
 		return pressureCD;
 	}
 
@@ -195,6 +227,11 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	}
 
 	public double getBaseCD() {
+		if(component == null) return baseCD;
+		if(component.isCDOverridden() ||
+		   component.isCDOverriddenByAncestor()) {
+			return 0;
+		}
 		return baseCD;
 	}
 
@@ -204,7 +241,25 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	}
 
 	public double getFrictionCD() {
+		if(component == null) return frictionCD;
+		if(component.isCDOverridden() ||
+		   component.isCDOverriddenByAncestor()) {
+			return 0;
+		}
 		return frictionCD;
+	}
+
+	public void setOverrideCD(double overrideCD) {
+		this.overrideCD = overrideCD;
+		modID++;
+	}
+
+	public double getOverrideCD() {
+		if (component == null) return overrideCD;
+		if (!(component instanceof Rocket) &&
+			(!component.isCDOverridden() ||
+			 component.isCDOverriddenByAncestor())) return 0;
+		return overrideCD;
 	}
 
 	public void setPitchDampingMoment(double pitchDampingMoment) {
@@ -242,7 +297,7 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 		setCroll(Double.NaN);
 		setCrollDamp(Double.NaN);
 		setCrollForce(Double.NaN);
-		setCaxial(Double.NaN);
+		setCDaxial(Double.NaN);
 		setCD(Double.NaN);
 		setPitchDampingMoment(Double.NaN);
 		setYawDampingMoment(Double.NaN);
@@ -251,9 +306,10 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	/**
 	 * Zero all values to 0 / Coordinate.NUL.  Component is left as it was.
 	 */
-	public void zero() {
+	public AerodynamicForces zero() {
 		// component untouched
 
+		setAxisymmetric(true);
 		setCP(Coordinate.NUL);
 		setCNa(0);
 		setCN(0);
@@ -263,10 +319,12 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 		setCroll(0);
 		setCrollDamp(0);
 		setCrollForce(0);
-		setCaxial(0);
+		setCDaxial(0);
 		setCD(0);
 		setPitchDampingMoment(0);
 		setYawDampingMoment(0);
+		
+		return this;
 	}
 
 	
@@ -296,7 +354,7 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 				MathUtil.equals(this.getCroll(), other.getCroll()) &&
 				MathUtil.equals(this.getCrollDamp(), other.getCrollDamp()) &&
 				MathUtil.equals(this.getCrollForce(), other.getCrollForce()) &&
-				MathUtil.equals(this.getCaxial(), other.getCaxial()) &&
+				MathUtil.equals(this.getCDaxial(), other.getCDaxial()) &&
 				MathUtil.equals(this.getCD(), other.getCD()) &&
 				MathUtil.equals(this.getPressureCD(), other.getPressureCD()) &&
 				MathUtil.equals(this.getBaseCD(), other.getBaseCD()) &&
@@ -308,7 +366,7 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	
 	@Override
 	public int hashCode() {
-		return (int) (1000*(this.getCD()+this.getCaxial()+this.getCNa())) + this.getCP().hashCode();
+		return (int) (1000*(this.getCD()+this.getCDaxial()+this.getCNa())) + this.getCP().hashCode();
 	}
 	
 	
@@ -335,8 +393,8 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 		
 		if (!Double.isNaN(getCroll()))
 			text += "Croll:" + getCroll() + ",";
-		if (!Double.isNaN(getCaxial()))
-			text += "Caxial:" + getCaxial() + ",";
+		if (!Double.isNaN(getCDaxial()))
+			text += "CDaxial:" + getCDaxial() + ",";
 		
 		if (!Double.isNaN(getCD()))
 			text += "CD:" + getCD() + ",";
@@ -352,4 +410,21 @@ public class AerodynamicForces implements Cloneable, Monitorable {
 	public int getModID() {
 		return modID;
 	}
+
+	public AerodynamicForces merge(AerodynamicForces other) {
+		this.cp = cp.average(other.getCP());
+		this.CNa = CNa + other.getCNa();
+		this.CN = CN + other.getCN();
+		this.Cm = Cm + other.getCm();
+		this.Cside = Cside + other.getCside();
+		this.Cyaw = Cyaw + other.getCyaw();
+		this.Croll = Croll + other.getCroll();
+		this.CrollDamp = CrollDamp + other.getCrollDamp();
+		this.CrollForce = CrollForce + other.getCrollForce();
+	
+		modID++;
+		
+		return this;
+	}
+	
 }

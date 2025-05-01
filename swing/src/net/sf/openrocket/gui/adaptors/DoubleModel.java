@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.logging.Markers;
+import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.unit.Unit;
 import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.BugException;
@@ -64,6 +65,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	 * This is still the design, but now extends AbstractSpinnerModel to allow other characters
 	 * to be entered so that fractional units and expressions can be used.
 	 */
+	@SuppressWarnings("serial")
 	public class ValueSpinnerModel extends AbstractSpinnerModel implements Invalidatable {
 		
 		private ExpressionParser parser = new ExpressionParser();
@@ -205,6 +207,32 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 			
 			quad2 = quad1 = quad0 = 0; // Not used
 		}
+
+		public ValueSliderModel(double min, DoubleModel max) {
+			this.islinear = true;
+			linearPosition = 1.0;
+
+			this.min = new DoubleModel(min);
+			this.mid = max; // Never use exponential scale
+			this.max = max;
+
+			max.addChangeListener(this);
+
+			quad2 = quad1 = quad0 = 0; // Not used
+		}
+
+		public ValueSliderModel(DoubleModel min, double max) {
+			this.islinear = true;
+			linearPosition = 1.0;
+
+			this.min = min;
+			this.mid = new DoubleModel(max); // Never use exponential scale
+			this.max = new DoubleModel(max);
+
+			min.addChangeListener(this);
+
+			quad2 = quad1 = quad0 = 0; // Not used
+		}
 		
 		
 		
@@ -293,7 +321,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 				return MAX;
 			
 			double x;
-			if (value <= mid.getValue()) {
+			if ((value <= mid.getValue()) || (quad2 == 0)) {		// If quad 2 is 0, the midpoint is perfectly in center
 				// Use linear scale
 				//linear0 = min;
 				//linear1 = (mid-min)/pos;
@@ -415,8 +443,14 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 				fireStateChanged();
 		}
 	}
-	
-	
+
+	public BoundedRangeModel getSliderModel() {
+		if (minValue == Double.NEGATIVE_INFINITY || maxValue == Double.POSITIVE_INFINITY) {
+			throw new IllegalArgumentException("Cannot create slider model for unbounded range");
+		}
+		return new ValueSliderModel(minValue, maxValue);
+	}
+
 	public BoundedRangeModel getSliderModel(DoubleModel min, DoubleModel max) {
 		return new ValueSliderModel(min, max);
 	}
@@ -424,9 +458,20 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	public BoundedRangeModel getSliderModel(double min, double max) {
 		return new ValueSliderModel(min, max);
 	}
+
+	public BoundedRangeModel getSliderModel(double min, DoubleModel max) {
+		return new ValueSliderModel(min, max);
+	}
+
+	public BoundedRangeModel getSliderModel(DoubleModel min, double max) {
+		return new ValueSliderModel(min, max);
+	}
 	
 	public BoundedRangeModel getSliderModel(double min, double mid, double max) {
-		return new ValueSliderModel(min, mid, max);
+		if (MathUtil.equals(mid, (max + min)/2.0))
+			return new ValueSliderModel(min, max);
+		else
+			return new ValueSliderModel(min, mid, max);
 	}
 	
 	public BoundedRangeModel getSliderModel(double min, double mid, DoubleModel max) {
@@ -443,6 +488,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	
 	////////////  Action model  ////////////
 	
+	@SuppressWarnings("serial")
 	private class AutomaticActionModel extends AbstractAction implements StateChangeListener, Invalidatable {
 		private boolean oldValue = false;
 		
@@ -548,7 +594,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	 * The main model handles all values in SI units, i.e. no conversion is made within the model.
 	 */
 	
-	private final ChangeSource source;
+	private final Object source;
 	private final String valueName;
 	private final double multiplier;
 	
@@ -560,7 +606,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	
 	private final ArrayList<EventListener> listeners = new ArrayList<EventListener>();
 	
-	private final UnitGroup units;
+	private UnitGroup units;
 	private Unit currentUnit;
 	
 	private final double minValue;
@@ -643,7 +689,7 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	 * @param min Minimum value allowed (in SI units)
 	 * @param max Maximum value allowed (in SI units)
 	 */
-	public DoubleModel(ChangeSource source, String valueName, double multiplier, UnitGroup unit,
+	public DoubleModel(Object source, String valueName, double multiplier, UnitGroup unit,
 			double min, double max) {
 		this.source = source;
 		this.valueName = valueName;
@@ -654,6 +700,10 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		
 		this.minValue = min;
 		this.maxValue = max;
+		
+		if(RocketComponent.class.isAssignableFrom(source.getClass())) {
+		    ((RocketComponent)source).addChangeListener(this);
+		}
 		
 		try {
 			getMethod = source.getClass().getMethod("get" + valueName);
@@ -689,41 +739,40 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, double multiplier, UnitGroup unit,
+	public DoubleModel(Object source, String valueName, double multiplier, UnitGroup unit,
 			double min) {
 		this(source, valueName, multiplier, unit, min, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, double multiplier, UnitGroup unit) {
+	public DoubleModel(Object source, String valueName, double multiplier, UnitGroup unit) {
 		this(source, valueName, multiplier, unit, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, UnitGroup unit,
+	public DoubleModel(Object source, String valueName, UnitGroup unit,
 			double min, double max) {
 		this(source, valueName, 1.0, unit, min, max);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, UnitGroup unit, double min) {
+	public DoubleModel(Object source, String valueName, UnitGroup unit, double min) {
 		this(source, valueName, 1.0, unit, min, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, UnitGroup unit) {
+	public DoubleModel(Object source, String valueName, UnitGroup unit) {
 		this(source, valueName, 1.0, unit, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName) {
+	public DoubleModel(Object source, String valueName) {
 		this(source, valueName, 1.0, UnitGroup.UNITS_NONE,
 				Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, double min) {
+	public DoubleModel(Object source, String valueName, double min) {
 		this(source, valueName, 1.0, UnitGroup.UNITS_NONE, min, Double.POSITIVE_INFINITY);
 	}
 	
-	public DoubleModel(ChangeSource source, String valueName, double min, double max) {
+	public DoubleModel(Object source, String valueName, double min, double max) {
 		this(source, valueName, 1.0, UnitGroup.UNITS_NONE, min, max);
 	}
-	
 	
 	
 	/**
@@ -750,6 +799,12 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 	 */
 	public void setValue(double v) {
 		checkState(true);
+
+		double clampedValue = MathUtil.clamp(v, minValue, maxValue);
+		if (clampedValue != v) {
+			log.debug("Clamped value " + v + " to " + clampedValue + " for " + this);
+			v = clampedValue;
+		}
 		
 		log.debug("Setting value " + v + " for " + this);
 		if (setMethod == null) {
@@ -764,6 +819,8 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		
 		try {
 			setMethod.invoke(source, v / multiplier);
+			// Make sure to notify all the listeners that have registered
+			fireStateChanged();
 		} catch (IllegalArgumentException e) {
 			throw new BugException("Unable to invoke setMethod of " + this, e);
 		} catch (IllegalAccessException e) {
@@ -846,6 +903,13 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		currentUnit = u;
 		fireStateChanged();
 	}
+
+	public void setUnitGroup(UnitGroup unitGroup) {
+		this.units = unitGroup;
+		this.currentUnit = units.getDefaultUnit();
+		this.lastValue = this.currentUnit.toUnit(this.lastValue);
+		fireStateChanged();
+	}
 	
 	
 	/**
@@ -880,7 +944,6 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		
 		if (listeners.isEmpty()) {
 			if (source != null) {
-				source.addChangeListener(this);
 				lastValue = getValue();
 				lastAutomatic = isAutomatic();
 			}
@@ -909,9 +972,6 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 		checkState(false);
 		
 		listeners.remove(l);
-		if (listeners.isEmpty() && source != null) {
-			source.removeChangeListener(this);
-		}
 		log.trace(this + " removing listener (total " + listeners.size() + "): " + l);
 	}
 	
@@ -930,9 +990,6 @@ public class DoubleModel implements StateChangeListener, ChangeSource, Invalidat
 			log.warn("Invalidating " + this + " while still having listeners " + listeners);
 		}
 		listeners.clear();
-		if (source != null) {
-			source.removeChangeListener(this);
-		}
 		MemoryManagement.collectable(this);
 	}
 	

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import net.sf.openrocket.util.BoundingBox;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 
@@ -16,18 +17,17 @@ import net.sf.openrocket.util.MathUtil;
  *
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-public abstract class RingComponent extends StructuralComponent implements Coaxial {
+public abstract class RingComponent extends StructuralComponent implements BoxBounded, Coaxial {
 	
 	protected boolean outerRadiusAutomatic = false;
 	protected boolean innerRadiusAutomatic = false;
 	
 
-	private double radialDirection = 0;
-	private double radialPosition = 0;
+	protected double radialDirection = 0;
+	protected double radialPosition = 0;
 	
 	private double shiftY = 0;
 	private double shiftZ = 0;
-	
 	
 
 	@Override
@@ -54,6 +54,12 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 	
 	// Setter is protected, subclasses may make it public
 	protected void setOuterRadiusAutomatic(boolean auto) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setOuterRadiusAutomatic(auto);
+			}
+		}
+
 		if (auto == outerRadiusAutomatic)
 			return;
 		outerRadiusAutomatic = auto;
@@ -67,6 +73,12 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 	
 	// Setter is protected, subclasses may make it public
 	protected void setInnerRadiusAutomatic(boolean auto) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setInnerRadiusAutomatic(auto);
+			}
+		}
+
 		if (auto == innerRadiusAutomatic)
 			return;
 		innerRadiusAutomatic = auto;
@@ -77,11 +89,18 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 
 
 	public final void setLength(double length) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setLength(length);
+			}
+		}
+
 		double l = Math.max(length, 0);
 		if (this.length == l)
 			return;
 		
 		this.length = l;
+		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
@@ -103,7 +122,13 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 	 * @param dir  the radial direction.
 	 */
 	public void setRadialDirection(double dir) {
-		dir = MathUtil.reduce180(dir);
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setRadialDirection(dir);
+			}
+		}
+
+		dir = MathUtil.reducePi(dir);
 		if (radialDirection == dir)
 			return;
 		radialDirection = dir;
@@ -112,9 +137,18 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
+	public BoundingBox getInstanceBoundingBox(){
+		BoundingBox instanceBounds = new BoundingBox();
+		
+		instanceBounds.update(new Coordinate(this.getLength(), 0,0));
+		
+		final double r = getOuterRadius();
+		instanceBounds.update(new Coordinate(0,r,r));
+		instanceBounds.update(new Coordinate(0,-r,-r));
+		
+		return instanceBounds;
+	}
 	
-
-
 	/**
 	 * Return the radial position of the component.  The position is the distance
 	 * of the center of the component from the center of the parent component.
@@ -133,6 +167,13 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 	 */
 	public void setRadialPosition(double pos) {
 		pos = Math.max(pos, 0);
+
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setRadialPosition(pos);
+			}
+		}
+
 		if (radialPosition == pos)
 			return;
 		radialPosition = pos;
@@ -151,6 +192,12 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 	}
 	
 	public void setRadialShift(double y, double z) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof RingComponent) {
+				((RingComponent) listener).setRadialShift(y, z);
+			}
+		}
+
 		radialPosition = Math.hypot(y, z);
 		radialDirection = Math.atan2(z, y);
 		
@@ -163,29 +210,6 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
-	
-	/**
-	 * Return the number of times the component is multiplied.
-	 */
-	public int getClusterCount() {
-		if (this instanceof Clusterable)
-			return ((Clusterable) this).getClusterConfiguration().getClusterCount();
-		return 1;
-	}
-	
-	
-	/**
-	 * Shift the coordinates according to the radial position and direction.
-	 */
-	@Override
-	public Coordinate[] shiftCoordinates(Coordinate[] array) {
-		for (int i = 0; i < array.length; i++) {
-			array[i] = array[i].add(0, shiftY, shiftZ);
-		}
-		return array;
-	}
-	
-	
 	@Override
 	public Collection<Coordinate> getComponentBounds() {
 		List<Coordinate> bounds = new ArrayList<Coordinate>();
@@ -194,17 +218,28 @@ public abstract class RingComponent extends StructuralComponent implements Coaxi
 		return bounds;
 	}
 	
-	
-
 	@Override
 	public Coordinate getComponentCG() {
-		return new Coordinate(length / 2, 0, 0, getComponentMass());
+		Coordinate cg = Coordinate.ZERO;
+		final int instanceCount = getInstanceCount();
+		final double instanceMass =  ringMass(getOuterRadius(), getInnerRadius(), getLength(), getMaterial().getDensity());
+
+		if (1 == instanceCount ) {
+			cg = new Coordinate( length/2, 0, 0, instanceMass );
+		}else{
+			for( Coordinate c : getInstanceOffsets() ) {
+				c = c.setWeight( instanceMass );
+				cg = cg.average(c); 
+			}
+			cg = cg.add( length/2, 0, 0);
+		}
+		return cg;
 	}
 	
 	@Override
 	public double getComponentMass() {
 		return ringMass(getOuterRadius(), getInnerRadius(), getLength(),
-				getMaterial().getDensity()) * getClusterCount();
+				getMaterial().getDensity()) * getInstanceCount();
 	}
 	
 	

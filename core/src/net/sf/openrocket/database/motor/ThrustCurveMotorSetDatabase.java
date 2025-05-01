@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.sf.openrocket.motor.Motor;
 import net.sf.openrocket.motor.ThrustCurveMotor;
 
@@ -14,35 +17,61 @@ import net.sf.openrocket.motor.ThrustCurveMotor;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public class ThrustCurveMotorSetDatabase implements MotorDatabase {
+	private static final Logger log = LoggerFactory.getLogger(ThrustCurveMotorSetDatabase.class);
 	
 	private final List<ThrustCurveMotorSet> motorSets = new ArrayList<ThrustCurveMotorSet>();
 	
-	
 	@Override
-	public List<ThrustCurveMotor> findMotors(Motor.Type type, String manufacturer, String designation,
+	public List<ThrustCurveMotor> findMotors(String digest, Motor.Type type, String manufacturer, String designation,
 			double diameter, double length) {
-		ArrayList<ThrustCurveMotor> results = new ArrayList<ThrustCurveMotor>();
-		
+		ArrayList<ThrustCurveMotor> fullMatches = new ArrayList<ThrustCurveMotor>();
+		ArrayList<ThrustCurveMotor> digestMatches = new ArrayList<ThrustCurveMotor>();
+		ArrayList<ThrustCurveMotor> descriptionMatches = new ArrayList<ThrustCurveMotor>();
+
+		// Apply filters to see if we can find any motors that match the given criteria.  We'll return
+		// the most restrictive nonempty list we find, or empty list if no matches at all
 		for (ThrustCurveMotorSet set : motorSets) {
 			for (ThrustCurveMotor m : set.getMotors()) {
-				boolean match = true;
-				if (type != null && type != set.getType())
-					match = false;
-				else if (manufacturer != null && !m.getManufacturer().matches(manufacturer))
-					match = false;
-				else if (designation != null && !designation.equalsIgnoreCase(m.getDesignation()))
-					match = false;
-				else if (!Double.isNaN(diameter) && (Math.abs(diameter - m.getDiameter()) > 0.0015))
-					match = false;
-				else if (!Double.isNaN(length) && (Math.abs(length - m.getLength()) > 0.0015))
-					match = false;
+				boolean matchDescription = true;
+				boolean matchDigest = true;
 				
-				if (match)
-					results.add(m);
+				// unlike the description, digest must be present in search criteria to get a match
+				if (digest == null || digest != m.getDigest())
+					matchDigest = false;
+
+				// match description
+				if (type != null && type != set.getType())
+					matchDescription = false;
+				else if (manufacturer != null && !m.getManufacturer().matches(manufacturer))
+					matchDescription = false;
+				else if (designation != null &&
+						 !m.getDesignation().toUpperCase().contains(designation.toUpperCase()) &&
+						 !designation.toUpperCase().contains(m.getCommonName().toUpperCase()))
+					matchDescription = false;
+				else if (!Double.isNaN(diameter) && (Math.abs(diameter - m.getDiameter()) > 0.005))
+					matchDescription = false;
+				else if (!Double.isNaN(length) && (Math.abs(length - m.getLength()) > 0.005))
+					matchDescription = false;
+
+				if (matchDigest)
+					digestMatches.add(m);
+
+				if (matchDescription)
+					descriptionMatches.add(m);
+
+				if (matchDigest && matchDescription)
+					fullMatches.add(m);
 			}
 		}
 		
-		return results;
+		if (!fullMatches.isEmpty())
+			return fullMatches;
+
+		if (!digestMatches.isEmpty())
+			return digestMatches;
+
+		return descriptionMatches;
+
 	}
 	
 	

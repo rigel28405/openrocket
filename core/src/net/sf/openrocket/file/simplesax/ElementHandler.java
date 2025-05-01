@@ -2,7 +2,7 @@ package net.sf.openrocket.file.simplesax;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.aerodynamics.WarningSet;
+import net.sf.openrocket.logging.WarningSet;
 
 import org.xml.sax.SAXException;
 
@@ -36,7 +36,7 @@ public interface ElementHandler {
 	 * and all of its contents is to be ignored.
 	 * <p>
 	 * Note that this method may also return <code>this</code>, in which case this
-	 * handler will also handle the subelement.
+	 * handler will also handle the sub-element.
 	 * 
 	 * @param element		the element name.
 	 * @param attributes	attributes of the element.

@@ -8,7 +8,7 @@ import com.google.inject.Inject;
 public class DefaultSimulationOptionFactory {
 	
 	@Inject
-	private Preferences prefs;
+	private final Preferences prefs;
 	
 	public static final String SIMCONDITION_WIND_SPEED = "SimConditionWindSpeed";
 	public static final String SIMCONDITION_WIND_STDDEV = "SimConditionWindStdDev";
@@ -33,7 +33,7 @@ public class DefaultSimulationOptionFactory {
 	}
 	
 	public SimulationOptions getDefault() {
-		SimulationOptions defaults = new SimulationOptions(null);
+		SimulationOptions defaults = new SimulationOptions();
 		if (prefs != null) {
 			
 			defaults.setWindSpeedAverage(prefs.getDouble(SIMCONDITION_WIND_SPEED, defaults.getWindSpeedAverage()));
@@ -46,7 +46,7 @@ public class DefaultSimulationOptionFactory {
 			
 			defaults.setISAAtmosphere(prefs.getBoolean(SIMCONDITION_ATMOS_STD, defaults.isISAAtmosphere()));
 			defaults.setLaunchTemperature(prefs.getDouble(SIMCONDITION_ATMOS_TEMP, defaults.getLaunchTemperature()));
-			defaults.setLaunchPressure(prefs.getDouble(SIMCONDITION_ATMOS_PRESSURE, defaults.getLaunchTemperature()));
+			defaults.setLaunchPressure(prefs.getDouble(SIMCONDITION_ATMOS_PRESSURE, defaults.getLaunchPressure()));
 			
 			defaults.setLaunchIntoWind(prefs.getBoolean(SIMCONDITION_ROD_INTO_WIND, defaults.getLaunchIntoWind()));
 			defaults.setLaunchRodLength(prefs.getDouble(SIMCONDITION_ROD_LENGTH, defaults.getLaunchRodLength()));

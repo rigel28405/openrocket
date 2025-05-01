@@ -1,6 +1,8 @@
 package net.sf.openrocket.simulation;
 
 import net.sf.openrocket.l10n.Translator;
+import net.sf.openrocket.rocketcomponent.AxialStage;
+import net.sf.openrocket.rocketcomponent.MotorMount;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.startup.Application;
 
@@ -102,23 +104,26 @@ public class FlightEvent implements Comparable<FlightEvent> {
 	private final Object data;
 	
 	
-	public FlightEvent(Type type, double time) {
-		this(type, time, null);
+	public FlightEvent( final Type type, final double time) {
+		this(type, time, null, null);
 	}
 	
-	public FlightEvent(Type type, double time, RocketComponent source) {
+	public FlightEvent( final Type type, final double time, final RocketComponent source) {
 		this(type, time, source, null);
 	}
 	
-	public FlightEvent(Type type, double time, RocketComponent source, Object data) {
+	public FlightEvent(final FlightEvent _sourceEvent, final RocketComponent _comp, final Object _data) {
+		this(_sourceEvent.type, _sourceEvent.time, _comp, _data);
+	}
+	
+	public FlightEvent( final Type type, final double time, final RocketComponent source, final Object data) {
 		this.type = type;
 		this.time = time;
 		this.source = source;
 		this.data = data;
+		validate();
 	}
-	
-	
-	
+		
 	public Type getType() {
 		return type;
 	}
@@ -136,34 +141,118 @@ public class FlightEvent implements Comparable<FlightEvent> {
 	}
 	
 	
-	/**
-	 * Return a new FlightEvent with the same information as the current event
-	 * but with <code>null</code> source.  This is used to avoid memory leakage by
-	 * retaining references to obsolete components.
-	 * 
-	 * @return	a new FlightEvent with same type, time and data.
-	 */
-	public FlightEvent resetSourceAndData() {
-		return new FlightEvent(type, time, null, null);
-	}
+
 	
 	
 	/**
 	 * Compares this event to another event depending on the event time.  Secondary
+	 * sorting is performed on stages; lower (numerically higher) stage first.  Tertiary
 	 * sorting is performed based on the event type ordinal.
 	 */
 	@Override
 	public int compareTo(FlightEvent o) {
+
+		// first, sort on time
 		if (this.time < o.time)
 			return -1;
 		if (this.time > o.time)
 			return 1;
 		
+		// second, sort on stage presence.  Events with no source go first
+		if ((this.getSource() == null) && (o.getSource() != null))
+			return -1;
+		if ((this.getSource() != null) && (o.getSource() == null))
+			return 1;
+
+		// third, sort on stage order.  Bigger stage number goes first
+		if ((this.getSource() != null) && (o.getSource() != null)) {
+			if (this.getSource().getStageNumber() > o.getSource().getStageNumber())
+				return -1;
+			if (this.getSource().getStageNumber() < o.getSource().getStageNumber())
+				return 1;
+		}
+
+		// finally, sort on event type
 		return this.type.ordinal() - o.type.ordinal();
 	}
 	
 	@Override
 	public String toString() {
-		return "FlightEvent[type=" + type.name() + ",time=" + time + ",source=" + source + "]";
+		return "FlightEvent[type=" + type.name() + ",time=" + time + ",source=" + source + ",data=" + String.valueOf(data) + "]";
+		
 	}
+	
+	/** 
+	 * verify that this event's state is well-formed. 
+	 * 
+	 * User actions should not cause these.
+	 * 
+	 * @return
+	 */
+	public void validate(){
+		if(Double.isNaN(this.time)){
+			throw new IllegalStateException(type.name()+" event has a NaN time!");
+		}
+		switch( this.type ){
+		case BURNOUT:
+			if( null != this.source){
+				if( ! ( this.source instanceof MotorMount)){
+					throw new IllegalStateException(type.name()+" events should have "
+							+MotorMount.class.getSimpleName()+" type data payloads, instead of"
+							+this.getSource().getClass().getSimpleName());
+				}
+			}
+			if( null != this.data ){
+				if( ! ( this.data instanceof MotorClusterState)){
+					throw new IllegalStateException(type.name()+" events should have "
+							+MotorClusterState.class.getSimpleName()+" type data payloads");
+				}
+			}
+			break;
+		case IGNITION:
+			if( null != this.source){
+				if( ! ( this.getSource() instanceof MotorMount)){
+					throw new IllegalStateException(type.name()+" events should have "
+							+MotorMount.class.getSimpleName()+" type data payloads, instead of"
+							+this.getSource().getClass().getSimpleName());
+				}
+			}
+			if( null != this.data ){
+				if( ! ( this.data instanceof MotorClusterState)){
+					throw new IllegalStateException(type.name()+"events should have "
+							+MotorClusterState.class.getSimpleName()+" type data payloads");
+				}
+			}
+			break;
+		case EJECTION_CHARGE:
+			if( null != this.source){
+				if( ! ( this.getSource() instanceof AxialStage)){
+					throw new IllegalStateException(type.name()+" events should have "
+							+AxialStage.class.getSimpleName()+" type data payloads, instead of"
+							+this.getSource().getClass().getSimpleName());
+				}
+			}
+			if( null != this.data ){
+				if( ! ( this.data instanceof MotorClusterState)){
+					throw new IllegalStateException(type.name()+" events should have "
+							+MotorClusterState.class.getSimpleName()+" type data payloads");
+				}
+			}
+			break;
+		case LAUNCH:
+		case LIFTOFF:
+		case LAUNCHROD:
+		case STAGE_SEPARATION:
+		case APOGEE:
+		case RECOVERY_DEVICE_DEPLOYMENT:
+		case GROUND_HIT:
+		case SIMULATION_END:
+		case ALTITUDE:
+		case TUMBLE:
+		case EXCEPTION:
+		default:
+		}
+	}
+	
+	
 }

@@ -1,24 +1,19 @@
 package net.sf.openrocket.rocketcomponent;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EventListener;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.l10n.Translator;
+import net.sf.openrocket.rocketcomponent.position.AxialMethod;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.util.ArrayList;
+import net.sf.openrocket.util.BoundingBox;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.StateChangeListener;
 import net.sf.openrocket.util.UniqueID;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
@@ -30,19 +25,17 @@ import org.slf4j.LoggerFactory;
  *
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-
-public class Rocket extends RocketComponent {
+@SuppressWarnings("serial")
+public class Rocket extends ComponentAssembly {
 	private static final Logger log = LoggerFactory.getLogger(Rocket.class);
 	private static final Translator trans = Application.getTranslator();
 	
-	public static final String DEFAULT_NAME = "[{motors}]";
-	public static final double DEFAULT_REFERENCE_LENGTH = 0.01;
-	
-	
+	protected static final double DEFAULT_REFERENCE_LENGTH = 0.01;
+
 	/**
 	 * List of component change listeners.
 	 */
-	private List<EventListener> listenerList = new ArrayList<EventListener>();
+	private Set<EventListener> listenerList = new HashSet<>();
 	
 	/**
 	 * When freezeList != null, events are not dispatched but stored in the list.
@@ -57,13 +50,10 @@ public class Rocket extends RocketComponent {
 	private int treeModID;
 	private int functionalModID;
 	
+	private boolean eventsEnabled=false;
 	
 	private ReferenceType refType = ReferenceType.MAXIMUM; // Set in constructor
 	private double customReferenceLength = DEFAULT_REFERENCE_LENGTH;
-	
-	
-	// The default configuration used in dialogs
-	private final Configuration defaultConfiguration;
 	
 	
 	private String designer = "";
@@ -71,32 +61,39 @@ public class Rocket extends RocketComponent {
 	
 	
 	// Flight configuration list
-	private ArrayList<String> flightConfigurationIDs = new ArrayList<String>();
-	private HashMap<String, String> flightConfigurationNames = new HashMap<String, String>();
-	{
-		flightConfigurationIDs.add(null);
-	}
-	
+	private FlightConfiguration selectedConfiguration;
+	private FlightConfigurableParameterSet<FlightConfiguration> configSet;
+	private ConcurrentHashMap<Integer, AxialStage> stageMap = new ConcurrentHashMap<>();
 	
 	// Does the rocket have a perfect finish (a notable amount of laminar flow)
 	private boolean perfectFinish = false;
 	
 	
-	
 	/////////////  Constructor  /////////////
 	
 	public Rocket() {
-		super(RocketComponent.Position.AFTER);
+	    super(AxialMethod.ABSOLUTE);
 		modID = UniqueID.next();
 		massModID = modID;
 		aeroModID = modID;
 		treeModID = modID;
 		functionalModID = modID;
-		defaultConfiguration = new Configuration(this);
+
+		// must be after the hashmaps :P 
+		final FlightConfiguration defaultConfig = new FlightConfiguration(this, FlightConfigurationId.DEFAULT_VALUE_FCID);
+		configSet = new FlightConfigurableParameterSet<>( defaultConfig );
+		this.selectedConfiguration = defaultConfig;
 	}
-	
-	
-	
+
+	/**
+	 * Return a bounding box enveloping the rocket.  By definition, the bounding box is a convex hull.
+	 *
+	 * Note: this function gets the bounding box for the entire rocket.
+	 *
+	 * @return    Return a bounding box enveloping the rocket
+	 */
+	public BoundingBox getBoundingBox (){ return selectedConfiguration.getBoundingBoxAerodynamic(); }
+
 	public String getDesigner() {
 		checkState();
 		return designer;
@@ -129,9 +126,8 @@ public class Rocket extends RocketComponent {
 	 */
 	public int getStageCount() {
 		checkState();
-		return this.getChildCount();
+		return this.stageMap.size();
 	}
-	
 	
 	/**
 	 * Return the non-negative modification ID of this rocket.  The ID is changed
@@ -195,9 +191,101 @@ public class Rocket extends RocketComponent {
 		return functionalModID;
 	}
 	
+	public Collection<AxialStage> getStageList() {
+		return this.stageMap.values();
+	}
+
+	public AxialStage getStage( final int stageNumber ) {
+		return this.stageMap.get( stageNumber);
+	}
+
+	public AxialStage getStage(final String stageId) {
+		for (AxialStage stage : getStageList()) {
+			if (stage.getID().equals(stageId)) {
+				return stage;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get the topmost stage (including boosters), only taking into account active stages from the flight configuration.
+	 * @param config flight configuration dictating which stages are active
+	 * @return the topmost active stage, or null if there are no active stages.
+	 */
+	public AxialStage getTopmostStage(FlightConfiguration config) {
+		if (config == null) return null;
+
+		for (AxialStage stage : getStageList()) {
+			if (config.isStageActive(stage.getStageNumber())) {
+				return stage;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get the bottommost stage, only taking into account active stages from the flight configuration.
+	 * @param config flight configuration dictating which stages are active
+	 * @return the bottommost active stage, or null if there are no active stages.
+	 */
+	public AxialStage getBottomCoreStage(FlightConfiguration config) {
+		if (config == null) return null;
+
+		for (int i = getChildCount() - 1; i >= 0; i--) {
+			if (getChild(i) instanceof AxialStage && config.isStageActive(getChild(i).getStageNumber())) {
+				return (AxialStage) getChild(i);
+			}
+		}
+		return null;
+	}
 	
-	
-	
+	@Override
+	public int getStageNumber() {
+		// invalid, error value
+		return -1;
+	}
+	private int getNewStageNumber() {
+		int guess = 0;
+		while (stageMap.containsKey(guess)) {
+			guess++;
+		}
+		return guess;
+	}
+
+    /*package-local*/ void trackStage(final AxialStage newStage) {
+		int stageNumber = newStage.getStageNumber();
+		AxialStage value = stageMap.get(stageNumber);
+		
+		if (newStage.equals(value)) {
+			// stage is already added
+			if( newStage != value ){
+				// but the value is the wrong instance
+				stageMap.put(stageNumber, newStage);
+			}
+			return;
+		} else {
+			stageNumber = getNewStageNumber();
+			newStage.setStageNumber(stageNumber);
+			this.stageMap.put(stageNumber, newStage);
+		}
+	}
+
+    /*package-local*/ void forgetStage(final AxialStage oldStage) {
+		this.stageMap.remove(oldStage.getStageNumber());
+	}
+
+	@Override
+	public void setAxialMethod(final AxialMethod newAxialMethod) {
+		this.axialMethod = AxialMethod.ABSOLUTE;
+	}
+
+	@Override
+    public void setAxialOffset( final double requestOffset ) {
+    	this.axialOffset = 0.;
+		this.position = Coordinate.ZERO;
+    }
+
 	public ReferenceType getReferenceType() {
 		checkState();
 		return refType;
@@ -208,6 +296,11 @@ public class Rocket extends RocketComponent {
 			return;
 		refType = type;
 		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
+	}
+
+	@Override
+	public double getLength() {
+		return selectedConfiguration.getLength();
 	}
 	
 	
@@ -225,6 +318,17 @@ public class Rocket extends RocketComponent {
 		if (refType == ReferenceType.CUSTOM) {
 			fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 		}
+	}
+
+	@Override
+	public double getBoundingRadius() {
+		double bounding = 0;
+		for (RocketComponent comp : children) {
+			if (comp instanceof ComponentAssembly) {
+				bounding = Math.max(bounding, ((ComponentAssembly) comp).getBoundingRadius());
+			}
+		}
+		return bounding;
 	}
 	
 	
@@ -257,22 +361,44 @@ public class Rocket extends RocketComponent {
 	
 	
 	
-	
-	
 	/**
-	 * Make a deep copy of the Rocket structure.  This method is exposed as public to allow
+	 * Make a shallow copy of the Rocket structure.  This method is exposed as public to allow
 	 * for undo/redo system functionality.
+	 * 
+	 * note:  the <hashmap>.clone() function returns a shallow copy-- which is probably appropriate. 
 	 */
-	@SuppressWarnings("unchecked")
 	@Override
 	public Rocket copyWithOriginalID() {
-		Rocket copy = (Rocket) super.copyWithOriginalID();
-		copy.flightConfigurationIDs = this.flightConfigurationIDs.clone();
-		copy.flightConfigurationNames =
-				(HashMap<String, String>) this.flightConfigurationNames.clone();
-		copy.resetListeners();
+		final Rocket copyRocket = (Rocket) super.copyWithOriginalID();
+
+		// Rocket copy is cloned, so non-trivial members must be cloned as well:
+		copyRocket.stageMap = new ConcurrentHashMap<>();
+		for( Map.Entry<Integer,AxialStage> entry : this.stageMap.entrySet()){
+			final AxialStage stage = (AxialStage)copyRocket.findComponent(entry.getValue().getID());
+			if (stage == null) {
+				throw new IllegalStateException("Stage not found in copy");
+			}
+			copyRocket.stageMap.put(entry.getKey(), stage);
+		}
+
+		// these flight configurations need to reference the _new_ Rocket copy
+		// the default value needs to be explicitly set, because it has different semantics
+		copyRocket.configSet = new FlightConfigurableParameterSet<>(new FlightConfiguration(copyRocket));
+		for (FlightConfigurationId key : this.configSet.getIds()) {
+			FlightConfiguration newCfg = new FlightConfiguration(copyRocket, key);
+			newCfg.setName(this.configSet.get(key).getNameRaw());			// Copy config name
+			copyRocket.configSet.set(key, newCfg);
+		}
+
+		copyRocket.selectedConfiguration = copyRocket.configSet.get( this.getSelectedConfiguration().getId());
+		copyRocket.listenerList = new HashSet<>();
 		
-		return copy;
+		return copyRocket;
+	}
+	
+	public int getFlightConfigurationCount() {
+		checkState();
+		return this.configSet.size();
 	}
 	
 	/**
@@ -285,36 +411,39 @@ public class Rocket extends RocketComponent {
 	 * and therefore fires an UNDO_EVENT, masked with all applicable mass/aerodynamic/tree
 	 * changes.
 	 */
-	@SuppressWarnings("unchecked")
-	public void loadFrom(Rocket r) {
+	public void loadFrom(Rocket source) {
 		
 		// Store list of components to invalidate after event has been fired
-		List<RocketComponent> toInvalidate = this.copyFrom(r);
+		List<RocketComponent> toInvalidate = this.copyFrom(source);
 		
 		int type = ComponentChangeEvent.UNDO_CHANGE | ComponentChangeEvent.NONFUNCTIONAL_CHANGE;
-		if (this.massModID != r.massModID)
+		if (this.massModID != source.massModID)
 			type |= ComponentChangeEvent.MASS_CHANGE;
-		if (this.aeroModID != r.aeroModID)
+		if (this.aeroModID != source.aeroModID)
 			type |= ComponentChangeEvent.AERODYNAMIC_CHANGE;
 		// Loading a rocket is always a tree change since the component objects change
 		type |= ComponentChangeEvent.TREE_CHANGE;
 		
-		this.modID = r.modID;
-		this.massModID = r.massModID;
-		this.aeroModID = r.aeroModID;
-		this.treeModID = r.treeModID;
-		this.functionalModID = r.functionalModID;
-		this.refType = r.refType;
-		this.customReferenceLength = r.customReferenceLength;
-		
-		this.flightConfigurationIDs = r.flightConfigurationIDs.clone();
-		this.flightConfigurationNames =
-				(HashMap<String, String>) r.flightConfigurationNames.clone();
-		this.perfectFinish = r.perfectFinish;
-		
-		String id = defaultConfiguration.getFlightConfigurationID();
-		if (!this.flightConfigurationIDs.contains(id))
-			defaultConfiguration.setFlightConfigurationID(null);
+		this.modID = source.modID;
+		this.massModID = source.massModID;
+		this.aeroModID = source.aeroModID;
+		this.treeModID = source.treeModID;
+		this.functionalModID = source.functionalModID;
+		this.refType = source.refType;
+		this.customReferenceLength = source.customReferenceLength;
+		this.stageMap = source.stageMap;
+
+		// these flight configurations need to reference the _this_ Rocket:
+		this.configSet.reset();
+		this.configSet.setDefault(new FlightConfiguration(this));
+		for (FlightConfigurationId key : source.configSet.map.keySet()) {
+			FlightConfiguration newCfg = new FlightConfiguration(this, key);
+			newCfg.setName(source.configSet.get(key).getNameRaw());			// Copy config name
+			this.configSet.set(key, newCfg);
+		}
+		this.selectedConfiguration = this.configSet.get(source.getSelectedConfiguration().getId());
+
+		this.perfectFinish = source.perfectFinish;
 		
 		this.checkComponentStructure();
 		
@@ -337,12 +466,11 @@ public class Rocket extends RocketComponent {
 	 */
 	public void resetListeners() {
 		//		System.out.println("RESETTING LISTENER LIST of Rocket "+this);
-		listenerList = new ArrayList<EventListener>();
+		listenerList = new HashSet<EventListener>();
 	}
 	
 	
 	public void printListeners() {
-		System.out.println("" + this + " has " + listenerList.size() + " listeners:");
 		int i = 0;
 		for (EventListener l : listenerList) {
 			System.out.println("  " + (i) + ": " + l);
@@ -353,67 +481,181 @@ public class Rocket extends RocketComponent {
 	@Override
 	public void addComponentChangeListener(ComponentChangeListener l) {
 		checkState();
+
 		listenerList.add(l);
-		log.trace("Added ComponentChangeListener " + l + ", current number of listeners is " +
-				listenerList.size());
+
+		log.trace("Added ComponentChangeListener " + l + ", current number of listeners is " + listenerList.size());
 	}
 	
 	@Override
 	public void removeComponentChangeListener(ComponentChangeListener l) {
 		listenerList.remove(l);
-		log.trace("Removed ComponentChangeListener " + l + ", current number of listeners is " +
-				listenerList.size());
+		log.trace("Removed ComponentChangeListener " + l + ", current number of listeners is " + listenerList.size());
 	}
-	
-	@Override
-	protected void fireComponentChangeEvent(ComponentChangeEvent e) {
+
+	/**
+	 * Fires a ComponentChangeEvent of the given type.  The source of the event is set to
+	 * this rocket.
+	 *
+	 * @param type  Type of event
+	 * @param ids IDs of the flight configurations to update, or null to update all.
+	 * @see #fireComponentChangeEvent(ComponentChangeEvent)
+	 */
+	public void fireComponentChangeEvent(int type, final FlightConfigurationId[] ids) {
+		fireComponentChangeEvent(new ComponentChangeEvent(this, type), ids);
+	}
+
+	/**
+	 * Fires a ComponentChangeEvent of the given type.  The source of the event is set to
+	 * this rocket.
+	 *
+	 * @param type  Type of event
+	 * @param id ID of the flight configurations to update, or null to update all.
+	 * @see #fireComponentChangeEvent(ComponentChangeEvent)
+	 */
+	public void fireComponentChangeEvent(int type, FlightConfigurationId id) {
+		fireComponentChangeEvent(type, new FlightConfigurationId[]{ id });
+	}
+
+	protected void fireComponentChangeEvent(ComponentChangeEvent cce, final FlightConfigurationId[] ids) {
+		if (!this.eventsEnabled) {
+			return;
+		}
+
 		mutex.lock("fireComponentChangeEvent");
 		try {
 			checkState();
-			
+
 			// Update modification ID's only for normal (not undo/redo) events
-			if (!e.isUndoChange()) {
+			if (!cce.isUndoChange()) {
 				modID = UniqueID.next();
-				if (e.isMassChange())
+				if (cce.isMassChange())
 					massModID = modID;
-				if (e.isAerodynamicChange())
+				if (cce.isAerodynamicChange())
 					aeroModID = modID;
-				if (e.isTreeChange())
+				if (cce.isTreeChange())
 					treeModID = modID;
-				if (e.getType() != ComponentChangeEvent.NONFUNCTIONAL_CHANGE)
+				if (cce.isFunctionalChange()) {
 					functionalModID = modID;
+					updateConfigurationsModID(ids);
+				}
 			}
-			
+
 			// Check whether frozen
 			if (freezeList != null) {
-				log.debug("Rocket is in frozen state, adding event " + e + " info freeze list");
-				freezeList.add(e);
+				log.debug("Rocket is in frozen state, adding event " + cce + " info freeze list");
+				freezeList.add(cce);
 				return;
 			}
-			
-			log.debug("Firing rocket change event " + e);
-			
+
 			// Notify all components first
 			Iterator<RocketComponent> iterator = this.iterator(true);
 			while (iterator.hasNext()) {
-				iterator.next().componentChanged(e);
+				RocketComponent next = iterator.next();
+				next.componentChanged(cce);
 			}
-			
-			// Notify all listeners
-			// Copy the list before iterating to prevent concurrent modification exceptions.
-			EventListener[] list = listenerList.toArray(new EventListener[0]);
-			for (EventListener l : list) {
-				if (l instanceof ComponentChangeListener) {
-					((ComponentChangeListener) l).componentChanged(e);
-				} else if (l instanceof StateChangeListener) {
-					((StateChangeListener) l).stateChanged(e);
-				}
-			}
+			updateConfigurations(ids);
+
+			notifyAllListeners(cce);
+
 		} finally {
 			mutex.unlock("fireComponentChangeEvent");
 		}
 	}
 	
+	@Override
+	protected void fireComponentChangeEvent(ComponentChangeEvent cce) {
+		fireComponentChangeEvent(cce, null);
+	}
+	
+	@Override
+	public void update(){
+		updateStageNumbers();
+		updateStageMap();
+		updateConfigurations();
+	}
+
+	/**
+	 * Update all the stage numbers based on their position in the component tree
+	 */
+	private void updateStageNumbers() {
+		int stageNr = 0;
+		for (AxialStage stage : getSubStages()) {
+			forgetStage(stage);
+			stage.setStageNumber(stageNr);
+			stageNr++;
+		}
+	}
+
+	private void updateStageMap(){
+		for (AxialStage stage : getSubStages() ){
+			trackStage(stage);
+		}
+	}
+
+	/**
+	 * Update the modIDs of the supplied flight configurations.
+	 * @param ids IDs of the flight configurations to update, or null to update all.
+	 */
+	private void updateConfigurationsModID(FlightConfigurationId[] ids) {
+		if (ids == null) {
+			for (FlightConfiguration config : configSet) {
+				config.updateModID();
+			}
+			return;
+		}
+		for (FlightConfiguration config : configSet) {
+			for (FlightConfigurationId id : ids) {
+				if (config.getId().equals(id)) {
+					config.updateModID();
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update the flight configurations.
+	 * @param ids IDs of the flight configurations to update, or null to update all.
+	 */
+	private void updateConfigurations(FlightConfigurationId[] ids) {
+		if (ids == null) {
+			for (FlightConfiguration config : configSet) {
+				config.update();
+			}
+			return;
+		}
+		for (FlightConfiguration config : configSet) {
+			for (FlightConfigurationId id : ids) {
+				if (config.getId().equals(id)) {
+					config.update();
+					break;
+				}
+			}
+		}
+	}
+	
+	private void updateConfigurations() {
+		updateConfigurations(null);
+	}
+	
+	
+	private void notifyAllListeners(final ComponentChangeEvent cce){
+		// Copy the list before iterating to prevent concurrent modification exceptions.
+		EventListener[] list = listenerList.toArray(new EventListener[0]);
+		for (EventListener l : list) {
+            { // vvvv DEVEL vvvv
+                //System.err.println("notifying listener.  (type= "+l.getClass().getSimpleName()+")");
+                //System.err.println("                     (type= "+l.getClass().getName()+")");
+            } // ^^^^ DEVEL ^^^^
+
+            if (l instanceof ComponentChangeListener) {
+				((ComponentChangeListener) l).componentChanged(cce);
+			} else if (l instanceof StateChangeListener) {
+				((StateChangeListener) l).stateChanged(cce);
+			}
+		}
+	}
 	
 	/**
 	 * Freezes the rocket structure from firing any events.  This may be performed to
@@ -436,7 +678,7 @@ public class Rocket extends RocketComponent {
 	public void freeze() {
 		checkState();
 		if (freezeList == null) {
-			freezeList = new LinkedList<ComponentChangeEvent>();
+			freezeList = new LinkedList<>();
 			log.debug("Freezing Rocket");
 		} else {
 			Application.getExceptionHandler().handleErrorCondition("Attempting to freeze Rocket when it is already frozen, " +
@@ -483,76 +725,56 @@ public class Rocket extends RocketComponent {
 	
 	
 	/**
-	 * Return the default configuration.  This should be used in the user interface
+	 * Return the currently selected configuration.  This should be used in the user interface
 	 * to ensure a consistent rocket configuration between dialogs.  It should NOT
 	 * be used in simulations not relating to the UI.
 	 *
-	 * @return   the default {@link Configuration}.
+	 * @return   the current {@link FlightConfiguration}.
 	 */
-	public Configuration getDefaultConfiguration() {
+	public FlightConfiguration getSelectedConfiguration() {
 		checkState();
-		return defaultConfiguration;
+        return selectedConfiguration;
 	}
 	
-	
-	/**
-	 * Return an array of the flight configuration IDs.  This array is guaranteed
-	 * to contain the <code>null</code> ID as the first element.
-	 *
-	 * @return  an array of the flight configuration IDs.
-	 */
-	public String[] getFlightConfigurationIDs() {
-		checkState();
-		return flightConfigurationIDs.toArray(new String[0]);
+	public int getConfigurationCount(){
+		return this.configSet.size();
 	}
 	
-	/**
-	 * Add a new flight configuration ID to the flight configurations.  The new ID
-	 * is returned.
-	 *
-	 * @return  the new flight configuration ID.
-	 */
-	public String newFlightConfigurationID() {
-		checkState();
-		String id = UUID.randomUUID().toString();
-		flightConfigurationIDs.add(id);
-		fireComponentChangeEvent(ComponentChangeEvent.MOTOR_CHANGE);
-		return id;
+	public List<FlightConfigurationId> getIds(){
+		return configSet.getIds();
 	}
-	
+
 	/**
-	 * Add a specified motor configuration ID to the motor configurations.
+	 * Remove a flight configuration ID from the configuration IDs.  The
+     * <code>FlightConfigurationId.DEFAULT_VALUE_FCID</code> ID cannot be removed,
+     * and an attempt to remove it will be silently ignored.
 	 *
-	 * @param id	the motor configuration ID.
-	 * @return		true if successful, false if the ID was already used.
+	 * @param fcid   the flight configuration ID to remove
 	 */
-	public boolean addMotorConfigurationID(String id) {
+	public void removeFlightConfiguration(final FlightConfigurationId fcid) {
 		checkState();
-		if (id == null || flightConfigurationIDs.contains(id))
-			return false;
-		flightConfigurationIDs.add(id);
-		fireComponentChangeEvent(ComponentChangeEvent.MOTOR_CHANGE);
-		return true;
-	}
-	
-	/**
-	 * Remove a flight configuration ID from the configuration IDs.  The <code>null</code>
-	 * ID cannot be removed, and an attempt to remove it will be silently ignored.
-	 *
-	 * @param id   the flight configuration ID to remove
-	 */
-	public void removeFlightConfigurationID(String id) {
-		checkState();
-		if (id == null)
+		if( fcid.hasError() ){
 			return;
-		// Get current configuration:
-		String currentId = getDefaultConfiguration().getFlightConfigurationID();
-		// If we're removing the current configuration, we need to switch to a different one first.
-		if (currentId != null && currentId.equals(id)) {
-			getDefaultConfiguration().setFlightConfigurationID(null);
 		}
-		flightConfigurationIDs.remove(id);
-		fireComponentChangeEvent(ComponentChangeEvent.MOTOR_CHANGE);
+				
+		if( selectedConfiguration.getId().equals( fcid)){
+			selectedConfiguration = configSet.getDefault();
+		}
+		
+		// removed any component configuration tied to this FCID
+		Iterator<RocketComponent> iterator = this.iterator();
+		while (iterator.hasNext()) {
+			RocketComponent comp = iterator.next();
+			
+			if (comp instanceof FlightConfigurableComponent){
+				FlightConfigurableComponent confbl = (FlightConfigurableComponent)comp;
+				confbl.reset( fcid);
+			}
+		}
+				
+		// Get current configuration:
+		this.configSet.reset(fcid);
+		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
 	
@@ -562,23 +784,26 @@ public class Rocket extends RocketComponent {
 	 * @param id	the configuration ID.
 	 * @return		whether a motor configuration with that ID exists.
 	 */
-	public boolean isFlightConfigurationID(String id) {
+	public boolean containsFlightConfigurationID(final FlightConfigurationId id) {
 		checkState();
-		return flightConfigurationIDs.contains(id);
+		if( id.hasError() ){
+			return false;
+		}
+		return configSet.containsId( id);
 	}
-	
 	
 	
 	/**
 	 * Check whether the given motor configuration ID has motors defined for it.
 	 *
-	 * @param id	the motor configuration ID (may be invalid).
+	 * @param fcid	the FlightConfigurationID containing the motor (may be invalid).
 	 * @return		whether any motors are defined for it.
 	 */
-	public boolean hasMotors(String id) {
+	public boolean hasMotors(FlightConfigurationId fcid) {
 		checkState();
-		if (id == null)
+		if( fcid.hasError() ){
 			return false;
+		}
 		
 		Iterator<RocketComponent> iterator = this.iterator();
 		while (iterator.hasNext()) {
@@ -588,108 +813,177 @@ public class Rocket extends RocketComponent {
 				MotorMount mount = (MotorMount) c;
 				if (!mount.isMotorMount())
 					continue;
-				if (mount.getMotorConfiguration().get(id).getMotor() != null) {
+				if (mount.getMotorConfig(fcid).getMotor() != null) {
 					return true;
 				}
 			}
 		}
 		return false;
 	}
-	
-	
+
 	/**
-	 * Return the user-set name of the flight configuration.  If no name has been set,
-	 * returns the default name ({@link #DEFAULT_NAME}).
+	 * Return a flight configuration.  If the supplied id does not have a specific instance, the default is returned.  
 	 *
-	 * @param id   the flight configuration id
-	 * @return	   the configuration name
+	 * @param fcid the flight configuration id
+	 * @return	FlightConfiguration instance
 	 */
-	public String getFlightConfigurationName(String id) {
+	public FlightConfiguration createFlightConfiguration( final FlightConfigurationId fcid) {
 		checkState();
-		if (!isFlightConfigurationID(id))
-			return DEFAULT_NAME;
-		String s = flightConfigurationNames.get(id);
-		if (s == null)
-			return DEFAULT_NAME;
-		return s;
+
+        if( null == fcid ){
+            // fall-through to the default case:
+            // ...creating a FlightConfiguration( null ) just allocates a fresh new FCID
+		}else if( fcid.hasError() ){
+			return configSet.getDefault();
+		}else if( configSet.containsId(fcid)){
+			return configSet.get(fcid);
+		}
+        FlightConfiguration nextConfig = new FlightConfiguration(this, fcid);
+        this.configSet.set(nextConfig.getId(), nextConfig);
+        fireComponentChangeEvent(ComponentChangeEvent.TREE_CHANGE);
+        return nextConfig;
+	}
+
+	/**
+	 * Return all the flight configurations of this rocket.
+	 * @return all the flight configurations of this rocket.
+	 */
+	public FlightConfigurableParameterSet<FlightConfiguration> getFlightConfigurations() {
+		return this.configSet;
 	}
 	
 	
 	/**
-	 * Set the name of the flight configuration.  A name can be unset by passing
+	 * Return a flight configuration.  If the supplied id does not have a specific instance, the default is returned.  
+	 *
+	 * @param fcid   the flight configuration id
+	 * @return	   a FlightConfiguration instance 
+	 */
+	public FlightConfiguration getFlightConfiguration(final FlightConfigurationId fcid) {
+		checkState();
+		return this.configSet.get(fcid);
+	}
+
+	public FlightConfiguration getFlightConfigurationByIndex(final int configIndex) {
+		return getFlightConfigurationByIndex( configIndex, false);
+	}
+		
+	/**
+	 * Return a flight configuration.  If the supplied index is out of bounds, an exception is thrown.
+	 * If the default instance is allowed, the default will be at index 0. 
+	 *
+	 * @param 	allowDefault 	Whether to allow returning the default instance
+	 * @param 	configIndex 	The flight configuration index number
+	 * @return	FlightConfiguration instance
+	 */
+	public FlightConfiguration getFlightConfigurationByIndex( int configIndex, final boolean allowDefault ) {
+		if( allowDefault ){
+			if( 0 == configIndex ){
+				return configSet.getDefault();
+			}
+			--configIndex;
+		}
+		return this.configSet.get( this.getId(configIndex));
+	}
+
+	public FlightConfigurationId getId( final int configIndex) {
+		List<FlightConfigurationId> idList = configSet.getIds();
+		return idList.get(configIndex);
+	}
+
+	public void setSelectedConfiguration(final FlightConfigurationId selectId) {
+		checkState();
+		
+		if( selectId.equals( selectedConfiguration.getFlightConfigurationID())){
+			// if desired configuration is already selected, skip the event
+			return;
+		}
+		
+		this.selectedConfiguration = this.configSet.get( selectId );
+		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
+	}
+
+	/**
+	 * Associate the given ID and flight configuration.
 	 * <code>null</code> or an empty string.
 	 *
-	 * @param id	the flight configuration id
-	 * @param name	the name for the flight configuration
+	 * @param fcid	the flight configuration id
+	 * @param newConfig new FlightConfiguration to store
 	 */
-	public void setFlightConfigurationName(String id, String name) {
+	public void setFlightConfiguration(final FlightConfigurationId fcid, FlightConfiguration newConfig) {
 		checkState();
-		if (name == null || name.equals("") || DEFAULT_NAME.equals(name)) {
-			flightConfigurationNames.remove(id);
-		} else {
-			flightConfigurationNames.put(id, name);
+		if( fcid.hasError() ){
+			log.error("attempt to set a 'fcid = config' with a error fcid.  Ignored.", new IllegalArgumentException("error id:"+fcid));
+			return;
+		}
+
+		if (null == newConfig){
+			configSet.reset( fcid);
+		}else if( fcid.equals( configSet.get(fcid).getFlightConfigurationID())){
+			// this mapping already exists; skip the event
+			return;
+		}else{
+			configSet.set(fcid, newConfig);
 		}
 		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
-	
-	
-	
 	////////  Obligatory component information
-	
-	
 	@Override
 	public String getComponentName() {
 		//// Rocket
 		return trans.get("Rocket.compname.Rocket");
 	}
 	
-	@Override
-	public Coordinate getComponentCG() {
-		return new Coordinate(0, 0, 0, 0);
-	}
-	
-	@Override
-	public double getComponentMass() {
-		return 0;
-	}
-	
-	@Override
-	public double getLongitudinalUnitInertia() {
-		return 0;
-	}
-	
-	@Override
-	public double getRotationalUnitInertia() {
-		return 0;
-	}
-	
-	@Override
-	public Collection<Coordinate> getComponentBounds() {
-		return Collections.emptyList();
-	}
-	
-	@Override
-	public boolean isAerodynamic() {
-		return false;
-	}
-	
-	@Override
-	public boolean isMassive() {
-		return false;
-	}
-	
-	@Override
-	public boolean allowsChildren() {
-		return true;
-	}
+
 	
 	/**
-	 * Allows only <code>Stage</code> components to be added to the type Rocket.
+	 * Allows only <code>AxialStage</code> components to be added to the type Rocket.
 	 */
 	@Override
 	public boolean isCompatible(Class<? extends RocketComponent> type) {
-		return (Stage.class.isAssignableFrom(type));
+		return (AxialStage.class.equals(type));
+	}
+
+	/** 
+	 * STUB.  would enable the monitoring, relay and production of events in this rocket instance.
+	 */
+	public void enableEvents() {
+		this.enableEvents(true);
+		this.update();
+	}
+	
+	/** 
+	 * STUB.  would enable the monitoring, relay and production of events in this rocket instance.
+	 */
+	public void enableEvents( final boolean _enable ) {
+		if( this.eventsEnabled && _enable){
+			return;
+		}else if( _enable ){
+			this.eventsEnabled = true;
+			this.fireComponentChangeEvent(ComponentChangeEvent.AEROMASS_CHANGE);
+		}else{
+			this.eventsEnabled = false;
+		}
+	}
+	
+	public String toDebugConfigs(){
+		StringBuilder buf = new StringBuilder();
+		buf.append(String.format("====== Dumping %d Configurations from rocket: %s ======\n", 
+				this.getConfigurationCount(), this.getName()));
+		final String fmt = "    [%12s]: %s\n";
+		for( FlightConfiguration config : this.configSet ){
+			String shortKey = config.getId().toShortKey();
+			if( this.selectedConfiguration.equals( config)){
+				shortKey = "=>" + shortKey;
+			}
+			buf.append(String.format(fmt, shortKey, config.getNameRaw() ));
+		}
+		return buf.toString();
+	}
+
+	public FlightConfiguration getEmptyConfiguration() {
+		return this.configSet.getDefault();
 	}
 	
 }

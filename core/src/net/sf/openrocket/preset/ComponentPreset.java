@@ -47,6 +47,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 
 	public enum Type {
 		BODY_TUBE(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -55,6 +56,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		NOSE_CONE(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -65,6 +67,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		TRANSITION(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -78,6 +81,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		TUBE_COUPLER(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -86,6 +90,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		BULK_HEAD(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -93,6 +98,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		CENTERING_RING(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -101,6 +107,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		ENGINE_BLOCK(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -109,6 +116,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.LENGTH }),
 
 		LAUNCH_LUG(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -116,7 +124,24 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.OUTER_DIAMETER,
 				ComponentPreset.LENGTH }),
 
+		RAIL_BUTTON(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
+				ComponentPreset.MANUFACTURER,
+				ComponentPreset.PARTNO,
+				ComponentPreset.DESCRIPTION,
+				ComponentPreset.BASE_HEIGHT,
+				ComponentPreset.FLANGE_HEIGHT,
+				ComponentPreset.SCREW_HEIGHT,
+				ComponentPreset.HEIGHT,
+				ComponentPreset.INNER_DIAMETER,
+				ComponentPreset.OUTER_DIAMETER,
+				ComponentPreset.MASS,
+				ComponentPreset.SCREW_MASS,
+				ComponentPreset.NUT_MASS,
+				ComponentPreset.CD }),
+
 		STREAMER(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
@@ -126,15 +151,22 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 				ComponentPreset.MATERIAL }),
 
 		PARACHUTE(new TypedKey<?>[] {
+				ComponentPreset.LEGACY,
 				ComponentPreset.MANUFACTURER,
 				ComponentPreset.PARTNO,
 				ComponentPreset.DESCRIPTION,
+				ComponentPreset.CANOPY_SHAPE,
 				ComponentPreset.DIAMETER,
+				ComponentPreset.SPILL_DIA,
+				ComponentPreset.SURFACE_AREA,
+				ComponentPreset.MATERIAL,
 				ComponentPreset.SIDES,
 				ComponentPreset.LINE_COUNT,
 				ComponentPreset.LINE_LENGTH,
 				ComponentPreset.LINE_MATERIAL,
-				ComponentPreset.MATERIAL });
+				ComponentPreset.CD,
+				ComponentPreset.PACKED_DIAMETER,
+				ComponentPreset.PACKED_LENGTH });
 
 		TypedKey<?>[] displayedColumns;
 
@@ -142,31 +174,19 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 			this.displayedColumns = displayedColumns;
 		}
 
-		public List<Type> getCompatibleTypes() {
-			return compatibleTypeMap.get(Type.this);
-		}
-
 		public TypedKey<?>[] getDisplayedColumns() {
 			return displayedColumns;
 		}
 
-		private static Map<Type, List<Type>> compatibleTypeMap = new HashMap<Type, List<Type>>();
-
-		static {
-			compatibleTypeMap.put(BODY_TUBE, Arrays.asList(BODY_TUBE, TUBE_COUPLER, LAUNCH_LUG));
-			compatibleTypeMap.put(TUBE_COUPLER, Arrays.asList(BODY_TUBE, TUBE_COUPLER, LAUNCH_LUG));
-			compatibleTypeMap.put(LAUNCH_LUG, Arrays.asList(BODY_TUBE, TUBE_COUPLER, LAUNCH_LUG));
-			compatibleTypeMap.put(CENTERING_RING, Arrays.asList(CENTERING_RING, ENGINE_BLOCK));
-			compatibleTypeMap.put(NOSE_CONE, Arrays.asList(NOSE_CONE, TRANSITION));
-		}
-
 	}
 
+	public final static TypedKey<Boolean> LEGACY = new TypedKey<Boolean>("Legacy", Boolean.class);
 	public final static TypedKey<Manufacturer> MANUFACTURER = new TypedKey<Manufacturer>("Manufacturer", Manufacturer.class);
 	public final static TypedKey<String> PARTNO = new TypedKey<String>("PartNo", String.class);
 	public final static TypedKey<String> DESCRIPTION = new TypedKey<String>("Description", String.class);
 	public final static TypedKey<Type> TYPE = new TypedKey<Type>("Type", Type.class);
 	public final static TypedKey<Double> LENGTH = new TypedKey<Double>("Length", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> HEIGHT = new TypedKey<Double>("Height", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Double> WIDTH = new TypedKey<Double>("Width", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Double> INNER_DIAMETER = new TypedKey<Double>("InnerDiameter", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Double> OUTER_DIAMETER = new TypedKey<Double>("OuterDiameter", Double.class, UnitGroup.UNITS_LENGTH);
@@ -176,6 +196,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 	public final static TypedKey<Double> AFT_SHOULDER_LENGTH = new TypedKey<Double>("AftShoulderLength", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Double> AFT_SHOULDER_DIAMETER = new TypedKey<Double>("AftShoulderDiameter", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Double> AFT_OUTER_DIAMETER = new TypedKey<Double>("AftOuterDiameter", Double.class, UnitGroup.UNITS_LENGTH);
+	public static final TypedKey<Double> CD = new TypedKey<Double>("DragCoefficient", Double.class, UnitGroup.UNITS_COEFFICIENT);
 	public final static TypedKey<Shape> SHAPE = new TypedKey<Shape>("Shape", Shape.class);
 	public final static TypedKey<Material> MATERIAL = new TypedKey<Material>("Material", Material.class);
 	public final static TypedKey<Finish> FINISH = new TypedKey<Finish>("Finish", Finish.class);
@@ -183,13 +204,36 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 	public final static TypedKey<Boolean> FILLED = new TypedKey<Boolean>("Filled", Boolean.class);
 	public final static TypedKey<Double> MASS = new TypedKey<Double>("Mass", Double.class, UnitGroup.UNITS_MASS);
 	public final static TypedKey<Double> DIAMETER = new TypedKey<Double>("Diameter", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<byte[]> IMAGE = new TypedKey<byte[]>("Image", byte[].class);
+
+	//  RAIL BUTTON SPECIFIC
+	public final static TypedKey<Double> BASE_HEIGHT = new TypedKey<Double>("BaseHeight", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> FLANGE_HEIGHT = new TypedKey<Double>("FlangeHeight", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> SCREW_HEIGHT = new TypedKey<Double>("ScrewHeight", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> SCREW_MASS = new TypedKey<Double>("ScrewMass", Double.class, UnitGroup.UNITS_MASS);
+	public final static TypedKey<Double> NUT_MASS = new TypedKey<Double>("NutMass", Double.class, UnitGroup.UNITS_MASS);
+
+	//	PARACHUTE SPECIFIC
+	//	Parachute Manufacturer declaration see: MANUFACTURER
+	//	Parachute Part Number declaration see: PARTNO
+	//	Parachute Description declaration see: DESCRIPTION
+	public final static TypedKey<Shape> CANOPY_SHAPE = new TypedKey<Shape>("CanopyShape", Shape.class);
+	//	Parachute diameter declaration see: DIAMETER
+	public final static TypedKey<Double> SPILL_DIA = new TypedKey<Double>("SpillDia", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> SURFACE_AREA = new TypedKey<Double>("SurfaceArea", Double.class, UnitGroup.UNITS_LENGTH);
+
+	//	Parachute canopy material declaration see: MATERIAL
 	public final static TypedKey<Integer> SIDES = new TypedKey<Integer>("Sides", Integer.class);
 	public final static TypedKey<Integer> LINE_COUNT = new TypedKey<Integer>("LineCount", Integer.class);
 	public final static TypedKey<Double> LINE_LENGTH = new TypedKey<Double>("LineLength", Double.class, UnitGroup.UNITS_LENGTH);
 	public final static TypedKey<Material> LINE_MATERIAL = new TypedKey<Material>("LineMaterial", Material.class);
-	public final static TypedKey<byte[]> IMAGE = new TypedKey<byte[]>("Image", byte[].class);
+	public final static TypedKey<Double> PACKED_LENGTH = new TypedKey<Double>("PackedLength", Double.class, UnitGroup.UNITS_LENGTH);
+	public final static TypedKey<Double> PACKED_DIAMETER = new TypedKey<Double>("PackedDiameter", Double.class, UnitGroup.UNITS_LENGTH);
+	//	Parachute Mass declaration see: MASS
 
-	public final static List<TypedKey<?>> ORDERED_KEY_LIST = Collections.unmodifiableList(Arrays.<TypedKey<?>> asList(
+	public final static List<TypedKey<?>> ORDERED_KEY_LIST = Collections.unmodifiableList(Arrays.asList(
+		//	DO NOT add to this list without redefining "table.column"
+			LEGACY,
 			MANUFACTURER,
 			PARTNO,
 			DESCRIPTION,
@@ -203,6 +247,9 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 			AFT_SHOULDER_LENGTH,
 			FORE_SHOULDER_DIAMETER,
 			FORE_SHOULDER_LENGTH,
+			BASE_HEIGHT,
+			FLANGE_HEIGHT,
+			SCREW_HEIGHT,
 			SHAPE,
 			THICKNESS,
 			FILLED,
@@ -212,6 +259,8 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 			LINE_LENGTH,
 			LINE_MATERIAL,
 			MASS,
+			SCREW_MASS,
+			NUT_MASS,
 			FINISH,
 			MATERIAL
 			));
@@ -219,6 +268,15 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 
 	// package scope constructor to encourage use of factory.
 	ComponentPreset() {
+	}
+
+	/**
+	 * Convenience method to determine whether this is from the legacy database
+	 *
+	 * @return
+	 */
+	public Boolean getLegacy() {
+		return properties.get(LEGACY);
 	}
 
 	/**
@@ -312,11 +370,7 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 
 		ComponentPreset that = (ComponentPreset) o;
 
-		if (digest != null ? !digest.equals(that.digest) : that.digest != null) {
-			return false;
-		}
-
-		return true;
+		return digest != null ? digest.equals(that.digest) : that.digest == null;
 	}
 
 	@Override
@@ -343,6 +397,9 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 			});
 
 			for (TypedKey<?> key : keys) {
+				if (key == ComponentPreset.LEGACY) {
+					continue;
+				}
 
 				Object value = properties.get(key);
 
@@ -353,6 +410,9 @@ public class ComponentPreset implements Comparable<ComponentPreset>, Serializabl
 					os.writeDouble(d);
 				} else if (key.getType() == String.class) {
 					String s = (String) value;
+					if (s == null) {
+						s = "";
+					}
 					os.writeBytes(s);
 				} else if (key.getType() == Manufacturer.class) {
 					String s = ((Manufacturer) value).getSimpleName();

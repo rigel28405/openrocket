@@ -1,6 +1,7 @@
 package net.sf.openrocket.rocketcomponent;
 
 import net.sf.openrocket.preset.ComponentPreset;
+import net.sf.openrocket.rocketcomponent.position.AxialMethod;
 
 
 
@@ -16,13 +17,15 @@ import net.sf.openrocket.preset.ComponentPreset;
  */
 
 public abstract class BodyComponent extends ExternalComponent {
-	
+
+	private double InnerRadius;
+
 	/**
 	 * Default constructor.  Sets the relative position to POSITION_RELATIVE_AFTER,
 	 * i.e. body components come after one another.
 	 */
 	public BodyComponent() {
-		super(RocketComponent.Position.AFTER);
+		super( AxialMethod.AFTER);
 	}
 	
 	
@@ -64,6 +67,12 @@ public abstract class BodyComponent extends ExternalComponent {
 	 * clearPreset().  (BodyTube allows changing length without resetting the preset.)
 	 */
 	public void setLength(double length) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof BodyComponent) {
+				((BodyComponent) listener).setLength(length);
+			}
+		}
+
 		if (this.length == length)
 			return;
 		this.length = Math.max(length, 0);
@@ -74,5 +83,7 @@ public abstract class BodyComponent extends ExternalComponent {
 	public boolean allowsChildren() {
 		return true;
 	}
-	
+
+	public double getInnerRadius() {
+	return InnerRadius; }
 }

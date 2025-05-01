@@ -4,6 +4,7 @@ import java.text.Collator;
 import java.util.Comparator;
 
 import net.sf.openrocket.database.motor.ThrustCurveMotorSet;
+import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.motor.DesignationComparator;
 import net.sf.openrocket.motor.ThrustCurveMotor;
@@ -30,11 +31,18 @@ enum ThrustCurveMotorColumns {
 			return Collator.getInstance();
 		}
 	},
-	//// Designation
-	DESIGNATION("TCurveMotorCol.DESIGNATION") {
+	//// Common name
+	NAME("TCurveMotorCol.NAME") {
 		@Override
 		public String getValue(ThrustCurveMotorSet m) {
-			return m.getDesignation();
+			if (!(Application.getPreferences() instanceof SwingPreferences)) {
+				return m.getCommonName();
+			}
+			if (((SwingPreferences) Application.getPreferences()).getMotorNameColumn()) {
+				return m.getDesignation();
+			} else {
+				return m.getCommonName();
+			}
 		}
 		
 		@Override
@@ -46,7 +54,7 @@ enum ThrustCurveMotorColumns {
 	TOTAL_IMPULSE("TCurveMotorCol.TOTAL_IMPULSE") {
 		@Override
 		public Object getValue(ThrustCurveMotorSet m) {
-			return m.getTotalImpuse();
+			return m.getTotalImpulse();
 		}
 		
 		@Override
@@ -58,11 +66,10 @@ enum ThrustCurveMotorColumns {
 			};
 		}
 	},
-	//// Type
-	TYPE("TCurveMotorCol.TYPE") {
+	CASEINFO("TCurveMotorCol.CASEINFO") {
 		@Override
 		public String getValue(ThrustCurveMotorSet m) {
-			return m.getType().getName();
+			return m.getCaseInfo();
 		}
 		
 		@Override
@@ -151,11 +158,11 @@ enum ThrustCurveMotorColumns {
 				UnitGroup.UNITS_IMPULSE.getDefaultUnit()
 						.toStringUnit(m.getTotalImpulseEstimate()) + "<br>");
 		tip += (trans.get("TCurveMotor.ttip.launchMass") + " " +
-				UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(m.getLaunchCG().weight) +
+				UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(m.getLaunchMass()) +
 				"<br>");
 		tip += (trans.get("TCurveMotor.ttip.emptyMass") + " " +
 				UnitGroup.UNITS_MASS.getDefaultUnit()
-						.toStringUnit(m.getEmptyCG().weight));
+						.toStringUnit(m.getBurnoutMass()));
 		return tip;
 	}
 	

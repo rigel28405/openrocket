@@ -5,8 +5,8 @@ import static net.sf.openrocket.util.MathUtil.pow2;
 import net.sf.openrocket.aerodynamics.AerodynamicForces;
 import net.sf.openrocket.aerodynamics.BarrowmanCalculator;
 import net.sf.openrocket.aerodynamics.FlightConditions;
-import net.sf.openrocket.aerodynamics.Warning;
-import net.sf.openrocket.aerodynamics.WarningSet;
+import net.sf.openrocket.logging.Warning;
+import net.sf.openrocket.logging.WarningSet;
 import net.sf.openrocket.rocketcomponent.BodyTube;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.SymmetricComponent;
@@ -16,8 +16,10 @@ import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.LinearInterpolator;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.PolyInterpolator;
+import net.sf.openrocket.util.Transformation;
 
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Calculates the aerodynamic properties of a <code>SymmetricComponent</code>.
@@ -31,6 +33,8 @@ import net.sf.openrocket.util.PolyInterpolator;
  */
 public class SymmetricComponentCalc extends RocketComponentCalc {
 	
+	private final static Logger log = LoggerFactory.getLogger(SymmetricComponentCalc.class);
+	
 	public static final double BODY_LIFT_K = 1.1;
 	
 	private final double length;
@@ -41,6 +45,7 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 	private final double frontalArea;
 	private final double fullVolume;
 	private final double planformArea, planformCenter;
+	private final double wetArea;
 	private final double sinphi;
 	
 	public SymmetricComponentCalc(RocketComponent c) {
@@ -49,16 +54,22 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 			throw new IllegalArgumentException("Illegal component type " + c);
 		}
 		SymmetricComponent component = (SymmetricComponent) c;
-		
 
 		length = component.getLength();
-		foreRadius = component.getForeRadius();
-		aftRadius = component.getAftRadius();
+		if (length > 0) {
+			foreRadius = component.getForeRadius();
+			aftRadius = component.getAftRadius();
+		} else {	// If length is zero, the component is a disk, i.e. a zero-length tube, so match the fore and aft diameter
+			final double componentMaxR = Math.max(component.getForeRadius(), component.getAftRadius());
+			foreRadius = aftRadius = componentMaxR;
+		}
 		
 		fineness = length / (2 * Math.abs(aftRadius - foreRadius));
 		fullVolume = component.getFullVolume();
 		planformArea = component.getComponentPlanformArea();
 		planformCenter = component.getComponentPlanformCenter();
+
+		wetArea = component.getComponentWetArea();
 		
 		if (component instanceof BodyTube) {
 			shape = null;
@@ -66,7 +77,7 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 			frontalArea = 0;
 			sinphi = 0;
 		} else if (component instanceof Transition) {
-			shape = ((Transition) component).getType();
+			shape = ((Transition) component).getShapeType();
 			param = ((Transition) component).getShapeParameter();
 			frontalArea = Math.abs(Math.PI * (foreRadius * foreRadius - aftRadius * aftRadius));
 			
@@ -95,7 +106,7 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 	 * subsonic speeds.
 	 */
 	@Override
-	public void calculateNonaxialForces(FlightConditions conditions,
+	public void calculateNonaxialForces(FlightConditions conditions, Transformation transform,
 			AerodynamicForces forces, WarningSet warnings) {
 		
 		// Pre-calculate and store the results
@@ -113,7 +124,7 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 				final double A1 = Math.PI * pow2(r1);
 				
 				cnaCache = 2 * (A1 - A0);
-				//				System.out.println("cnaCache = " + cnaCache);
+				//System.out.println("cnaCache = " + cnaCache);
 				cpCache = (length * A1 - fullVolume) / (A1 - A0);
 			}
 		}
@@ -170,12 +181,15 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 				conditions.getSinAOA() * conditions.getSincAOA()); // sin(aoa)^2 / aoa
 	}
 	
-	
+	@Override
+	public double calculateFrictionCD(FlightConditions conditions, double componentCf, WarningSet warningSet) {
+		return componentCf * wetArea / conditions.getRefArea();
+	}
 
 	private LinearInterpolator interpolator = null;
 	
 	@Override
-	public double calculatePressureDragForce(FlightConditions conditions,
+	public double calculatePressureCD(FlightConditions conditions,
 			double stagnationCD, double baseCD, WarningSet warnings) {
 		
 		// Check for simple cases first
@@ -374,7 +388,6 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 				interpolator.addPoint(m, stag * Math.pow(int1.getValue(m) / stag, log4));
 			}
 		}
-		
 
 		/*
 		 * Now the transonic/supersonic region is ok.  We still need to interpolate
@@ -397,10 +410,10 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 		}
 		
 		// Cd = a*M^b + cdMach0
-		double a = minValue - cdMach0;
-		double b = minDeriv / a;
+		final double b = min * minDeriv / (minValue - cdMach0);
+		final double a = (minValue - cdMach0) / Math.pow(min, b);
 		
-		for (double m = 0; m < minValue; m += 0.05) {
+		for (double m = 0; m < min; m += 0.05) {
 			interpolator.addPoint(m, a * Math.pow(m, b) + cdMach0);
 		}
 	}
@@ -414,10 +427,11 @@ public class SymmetricComponentCalc extends RocketComponentCalc {
 		LinearInterpolator interpolator = new LinearInterpolator();
 		
 		// In the range M = 1 ... 1.3 use polynomial approximation
-		double cdMach1 = 2.1 * pow2(sinphi) + 0.6019 * sinphi;
+		double cdMach1 = sinphi;
+		double cdMach1_3 = 2.1 * pow2(sinphi) + 0.6019 * sinphi;
 		
 		double[] poly = conicalPolyInterpolator.interpolator(
-				1.0 * sinphi, cdMach1,
+				cdMach1, cdMach1_3,
 				4 / (GAMMA + 1) * (1 - 0.5 * cdMach1), -1.1341 * sinphi
 				);
 		

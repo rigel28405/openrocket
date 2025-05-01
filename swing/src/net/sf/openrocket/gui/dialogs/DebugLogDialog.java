@@ -32,11 +32,16 @@ import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.border.Border;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
+
+import net.sf.openrocket.gui.util.UITheme;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.gui.adaptors.Column;
@@ -55,17 +60,16 @@ import net.sf.openrocket.logging.Markers;
 import net.sf.openrocket.logging.StackTraceWriter;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.NumericComparator;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+@SuppressWarnings("serial")
 public class DebugLogDialog extends JDialog {
 	private static final Logger log = LoggerFactory.getLogger(DebugLogDialog.class);
 	
 	private static final int POLL_TIME = 250;
 	private static final String STACK_TRACE_MARK = "\uFF01";
 	private static final Translator trans = Application.getTranslator();
-	
+
 	private static final EnumMap<LogLevel, Color> backgroundColors = new EnumMap<LogLevel, Color>(LogLevel.class);
 	static {
 		for (LogLevel l : LogLevel.values()) {
@@ -95,7 +99,8 @@ public class DebugLogDialog extends JDialog {
 	private final JCheckBox followBox;
 	private final Timer timer;
 	
-	
+	private final JSplitPane split;
+	private final JPanel bottomPanel;
 	private final JTable table;
 	private final ColumnTableModel model;
 	private final TableRowSorter<TableModel> sorter;
@@ -106,6 +111,12 @@ public class DebugLogDialog extends JDialog {
 	private final SelectableLabel locationLabel;
 	private final SelectableLabel messageLabel;
 	private final JTextArea stackTraceLabel;
+
+	private static Border border;
+
+	static {
+		initColors();
+	}
 	
 	public DebugLogDialog(Window parent) {
 		//// OpenRocket debug log
@@ -133,20 +144,18 @@ public class DebugLogDialog extends JDialog {
 		
 		
 		// Create the UI
-		JPanel mainPanel = new JPanel(new MigLayout("fill"));
-		this.add(mainPanel);
+		this.setLayout( new MigLayout("fill"));
 		
-		
-		JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+		split = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 		split.setDividerLocation(0.7);
-		mainPanel.add(split, "grow");
+		this.add(split, "grow, pushy 200, growprioy 200");
 		
 		// Top panel
-		JPanel panel = new JPanel(new MigLayout("fill"));
-		split.add(panel);
+		JPanel topPanel = new JPanel(new MigLayout("fill"));
+		split.add(topPanel);
 		
 		//// Display log lines:
-		panel.add(new JLabel(trans.get("debuglogdlg.Displayloglines")), "gapright para, split");
+		topPanel.add(new JLabel(trans.get("debuglogdlg.Displayloglines")), "gapright para, split");
 		for (LogLevel l : LogLevel.values()) {
 			JCheckBox box = new JCheckBox(l.toString());
 			// By default display DEBUG and above
@@ -157,17 +166,29 @@ public class DebugLogDialog extends JDialog {
 					sorter.setRowFilter(new LogFilter());
 				}
 			});
-			panel.add(box, "gapright unrel");
+			topPanel.add(box, "gapright unrel");
 			filterButtons.put(l, box);
 		}
-		
+
+        //// Toggle Bottom Details Pane
+        JCheckBox toggleDetailsBox = new JCheckBox(trans.get("debuglogdlg.ToggleDetails"));
+        toggleDetailsBox.setSelected(true);
+        topPanel.add(toggleDetailsBox, "gapright unrel");
+        toggleDetailsBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                boolean isActive = ((JCheckBox)e.getSource()).isSelected();
+                enableDetailsPanel( isActive);
+            }
+        });
+
 		//// Follow
 		followBox = new JCheckBox(trans.get("debuglogdlg.Follow"));
 		followBox.setSelected(true);
-		panel.add(followBox, "skip, gapright para, right");
+		topPanel.add(followBox, "skip, gapright para, right");
 		
 		//// Clear button
-		JButton clear = new JButton(trans.get("debuglogdlg.but.clear"));
+		JButton clear = new SelectColorButton(trans.get("debuglogdlg.but.clear"));
 		clear.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -177,7 +198,7 @@ public class DebugLogDialog extends JDialog {
 				model.fireTableDataChanged();
 			}
 		});
-		panel.add(clear, "right, wrap");
+		topPanel.add(clear, "right, wrap");
 		
 		
 		
@@ -293,56 +314,57 @@ public class DebugLogDialog extends JDialog {
 		sorter.setRowFilter(new LogFilter());
 		
 		
-		panel.add(new JScrollPane(table), "span, grow, width " +
+		topPanel.add(new JScrollPane(table), "span, grow, width " +
 				(Toolkit.getDefaultToolkit().getScreenSize().width * 8 / 10) +
-				"px, height 400px");
+				"px, height 400px, growy, pushy 200, growprioy 200");
 		
 		
-		panel = new JPanel(new MigLayout("fill"));
-		split.add(panel);
+		bottomPanel = new JPanel(new MigLayout("fill"));
+		split.add(bottomPanel);
 		
 		//// Log line number:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Loglinenbr")), "split, gapright rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Loglinenbr")), "split, gapright rel");
 		numberLabel = new SelectableLabel();
-		panel.add(numberLabel, "width 70lp, gapright para");
+		bottomPanel.add(numberLabel, "width 70lp, gapright para");
 		
 		//// Time:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Time")), "split, gapright rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Time")), "split, gapright rel");
 		timeLabel = new SelectableLabel();
-		panel.add(timeLabel, "width 70lp, gapright para");
+		bottomPanel.add(timeLabel, "width 70lp, gapright para");
 		
 		//// Level:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Level")), "split, gapright rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Level")), "split, gapright rel");
 		levelLabel = new SelectableLabel();
-		panel.add(levelLabel, "width 70lp, gapright para");
+		bottomPanel.add(levelLabel, "width 70lp, gapright para");
 		
 		//// Location:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Location")), "split, gapright rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Location")), "split, gapright rel");
 		locationLabel = new SelectableLabel();
-		panel.add(locationLabel, "growx, wrap unrel");
+		bottomPanel.add(locationLabel, "growx, wrap unrel");
 		
 		//// Log message:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Logmessage")), "split, gapright rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Logmessage")), "split, gapright rel");
 		messageLabel = new SelectableLabel();
-		panel.add(messageLabel, "growx, wrap para");
+		bottomPanel.add(messageLabel, "growx, wrap para");
 		
 		//// Stack trace:
-		panel.add(new JLabel(trans.get("debuglogdlg.lbl.Stacktrace")), "wrap rel");
+		bottomPanel.add(new JLabel(trans.get("debuglogdlg.lbl.Stacktrace")), "wrap rel");
 		stackTraceLabel = new JTextArea(8, 80);
 		stackTraceLabel.setEditable(false);
+		stackTraceLabel.setBorder(border);
 		GUIUtil.changeFontSize(stackTraceLabel, -2);
-		panel.add(new JScrollPane(stackTraceLabel), "grow");
+		bottomPanel.add(new JScrollPane(stackTraceLabel), "grow, pushy 200, growprioy 200");
 		
 		
 		//Close button
-		JButton close = new JButton(trans.get("dlg.but.close"));
+		JButton close = new SelectColorButton(trans.get("dlg.but.close"));
 		close.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				DebugLogDialog.this.dispose();
 			}
 		});
-		mainPanel.add(close, "newline para, right, tag ok");
+		this.add(close, "newline para, right, tag ok");
 		
 		
 		// Use timer to purge the queue so as not to overwhelm the EDT with events
@@ -368,9 +390,19 @@ public class DebugLogDialog extends JDialog {
 		});
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
+		setLocationRelativeTo(parent);
 		followBox.requestFocus();
 	}
-	
+
+	private static void initColors() {
+		updateColors();
+		UITheme.Theme.addUIThemeChangeListener(DebugLogDialog::updateColors);
+	}
+
+	private static void updateColors() {
+		border = GUIUtil.getUITheme().getBorder();
+	}
+
 	private void updateSelected(int row) {
 		if (row < 0) {
 			
@@ -442,6 +474,17 @@ public class DebugLogDialog extends JDialog {
 			}
 		}
 	}
+
+	private void enableDetailsPanel(final boolean isActive){
+		bottomPanel.setEnabled(isActive);
+		if(isActive){
+			split.setDividerLocation(0.5);
+			split.setBottomComponent(bottomPanel);
+		}else {
+			split.setBottomComponent(null);
+			split.setDividerLocation(1.0);
+		}
+	}
 	
 	
 	/**
@@ -478,7 +521,7 @@ public class DebugLogDialog extends JDialog {
 			if (STACK_TRACE_MARK.equals(value)) {
 				fg = Color.RED;
 			} else {
-				fg = table1.getForeground();
+				fg = Color.BLACK;
 			}
 			bg = backgroundColors.get(buffer.get(row).getLevel());
 			

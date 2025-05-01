@@ -37,6 +37,7 @@ import net.sf.openrocket.gui.preset.PresetResultListener;
 import net.sf.openrocket.gui.util.FileHelper;
 import net.sf.openrocket.gui.util.Icons;
 import net.sf.openrocket.gui.util.SwingPreferences;
+import net.sf.openrocket.gui.widgets.SaveFileChooser;
 import net.sf.openrocket.logging.Markers;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.preset.ComponentPreset;
@@ -44,6 +45,7 @@ import net.sf.openrocket.preset.loader.MaterialHolder;
 import net.sf.openrocket.preset.xml.OpenRocketComponentDTO;
 import net.sf.openrocket.preset.xml.OpenRocketComponentSaver;
 import net.sf.openrocket.startup.Application;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +54,7 @@ import org.slf4j.LoggerFactory;
  * A UI for editing component presets.  Currently this is a standalone application - run the main within this class.
  * TODO: Full I18n TODO: Save As .csv
  */
+@SuppressWarnings("serial")
 public class ComponentPresetEditor extends JPanel implements PresetResultListener {
 	
 	/**
@@ -204,7 +207,7 @@ public class ComponentPresetEditor extends JPanel implements PresetResultListene
 		});
 		
 		
-		JButton addBtn = new JButton("Add");
+		JButton addBtn = new SelectColorButton("Add");
 		addBtn.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent arg0) {
@@ -323,7 +326,7 @@ public class ComponentPresetEditor extends JPanel implements PresetResultListene
 	private boolean openComponentFile() {
 		final JFileChooser chooser = new JFileChooser();
 		chooser.addChoosableFileFilter(FileHelper.OPEN_ROCKET_COMPONENT_FILTER);
-		chooser.addChoosableFileFilter(FileHelper.CSV_FILE_FILTER);
+		chooser.addChoosableFileFilter(FileHelper.CSV_FILTER);
 		chooser.setFileFilter(FileHelper.OPEN_ROCKET_COMPONENT_FILTER);
 		chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
 		if (editContext.getLastDirectory() != null) {
@@ -339,6 +342,8 @@ public class ComponentPresetEditor extends JPanel implements PresetResultListene
 			log.info(Markers.USER_MARKER, "User decided not to open, option=" + option);
 			return false;
 		}
+
+		((SwingPreferences) Application.getPreferences()).setDefaultDirectory(chooser.getCurrentDirectory());
 		
 		File file = chooser.getSelectedFile();
 		try {
@@ -361,7 +366,7 @@ public class ComponentPresetEditor extends JPanel implements PresetResultListene
 					file = file.getParentFile();
 				}
 				presets = new ArrayList<ComponentPreset>();
-				MaterialHolder materialHolder = RocksimComponentFileTranslator.loadAll(presets, file);
+				MaterialHolder materialHolder = RockSimComponentFileTranslator.loadAll(presets, file);
 				editContext.setMaterialsLoaded(materialHolder);
 			}
 			if (presets != null) {
@@ -402,7 +407,7 @@ public class ComponentPresetEditor extends JPanel implements PresetResultListene
 	private boolean saveAsORC() throws JAXBException, IOException {
 		File file = null;
 		
-		final JFileChooser chooser = new JFileChooser();
+		final JFileChooser chooser = new SaveFileChooser();
 		chooser.addChoosableFileFilter(FileHelper.OPEN_ROCKET_COMPONENT_FILTER);
 		
 		chooser.setFileFilter(FileHelper.OPEN_ROCKET_COMPONENT_FILTER);

@@ -29,6 +29,7 @@ import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.unit.Value;
 import net.sf.openrocket.util.LinearInterpolator;
 import net.sf.openrocket.util.MathUtil;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -79,7 +80,7 @@ public class OptimizationPlotDialog extends JDialog {
 	
 	
 	public OptimizationPlotDialog(List<Point> path, Map<Point, FunctionEvaluationData> evaluations,
-			List<SimulationModifier> modifiers, OptimizableParameter parameter, UnitGroup stabilityUnit, Window parent) {
+			List<SimulationModifier> modifiers, OptimizableParameter parameter, Unit parameterUnit, UnitGroup stabilityUnit, Window parent) {
 		super(parent, trans.get("title"), ModalityType.APPLICATION_MODAL);
 		
 
@@ -87,13 +88,21 @@ public class OptimizationPlotDialog extends JDialog {
 		
 		ChartPanel chart;
 		if (modifiers.size() == 1) {
-			chart = create1DPlot(path, evaluations, modifiers, parameter, stabilityUnit);
+			chart = create1DPlot(path, evaluations, modifiers, parameter, parameterUnit, stabilityUnit);
 		} else if (modifiers.size() == 2) {
-			chart = create2DPlot(path, evaluations, modifiers, parameter, stabilityUnit);
+			chart = create2DPlot(path, evaluations, modifiers, parameter, parameterUnit, stabilityUnit);
 		} else {
 			throw new IllegalArgumentException("Invalid dimensionality, dim=" + modifiers.size());
 		}
 		chart.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+		Color backgroundColor = new Color(240, 240, 240);
+		chart.getChart().setBackgroundPaint(backgroundColor);
+		if (chart.getChart().getLegend() != null) {
+			chart.getChart().getLegend().setBackgroundPaint(Color.WHITE);
+		}
+		chart.getChart().getXYPlot().setBackgroundPaint(Color.WHITE);
+		chart.getChart().getXYPlot().setRangeGridlinePaint(Color.lightGray);
+		chart.getChart().getXYPlot().setDomainGridlinePaint(Color.lightGray);
 		panel.add(chart, "span, grow, wrap para");
 		
 
@@ -101,7 +110,7 @@ public class OptimizationPlotDialog extends JDialog {
 		panel.add(label, "");
 		
 
-		JButton close = new JButton(trans.get("button.close"));
+		JButton close = new SelectColorButton(trans.get("button.close"));
 		close.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -115,6 +124,8 @@ public class OptimizationPlotDialog extends JDialog {
 		
 		GUIUtil.setDisposableDialogOptions(this, close);
 		GUIUtil.rememberWindowSize(this);
+		this.setLocationByPlatform(true);
+		GUIUtil.rememberWindowPosition(this);
 	}
 	
 	
@@ -123,11 +134,11 @@ public class OptimizationPlotDialog extends JDialog {
 	 * Create a 1D plot of the optimization path.
 	 */
 	private ChartPanel create1DPlot(List<Point> path, Map<Point, FunctionEvaluationData> evaluations,
-			List<SimulationModifier> modifiers, OptimizableParameter parameter, UnitGroup stabilityUnit) {
+			List<SimulationModifier> modifiers, OptimizableParameter parameter, Unit parameterUnit, UnitGroup stabilityUnit) {
 		
 		SimulationModifier modX = modifiers.get(0);
 		Unit xUnit = modX.getUnitGroup().getDefaultUnit();
-		Unit yUnit = parameter.getUnitGroup().getDefaultUnit();
+		Unit yUnit = parameterUnit;
 		
 		// Create the optimization path (with autosort)
 		XYSeries series = new XYSeries(trans.get("plot1d.series"), true, true);
@@ -221,10 +232,7 @@ public class OptimizationPlotDialog extends JDialog {
 	 * Create a 2D plot of the optimization path.
 	 */
 	private ChartPanel create2DPlot(List<Point> path, Map<Point, FunctionEvaluationData> evaluations,
-			List<SimulationModifier> modifiers, OptimizableParameter parameter, UnitGroup stabilityUnit) {
-		
-		Unit parameterUnit = parameter.getUnitGroup().getDefaultUnit();
-		
+			List<SimulationModifier> modifiers, OptimizableParameter parameter, Unit parameterUnit, UnitGroup stabilityUnit) {
 		SimulationModifier modX = modifiers.get(0);
 		SimulationModifier modY = modifiers.get(1);
 		

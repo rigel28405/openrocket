@@ -1,8 +1,14 @@
 package net.sf.openrocket.startup;
 
-import java.awt.Image;
-import java.awt.Toolkit;
+import java.awt.*;
+import java.awt.desktop.AboutHandler;
+import java.awt.desktop.OpenFilesHandler;
+import java.awt.desktop.PreferencesHandler;
+import java.awt.desktop.QuitHandler;
+import java.awt.desktop.AppReopenedListener;
+import java.io.File;
 
+import net.sf.openrocket.communication.UpdateInfoRetriever;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,13 +17,7 @@ import net.sf.openrocket.arch.SystemInfo.Platform;
 import net.sf.openrocket.gui.dialogs.AboutDialog;
 import net.sf.openrocket.gui.dialogs.preferences.PreferencesDialog;
 import net.sf.openrocket.gui.main.BasicFrame;
-import com.apple.eawt.AboutHandler;
-import com.apple.eawt.PreferencesHandler;
-import com.apple.eawt.QuitHandler;
-import com.apple.eawt.QuitResponse;
-import com.apple.eawt.AppEvent.AboutEvent;
-import com.apple.eawt.AppEvent.PreferencesEvent;
-import com.apple.eawt.AppEvent.QuitEvent;
+
 
 /**
  * Static code for initialization of OSX UI Elements: Menu, Icon, Name and
@@ -34,38 +34,45 @@ final class OSXSetup {
 	
 	// The image resource to use for the Dock Icon
 	private static final String ICON_RSRC = "/pix/icon/icon-256.png";
+
+	/**
+	 * The handler for file associations
+	 */
+	public static final OpenFilesHandler OPEN_FILE_HANDLER = (e) -> {
+		File associateFile = e.getFiles().get(0);
+		log.info("Opening file from association: " + associateFile);
+		BasicFrame.open(associateFile, BasicFrame.lastFrameInstance);
+	};
 	
 	/**
 	 * The handler for the Quit item in the OSX app menu
 	 */
-	private static final QuitHandler qh = new QuitHandler() {
-		@Override
-		public void handleQuitRequestWith(final QuitEvent e, final QuitResponse r) {
-			BasicFrame.quitAction();
-			// if we get here the user canceled
-			r.cancelQuit();
+	private static final QuitHandler QUIT_HANDLER = (e, r) -> {
+		BasicFrame.quitAction();
+		// if we get here the user canceled
+		r.cancelQuit();
+	};
+
+	private static final AppReopenedListener APP_REOPENED_HANDLER = (e) -> {
+		if (BasicFrame.isFramesEmpty()) {
+			log.info("App re-opened");
+			BasicFrame.reopen();
+
+			// Also check for software updates
+			final UpdateInfoRetriever updateRetriever = SwingStartup.startUpdateChecker();
+			SwingStartup.checkUpdateStatus(updateRetriever);
 		}
 	};
 
 	/**
 	 * The handler for the About item in the OSX app menu
 	 */
-	private static final AboutHandler ah = new AboutHandler() {
-		@Override
-		public void handleAbout(final AboutEvent a) {
-			new AboutDialog(null).setVisible(true);
-		}
-	};
+	private static final AboutHandler ABOUT_HANDLER = a -> new AboutDialog(BasicFrame.lastFrameInstance).setVisible(true);
 
 	/**
 	 * The handler for the Preferences item in the OSX app menu
 	 */
-	private static final PreferencesHandler ph = new PreferencesHandler() {
-		@Override
-		public void handlePreferences(final PreferencesEvent p) {
-			PreferencesDialog.showPreferences(null);
-		}
-	};
+	private static final PreferencesHandler PREFERENCES_HANDLER = p -> PreferencesDialog.showPreferences(BasicFrame.lastFrameInstance);
 
 	/**
 	 * Sets up the Application's Icon, Name, Menu and some menu item handlers
@@ -87,30 +94,47 @@ final class OSXSetup {
 
 			// This line must come AFTER the above properties are set, otherwise
 			// the name will not appear
-			final com.apple.eawt.Application osxApp = com.apple.eawt.Application.getApplication();
+			final Desktop osxDesktop = Desktop.getDesktop();
 
-			if (osxApp == null) {
-				// Application is null: Something is wrong, give up on OSX
-				// setup.
+			if (osxDesktop == null) {
+				// Application is null: Something is wrong, give up on OS setup
 				throw new NullPointerException("com.apple.eawt.Application.getApplication() returned NULL. "
 						+ "Aborting OSX UI Setup.");
 			}
 			
 			// Set handlers
-			osxApp.setQuitHandler(qh);
-			osxApp.setAboutHandler(ah);
-			osxApp.setPreferencesHandler(ph);
+			osxDesktop.setAboutHandler(ABOUT_HANDLER);
+			osxDesktop.setPreferencesHandler(PREFERENCES_HANDLER);
+			osxDesktop.setQuitHandler(QUIT_HANDLER);
+			osxDesktop.addAppEventListener(APP_REOPENED_HANDLER);
 
 			// Set the dock icon to the largest icon
 			final Image dockIcon = Toolkit.getDefaultToolkit().getImage(
 					SwingStartup.class.getResource(ICON_RSRC));
-			osxApp.setDockIconImage(dockIcon);
+			final Taskbar osxTaskbar = Taskbar.getTaskbar();
+			osxTaskbar.setIconImage(dockIcon);
 
 		} catch (final Throwable t) {
 			// None of the preceding is critical to the app,
 			// so at worst case log an error and continue
 			log.warn("Error setting up OSX UI:", t);
 		}
+	}
+
+	/**
+	 * Sets up the open file handler, which handles file association on macOS.
+	 */
+	public static void setupOSXOpenFileHandler() {
+		if (SystemInfo.getPlatform() != Platform.MAC_OS) {
+			log.warn("Attempting to set up OSX file handler on non-MAC_OS");
+		}
+		final Desktop osxDesktop = Desktop.getDesktop();
+		if (osxDesktop == null) {
+			// Application is null: Something is wrong, give up on OS setup
+			throw new NullPointerException("com.apple.eawt.Application.getApplication() returned NULL. "
+					+ "Aborting OSX UI Setup.");
+		}
+		osxDesktop.setOpenFileHandler(OPEN_FILE_HANDLER);
 	}
 
 }

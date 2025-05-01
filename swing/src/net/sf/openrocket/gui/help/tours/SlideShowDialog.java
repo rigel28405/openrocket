@@ -24,7 +24,9 @@ import net.sf.openrocket.logging.Markers;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.Chars;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
+@SuppressWarnings("serial")
 public class SlideShowDialog extends JDialog {
 	
 	private static final Logger log = LoggerFactory.getLogger(SlideShowDialog.class);
@@ -46,12 +48,12 @@ public class SlideShowDialog extends JDialog {
 		
 		slideShowComponent = new SlideShowComponent();
 		slideShowComponent.addHyperlinkListener(new SlideShowLinkListener(parent));
-		panel.add(slideShowComponent, "spanx, grow, wrap para");
+		panel.add(slideShowComponent, "spanx, pushy, grow, wrap para");
 		
 		
 		JPanel sub = new JPanel(new MigLayout("ins 0, fill"));
 		
-		prevButton = new JButton(Chars.LEFT_ARROW + " " + trans.get("btn.prev"));
+		prevButton = new SelectColorButton(Chars.LEFT_ARROW + " " + trans.get("btn.prev"));
 		prevButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -63,7 +65,7 @@ public class SlideShowDialog extends JDialog {
 		
 		
 		
-		nextButton = new JButton(trans.get("btn.next") + " " + Chars.RIGHT_ARROW);
+		nextButton = new SelectColorButton(trans.get("btn.next") + " " + Chars.RIGHT_ARROW);
 		nextButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -75,27 +77,26 @@ public class SlideShowDialog extends JDialog {
 		
 		
 		sub.add(new JPanel(), "growx");
+
+		panel.add(sub, "pushx, center");
 		
-		
-		closeButton = new JButton(trans.get("button.close"));
+		closeButton = new SelectColorButton(trans.get("button.close"));
 		closeButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				SlideShowDialog.this.dispose();
 			}
 		});
-		sub.add(closeButton, "right");
-		
-		
-		panel.add(sub, "growx");
-		
+		panel.add(closeButton, "wrap");
+
 		this.add(panel);
 		updateEnabled();
 		addKeyActions();
 		GUIUtil.setDisposableDialogOptions(this, nextButton);
 		nextButton.grabFocus();
-		GUIUtil.rememberWindowPosition(this);
 		GUIUtil.rememberWindowSize(this);
+		this.setLocationByPlatform(true);
+		GUIUtil.rememberWindowPosition(this);
 		//		this.setAlwaysOnTop(true);
 	}
 	

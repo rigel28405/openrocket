@@ -27,10 +27,13 @@ import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
+import net.sf.openrocket.gui.widgets.SaveFileChooser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.miginfocom.swing.MigLayout;
+import net.sf.openrocket.arch.SystemInfo;
+import net.sf.openrocket.arch.SystemInfo.Platform;
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.gui.print.PrintController;
 import net.sf.openrocket.gui.print.PrintSettings;
@@ -44,11 +47,14 @@ import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.startup.Application;
+import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 /**
  * This class isolates the Swing components used to create a panel that is added to a standard Java print dialog.
  */
 public class PrintDialog extends JDialog implements TreeSelectionListener {
+	
+	private static final long serialVersionUID = 1L;
 	
 	private static final Logger log = LoggerFactory.getLogger(PrintDialog.class);
 	private static final Translator trans = Application.getTranslator();
@@ -65,6 +71,8 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 	private JButton cancel;
 
     private double rotation = 0d;
+    
+    private boolean updateSimulations = true;
 	
 	private final static SwingPreferences prefs = (SwingPreferences) Application.getPreferences();
 	
@@ -122,6 +130,19 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 		
 
 		// Checkboxes and buttons
+		final JPanel optionsPanel = new JPanel(new MigLayout());
+		
+		final JCheckBox updateSimulationsCheckbox = new JCheckBox(trans.get("checkbox.updateSimulations"));
+		updateSimulationsCheckbox.setEnabled(true);
+		updateSimulationsCheckbox.setSelected(this.updateSimulations);
+		updateSimulationsCheckbox.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				updateSimulations = updateSimulationsCheckbox.isSelected();
+			}
+		});
+		optionsPanel.add(updateSimulationsCheckbox, "pad 0, grow, wrap");
+		
 		final JCheckBox sortByStage = new JCheckBox(trans.get("checkbox.showByStage"));
 		sortByStage.setEnabled(stages > 1);
 		sortByStage.setSelected(stages > 1);
@@ -142,13 +163,13 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 				}
 			}
 		});
-		panel.add(sortByStage, "aligny top, split");
+		optionsPanel.add(sortByStage);
+		panel.add(optionsPanel, "pad 0, aligny top, split");
+		
+		panel.add(new JPanel(), "pad 0, aligny top, growx");
 		
 
-		panel.add(new JPanel(), "growx");
-		
-
-		JButton settingsButton = new JButton(trans.get("printdlg.but.settings"));
+		JButton settingsButton = new SelectColorButton(trans.get("printdlg.but.settings"));
 		settingsButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -159,10 +180,10 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 				setPrintSettings(settings);
 			}
 		});
-		panel.add(settingsButton, "wrap para");
-		
+		panel.add(settingsButton, "aligny top, wrap para");
+				
 
-		previewButton = new JButton(trans.get("but.previewAndPrint"));
+		previewButton = new SelectColorButton(trans.get("but.previewAndPrint"));
 		previewButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -173,7 +194,7 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 		panel.add(previewButton, "split, right, gap para");
 		
 
-		saveAsPDF = new JButton(trans.get("printdlg.but.saveaspdf"));
+		saveAsPDF = new SelectColorButton(trans.get("printdlg.but.saveaspdf"));
 		saveAsPDF.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -185,7 +206,7 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 		panel.add(saveAsPDF, "right, gap para");
 		
 
-		cancel = new JButton(trans.get("button.cancel"));
+		cancel = new SelectColorButton(trans.get("button.cancel"));
 		cancel.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -286,7 +307,10 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 	 */
 	private File generateReport(File f, PrintSettings settings) throws IOException {
 		Iterator<PrintableContext> toBePrinted = currentTree.getToBePrinted();
-		new PrintController().print(document, toBePrinted, new FileOutputStream(f), settings, rotation);
+		PrintController controller = new PrintController();
+		controller.setWindow(this.getOwner());
+		controller.print(document, toBePrinted, new FileOutputStream(f),
+		                 settings, rotation, updateSimulations);
 		return f;
 	}
 	
@@ -301,7 +325,7 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 				// TODO: HIGH: Remove UIManager, and pass settings to the actual printing methods
 				TemplateProperties.setColors(settings);
 				File f = generateReport(settings);
-				desktop.open(f);
+				openPreviewHelper(f);
 			} catch (IOException e) {
 				log.error("Could not open preview.", e);
 				JOptionPane.showMessageDialog(this, new String[] {
@@ -319,6 +343,20 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 		}
 	}
 	
+	private void openPreviewHelper(final File f) throws IOException {
+		if (SystemInfo.getPlatform() == Platform.UNIX && SystemInfo.isConfined()) {
+			/* When installed via a snap package on Linux, the default option
+			 * to open PDF options using java.awt.Desktop.open() doesn't work
+			 * due to using . Instead, use the xdg-open command
+			 * which will work for URLs.
+			 */
+			String command = "xdg-open " + f.getAbsolutePath();
+			Runtime.getRuntime().exec(command);
+		} else {
+			desktop.open(f);
+		}
+	}
+	
 	/**
 	 * Handler for when the "Save as PDF" button is clicked.
 	 *
@@ -326,7 +364,7 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 	 */
 	private boolean onSavePDF() {
 		
-		JFileChooser chooser = new JFileChooser();
+		JFileChooser chooser = new SaveFileChooser();
 		chooser.setFileFilter(FileHelper.PDF_FILTER);
 		
 		// Select initial directory
@@ -343,7 +381,7 @@ public class PrintDialog extends JDialog implements TreeSelectionListener {
 		File file = chooser.getSelectedFile();
 		if (returnVal == JFileChooser.APPROVE_OPTION && file != null) {
 			
-			file = FileHelper.ensureExtension(file, "pdf");
+			file = FileHelper.forceExtension(file, "pdf");
 			if (!FileHelper.confirmWrite(file, this)) {
 				return false;
 			}

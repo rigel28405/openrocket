@@ -1,5 +1,11 @@
 package net.sf.openrocket.rocketcomponent;
 
+import static java.lang.Math.sin;
+import static net.sf.openrocket.util.MathUtil.pow2;
+import static net.sf.openrocket.util.MathUtil.pow3;
+
+import java.util.Collection;
+
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.preset.ComponentPreset;
 import net.sf.openrocket.preset.ComponentPreset.Type;
@@ -7,24 +13,18 @@ import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 
-import java.util.Collection;
 
-import static java.lang.Math.sin;
-import static net.sf.openrocket.util.MathUtil.pow2;
-import static net.sf.openrocket.util.MathUtil.pow3;
-
-
-public class Transition extends SymmetricComponent {
+public class Transition extends SymmetricComponent implements InsideColorComponent {
 	private static final Translator trans = Application.getTranslator();
 	private static final double CLIP_PRECISION = 0.0001;
 
 
 	private Shape type;
 	private double shapeParameter;
-	private boolean clipped; // Not to be read - use isClipped(), which may be overriden
+	private boolean clipped; // Not to be read - use isClipped(), which may be overridden
 
-	private double radius1, radius2;
-	private boolean autoRadius1, autoRadius2; // Whether the start radius is automatic
+	protected double foreRadius, aftRadius;		// Warning: avoid using these directly, use getForeRadius() and getAftRadius() instead (because the definition of the two can change for flipped nose cones)
+	protected boolean autoForeRadius, autoAftRadius; // Whether the start radius is automatic
 
 
 	private double foreShoulderRadius;
@@ -40,18 +40,23 @@ public class Transition extends SymmetricComponent {
 	// Used to cache the clip length
 	private double clipLength = -1;
 
+	private InsideColorComponentHandler insideColorComponentHandler = new InsideColorComponentHandler(this);
+
 	public Transition() {
 		super();
 
-		this.radius1 = DEFAULT_RADIUS;
-		this.radius2 = DEFAULT_RADIUS;
+		this.foreRadius = DEFAULT_RADIUS;
+		this.aftRadius = DEFAULT_RADIUS;
 		this.length = DEFAULT_RADIUS * 3;
-		this.autoRadius1 = true;
-		this.autoRadius2 = true;
+		this.autoForeRadius = true;
+		this.autoAftRadius = true;
 
 		this.type = Shape.CONICAL;
 		this.shapeParameter = 0;
 		this.clipped = true;
+
+		super.displayOrder_side = 2;		// Order for displaying the component in the 2D side view
+		super.displayOrder_back = 2;		// Order for displaying the component in the 2D back view
 	}
 
 	////////  Length  ////////
@@ -72,46 +77,89 @@ public class Transition extends SymmetricComponent {
 	@Override
 	public double getForeRadius() {
 		if (isForeRadiusAutomatic()) {
-			// Get the automatic radius from the front
-			double r = -1;
-			SymmetricComponent c = this.getPreviousSymmetricComponent();
-			if (c != null) {
-				r = c.getFrontAutoRadius();
-			}
-			if (r < 0)
-				r = DEFAULT_RADIUS;
-			return r;
+			foreRadius = getAutoForeRadius();
 		}
-		return radius1;
+		return foreRadius;
 	}
 
-	public void setForeRadius(double radius) {
-		if ((this.radius1 == radius) && (autoRadius1 == false))
+	/**
+	 * Returns the automatic radius from the front, taken from the previous component. Returns the default radius if there
+	 * is no previous component.
+	 */
+	protected double getAutoForeRadius() {
+		SymmetricComponent c = this.getPreviousSymmetricComponent();
+		if (c != null) {
+			return c.getFrontAutoRadius();
+		} else {
+			return DEFAULT_RADIUS;
+		}
+	}
+
+	/**
+	 * Set the new fore radius, with option to clamp the thickness to the new radius if it's too large.
+	 * @param radius new radius
+	 * @param doClamping whether to clamp the thickness
+	 */
+	public void setForeRadius(double radius, boolean doClamping) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeRadius(radius);
+			}
+		}
+
+		if ((this.foreRadius == radius) && (autoForeRadius == false))
 			return;
 
-		this.autoRadius1 = false;
-		this.radius1 = Math.max(radius, 0);
+		this.autoForeRadius = false;
+		this.foreRadius = Math.max(radius, 0);
 
-		if (this.thickness > this.radius1 && this.thickness > this.radius2)
-			this.thickness = Math.max(this.radius1, this.radius2);
+		if (doClamping && this.thickness > this.foreRadius && this.thickness > this.aftRadius)
+			this.thickness = Math.max(this.foreRadius, this.aftRadius);
 
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+
+		setForeShoulderRadius(getForeShoulderRadius(), doClamping);
+	}
+
+	public void setForeRadius(double radius) {
+		setForeRadius(radius, true);
 	}
 
 	@Override
 	public boolean isForeRadiusAutomatic() {
-		return autoRadius1;
+		return autoForeRadius;
 	}
 
-	public void setForeRadiusAutomatic(boolean auto) {
-		if (autoRadius1 == auto)
+	/**
+	 * Set the fore radius to automatic mode (takes its value from the previous symmetric component's radius).
+	 *
+	 * @param auto whether to set the fore radius to automatic mode
+	 * @param sanityCheck whether to sanity check auto mode for whether there is a previous component of which you can take the radius
+	 */
+	public void setForeRadiusAutomatic(boolean auto, boolean sanityCheck) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeRadiusAutomatic(auto);
+			}
+		}
+
+		// You can only set the auto fore radius if it is possible
+		if (sanityCheck) {
+			auto = auto && canUsePreviousCompAutomatic();
+		}
+
+		if (autoForeRadius == auto)
 			return;
 
-		autoRadius1 = auto;
+		autoForeRadius = auto;
 
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+	}
+
+	public void setForeRadiusAutomatic(boolean auto) {
+		setForeRadiusAutomatic(auto, false);
 	}
 
 
@@ -120,50 +168,90 @@ public class Transition extends SymmetricComponent {
 	@Override
 	public double getAftRadius() {
 		if (isAftRadiusAutomatic()) {
-			// Return the auto radius from the rear
-			double r = -1;
-			SymmetricComponent c = this.getNextSymmetricComponent();
-			if (c != null) {
-				r = c.getRearAutoRadius();
-			}
-			if (r < 0)
-				r = DEFAULT_RADIUS;
-			return r;
+			aftRadius = getAutoAftRadius();
 		}
-		return radius2;
+		return aftRadius;
 	}
 
+	/**
+	 * Returns the automatic radius from the rear, taken from the next component. Returns the default radius if there
+	 * is no next component.
+	 */
+	protected double getAutoAftRadius() {
+		SymmetricComponent c = this.getNextSymmetricComponent();
+		if (c != null) {
+			return c.getRearAutoRadius();
+		} else {
+			return DEFAULT_RADIUS;
+		}
+	}
 
+	/**
+	 * Set the new aft radius, with option to clamp the thickness to the new radius if it's too large.
+	 * @param radius new radius
+	 * @param doClamping whether to clamp the thickness
+	 */
+	public void setAftRadius(double radius, boolean doClamping) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftRadius(radius);
+			}
+		}
 
-	public void setAftRadius(double radius) {
-		if ((this.radius2 == radius) && (autoRadius2 == false))
+		if ((this.aftRadius == radius) && (autoAftRadius == false))
 			return;
 
-		this.autoRadius2 = false;
-		this.radius2 = Math.max(radius, 0);
+		this.autoAftRadius = false;
+		this.aftRadius = Math.max(radius, 0);
 
-		if (this.thickness > this.radius1 && this.thickness > this.radius2)
-			this.thickness = Math.max(this.radius1, this.radius2);
+		if (doClamping && this.thickness > this.foreRadius && this.thickness > this.aftRadius)
+			this.thickness = Math.max(this.foreRadius, this.aftRadius);
 
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+
+		setAftShoulderRadius(getAftShoulderRadius());
+	}
+
+	public void setAftRadius(double radius) {
+		setAftRadius(radius, true);
 	}
 
 	@Override
 	public boolean isAftRadiusAutomatic() {
-		return autoRadius2;
+		return autoAftRadius;
 	}
 
-	public void setAftRadiusAutomatic(boolean auto) {
-		if (autoRadius2 == auto)
+	/**
+	 * Set the aft radius to automatic mode (takes its value from the next symmetric component's radius).
+	 *
+	 * @param auto whether to set the aft radius to automatic mode
+	 * @param sanityCheck whether to sanity check auto mode for whether there is a next component of which you can take the radius
+	 */
+	public void setAftRadiusAutomatic(boolean auto, boolean sanityCheck) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftRadiusAutomatic(auto);
+			}
+		}
+
+		// You can only set the auto aft radius if it is possible
+		if (sanityCheck) {
+			auto = auto && canUseNextCompAutomatic();
+		}
+
+		if (autoAftRadius == auto)
 			return;
 
-		autoRadius2 = auto;
+		autoAftRadius = auto;
 
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 
+	public void setAftRadiusAutomatic(boolean auto) {
+		setAftRadiusAutomatic(auto, false);
+	}
 
 
 	//// Radius automatics
@@ -183,24 +271,69 @@ public class Transition extends SymmetricComponent {
 		return getForeRadius();
 	}
 
+	@Override
+	public boolean usesPreviousCompAutomatic() {
+		return isForeRadiusAutomatic();
+	}
 
+	@Override
+	public boolean usesNextCompAutomatic() {
+		return isAftRadiusAutomatic();
+	}
+
+	/**
+	 * Checks whether this component can use the automatic radius of the previous symmetric component.
+	 * @return false if there is no previous symmetric component, or if the previous component already has this component
+	 * 			as its auto dimension reference
+	 */
+	public boolean canUsePreviousCompAutomatic() {
+		SymmetricComponent referenceComp = getPreviousSymmetricComponent();
+		if (referenceComp == null) {
+			return false;
+		}
+		return !referenceComp.usesNextCompAutomatic();
+	}
+
+	/**
+	 * Checks whether this component can use the automatic radius of the next symmetric component.
+	 * @return false if there is no next symmetric component, or if the next component already has this component
+	 * 			as its auto dimension reference
+	 */
+	public boolean canUseNextCompAutomatic() {
+		SymmetricComponent referenceComp = getNextSymmetricComponent();
+		if (referenceComp == null) {
+			return false;
+		}
+		return !referenceComp.usesPreviousCompAutomatic();
+	}
 
 
 	////////  Type & shape  /////////
 
-	public Shape getType() {
+	public Shape getShapeType() {
 		return type;
 	}
 
-	public void setType(Shape type) {
-		if (type == null) {
-			throw new IllegalArgumentException("setType called with null argument");
+	public void setShapeType(Shape type) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setShapeType(type);
+			}
 		}
+
+		if (type == null) {
+			throw new IllegalArgumentException("setShapeType called with null argument");
+		}
+
 		if (this.type == type)
 			return;
 		this.type = type;
 		this.clipped = type.isClippable();
 		this.shapeParameter = type.defaultParameter();
+
+		// Need to clearPreset when shape type changes.
+		clearPreset();
+
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 
@@ -209,9 +342,19 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setShapeParameter(double n) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setShapeParameter(n);
+			}
+		}
+
 		if (shapeParameter == n)
 			return;
 		this.shapeParameter = MathUtil.clamp(n, type.minParameter(), type.maxParameter());
+
+		// Need to clearPreset when shape parameter changes.
+		clearPreset();
+
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 
@@ -222,6 +365,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setClipped(boolean c) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setClipped(c);
+			}
+		}
+
 		if (clipped == c)
 			return;
 		clipped = c;
@@ -247,12 +396,32 @@ public class Transition extends SymmetricComponent {
 		return foreShoulderRadius;
 	}
 
-	public void setForeShoulderRadius(double foreShoulderRadius) {
+	public void setForeShoulderRadius(double foreShoulderRadius, boolean doClamping) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeShoulderRadius(foreShoulderRadius, doClamping);
+			}
+		}
+
+		if (doClamping) {
+			foreShoulderRadius = Math.min(foreShoulderRadius, getForeRadius());
+		}
+
 		if (MathUtil.equals(this.foreShoulderRadius, foreShoulderRadius))
 			return;
+
 		this.foreShoulderRadius = foreShoulderRadius;
+
+		if (doClamping) {
+			this.foreShoulderThickness = Math.min(this.foreShoulderRadius, this.foreShoulderThickness);
+		}
+
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
+	}
+
+	public void setForeShoulderRadius(double foreShoulderRadius) {
+		setForeShoulderRadius(foreShoulderRadius, true);
 	}
 
 	public double getForeShoulderThickness() {
@@ -260,6 +429,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setForeShoulderThickness(double foreShoulderThickness) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeShoulderThickness(foreShoulderThickness);
+			}
+		}
+
 		if (MathUtil.equals(this.foreShoulderThickness, foreShoulderThickness))
 			return;
 		this.foreShoulderThickness = foreShoulderThickness;
@@ -271,6 +446,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setForeShoulderLength(double foreShoulderLength) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeShoulderLength(foreShoulderLength);
+			}
+		}
+
 		if (MathUtil.equals(this.foreShoulderLength, foreShoulderLength))
 			return;
 		this.foreShoulderLength = foreShoulderLength;
@@ -282,6 +463,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setForeShoulderCapped(boolean capped) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setForeShoulderCapped(capped);
+			}
+		}
+
 		if (this.foreShoulderCapped == capped)
 			return;
 		this.foreShoulderCapped = capped;
@@ -295,12 +482,32 @@ public class Transition extends SymmetricComponent {
 		return aftShoulderRadius;
 	}
 
-	public void setAftShoulderRadius(double aftShoulderRadius) {
+	public void setAftShoulderRadius(double aftShoulderRadius, boolean doClamping) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftShoulderRadius(aftShoulderRadius, doClamping);
+			}
+		}
+
+		if (doClamping) {
+			aftShoulderRadius = Math.min(aftShoulderRadius, getAftRadius());
+		}
+
 		if (MathUtil.equals(this.aftShoulderRadius, aftShoulderRadius))
 			return;
+
 		this.aftShoulderRadius = aftShoulderRadius;
+
+		if (doClamping) {
+			this.aftShoulderThickness = Math.min(this.aftShoulderRadius, this.aftShoulderThickness);
+		}
+
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
+	}
+
+	public void setAftShoulderRadius(double aftShoulderRadius) {
+		setAftShoulderRadius(aftShoulderRadius, true);
 	}
 
 	public double getAftShoulderThickness() {
@@ -308,6 +515,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setAftShoulderThickness(double aftShoulderThickness) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftShoulderThickness(aftShoulderThickness);
+			}
+		}
+
 		if (MathUtil.equals(this.aftShoulderThickness, aftShoulderThickness))
 			return;
 		this.aftShoulderThickness = aftShoulderThickness;
@@ -319,6 +532,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setAftShoulderLength(double aftShoulderLength) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftShoulderLength(aftShoulderLength);
+			}
+		}
+
 		if (MathUtil.equals(this.aftShoulderLength, aftShoulderLength))
 			return;
 		this.aftShoulderLength = aftShoulderLength;
@@ -330,6 +549,12 @@ public class Transition extends SymmetricComponent {
 	}
 
 	public void setAftShoulderCapped(boolean capped) {
+		for (RocketComponent listener : configListeners) {
+			if (listener instanceof Transition) {
+				((Transition) listener).setAftShoulderCapped(capped);
+			}
+		}
+
 		if (this.aftShoulderCapped == capped)
 			return;
 		this.aftShoulderCapped = capped;
@@ -348,8 +573,10 @@ public class Transition extends SymmetricComponent {
 	 */
 	@Override
 	public double getRadius(double x) {
-		if (x < 0 || x > length)
-			return 0;
+		if ( x < 0 )
+			return getForeRadius();
+		if ( x >= length)
+			return getAftRadius();
 
 		double r1 = getForeRadius();
 		double r2 = getAftRadius();
@@ -526,13 +753,16 @@ public class Transition extends SymmetricComponent {
 	 * Check whether the given type can be added to this component.  Transitions allow any
 	 * InternalComponents to be added.
 	 *
-	 * @param ctype  The RocketComponent class type to add.
+	 * @param comptype  The RocketComponent class type to add.
 	 * @return      Whether such a component can be added.
 	 */
 	@Override
-	public boolean isCompatible(Class<? extends RocketComponent> ctype) {
-		if (InternalComponent.class.isAssignableFrom(ctype))
+	public boolean isCompatible(Class<? extends RocketComponent> comptype) {
+		if (InternalComponent.class.isAssignableFrom(comptype)){
 			return true;
+		}else if ( FreeformFinSet.class.isAssignableFrom(comptype)){
+			return true;
+		}
 		return false;
 	}
 
@@ -552,7 +782,9 @@ public class Transition extends SymmetricComponent {
 
 		if ( preset.has(ComponentPreset.SHAPE) ) {
 			Shape s = preset.get(ComponentPreset.SHAPE);
-			this.setType(s);
+			this.setShapeType(s);
+			this.setClipped(s.canClip);
+			this.setShapeParameter(s.defaultParameter());
 		}
 		if ( preset.has(ComponentPreset.AFT_OUTER_DIAMETER) )  {
 			double outerDiameter = preset.get(ComponentPreset.AFT_OUTER_DIAMETER);
@@ -591,6 +823,16 @@ public class Transition extends SymmetricComponent {
 
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 
+	}
+
+	@Override
+	public InsideColorComponentHandler getInsideColorComponentHandler() {
+		return this.insideColorComponentHandler;
+	}
+
+	@Override
+	public void setInsideColorComponentHandler(InsideColorComponentHandler handler) {
+		this.insideColorComponentHandler = handler;
 	}
 
 	/**
@@ -932,4 +1174,6 @@ public class Transition extends SymmetricComponent {
             return null;
         }
 	}
+
+
 }

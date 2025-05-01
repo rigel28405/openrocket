@@ -9,9 +9,13 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.EventObject;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
@@ -30,12 +34,15 @@ import net.sf.openrocket.database.Databases;
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.file.GeneralRocketLoader;
 import net.sf.openrocket.file.RocketLoadException;
+import net.sf.openrocket.file.photo.PhotoStudioGetter;
+import net.sf.openrocket.file.photo.PhotoStudioSetter;
 import net.sf.openrocket.gui.main.SwingExceptionHandler;
 import net.sf.openrocket.gui.util.FileHelper;
 import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.gui.util.Icons;
 import net.sf.openrocket.gui.util.SimpleFileFilter;
 import net.sf.openrocket.gui.util.SwingPreferences;
+import net.sf.openrocket.gui.widgets.SaveFileChooser;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.logging.LoggingSystemSetup;
 import net.sf.openrocket.logging.Markers;
@@ -43,6 +50,7 @@ import net.sf.openrocket.plugin.PluginModule;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.startup.GuiModule;
 
+import net.sf.openrocket.util.StateChangeListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,25 +61,55 @@ import com.google.inject.Module;
 @SuppressWarnings("serial")
 public class PhotoFrame extends JFrame {
 	private static final Logger log = LoggerFactory.getLogger(PhotoFrame.class);
-	private final int SHORTCUT_KEY = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+	private final int SHORTCUT_KEY = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 	private final Translator trans = Application.getTranslator();
 
 	private final PhotoPanel photoPanel;
 	private final JDialog settings;
 
 	public PhotoFrame(OpenRocketDocument document, Window parent) {
-		this(false);
+		this(false, document);
 		setTitle(trans.get("PhotoFrame.title") + " - " + document.getRocket().getName());
-		photoPanel.setDoc(document);
+
+		// Close this window when the parent is closed
+		parent.addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent e) {
+				dispose();
+			}
+		});
 	}
 
-	public PhotoFrame(boolean app) {
-		setSize(1024, 768);
+	public PhotoFrame(boolean app, OpenRocketDocument document) {
+		PhotoSettings p = new PhotoStudioGetter(document.getPhotoSettings()).getPhotoSettings();
+
+		// Send the new PhotoSetting to the core module
+		p.addChangeListener(new StateChangeListener() {
+			@Override
+			public void stateChanged(EventObject e) {
+				Map<String, String> par = PhotoStudioSetter.getPhotoSettings(p);
+				document.setPhotoSettings(par);
+			}
+		});
+
 		this.setMinimumSize(new Dimension(160, 150));
-		photoPanel = new PhotoPanel();
+		this.setSize(1024, 768);
+		photoPanel = new PhotoPanel(document, p);
+		photoPanel.setDoc(document);
 		setJMenuBar(getMenu(app));
 		setContentPane(photoPanel);
 
+		if (!app)
+			setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+		
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent e) {
+				closeAction();
+			}
+		});
+
+		
 		GUIUtil.rememberWindowSize(this);
 		this.setLocationByPlatform(true);
 		GUIUtil.rememberWindowPosition(this);
@@ -79,7 +117,8 @@ public class PhotoFrame extends JFrame {
 
 		settings = new JDialog(this, trans.get("PhotoSettingsConfig.title")) {
 			{
-				setContentPane(new PhotoSettingsConfig(photoPanel.getSettings()));
+				setContentPane(new PhotoSettingsConfig(p, document));
+				setPreferredSize(new Dimension(600, 500));
 				pack();
 				this.setLocationByPlatform(true);
 				GUIUtil.rememberWindowSize(this);
@@ -118,6 +157,7 @@ public class PhotoFrame extends JFrame {
 					chooser.addChoosableFileFilter(FileHelper.ALL_DESIGNS_FILTER);
 					chooser.addChoosableFileFilter(FileHelper.OPENROCKET_DESIGN_FILTER);
 					chooser.addChoosableFileFilter(FileHelper.ROCKSIM_DESIGN_FILTER);
+					chooser.addChoosableFileFilter(FileHelper.RASAERO_DESIGN_FILTER);
 					chooser.setFileFilter(FileHelper.ALL_DESIGNS_FILTER);
 
 					chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -162,7 +202,7 @@ public class PhotoFrame extends JFrame {
 								final FileFilter png = new SimpleFileFilter(trans.get("PhotoFrame.fileFilter.png"),
 										".png");
 
-								final JFileChooser chooser = new JFileChooser();
+								final JFileChooser chooser = new SaveFileChooser();
 
 								chooser.addChoosableFileFilter(png);
 								chooser.setFileFilter(png);
@@ -206,7 +246,7 @@ public class PhotoFrame extends JFrame {
 		menu = new JMenu(trans.get("main.menu.edit"));
 		menu.setMnemonic(KeyEvent.VK_E);
 		// // Rocket editing
-		menu.getAccessibleContext().setAccessibleDescription(trans.get("BasicFrame.menu.Rocketedt"));
+		menu.getAccessibleContext().setAccessibleDescription(trans.get("PhotoFrame.menu.edit.unk"));
 		menubar.add(menu);
 
 		Action action = new AbstractAction(trans.get("PhotoFrame.menu.edit.copy")) {
@@ -305,6 +345,11 @@ public class PhotoFrame extends JFrame {
 
 	}
 
+	private boolean closeAction() {
+		photoPanel.clearDoc();
+		return true;
+	}
+	
 	public static void main(String args[]) throws Exception {
 
 		LoggingSystemSetup.setupLoggingAppender();
@@ -326,23 +371,24 @@ public class PhotoFrame extends JFrame {
 
 		guiModule.startLoader();
 
-		// Set the best available look-and-feel
-		log.info("Setting best LAF");
-		GUIUtil.setBestLAF();
+		// Set the look-and-feel
+		log.info("Setting LAF");
+		GUIUtil.applyLAF();
 
 		// Load defaults
 		((SwingPreferences) Application.getPreferences()).loadDefaultUnits();
 
 		Databases.fakeMethod();
 
-		PhotoFrame pa = new PhotoFrame(true);
+		GeneralRocketLoader grl = new GeneralRocketLoader(new File(
+				"/Users/bkuker/git/openrocket/swing/resources/datafiles/examples/A simple model rocket.ork"));
+		OpenRocketDocument doc = grl.load();
+
+		PhotoFrame pa = new PhotoFrame(true, doc);
 		pa.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		pa.setTitle("OpenRocket - Photo Studio Alpha");
 		pa.setVisible(true);
 
-		GeneralRocketLoader grl = new GeneralRocketLoader(new File(
-				"/Users/bkuker/git/openrocket/swing/resources/datafiles/examples/A simple model rocket.ork"));
-		OpenRocketDocument doc = grl.load();
 		pa.photoPanel.setDoc(doc);
 	}
 

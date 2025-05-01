@@ -1,10 +1,12 @@
 package net.sf.openrocket.file.openrocket.importt;
 
+import java.lang.Double;
+
 import java.util.HashMap;
 import java.util.Locale;
 
-import net.sf.openrocket.aerodynamics.Warning;
-import net.sf.openrocket.aerodynamics.WarningSet;
+import net.sf.openrocket.logging.Warning;
+import net.sf.openrocket.logging.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
 import net.sf.openrocket.file.simplesax.AbstractElementHandler;
 import net.sf.openrocket.file.simplesax.ElementHandler;
@@ -42,7 +44,7 @@ class MotorHandler extends AbstractElementHandler {
 	 * Return the motor to use, or null.
 	 */
 	public Motor getMotor(WarningSet warnings) {
-		return context.getMotorFinder().findMotor(type, manufacturer, designation, diameter, length, digest, warnings);
+		return context.getMotorFinder().findMotor(type, manufacturer, designation, Double.NaN, Double.NaN, digest, warnings);
 	}
 	
 	/**
@@ -51,7 +53,7 @@ class MotorHandler extends AbstractElementHandler {
 	public double getDelay(WarningSet warnings) {
 		if (Double.isNaN(delay)) {
 			warnings.add(Warning.fromString("Motor delay not specified, assuming no ejection charge."));
-			return Motor.PLUGGED;
+			return Motor.PLUGGED_DELAY;
 		}
 		return delay;
 	}
@@ -124,7 +126,7 @@ class MotorHandler extends AbstractElementHandler {
 			// Delay
 			delay = Double.NaN;
 			if (content.equals("none")) {
-				delay = Motor.PLUGGED;
+				delay = Motor.PLUGGED_DELAY;
 			} else {
 				try {
 					delay = Double.parseDouble(content.trim());

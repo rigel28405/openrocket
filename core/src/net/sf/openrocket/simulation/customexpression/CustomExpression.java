@@ -11,7 +11,7 @@ import net.sf.openrocket.simulation.SimulationStatus;
 import net.sf.openrocket.unit.FixedUnitGroup;
 import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.ArrayList;
-import net.sf.openrocket.util.StringUtil;
+import net.sf.openrocket.util.StringUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,12 +31,12 @@ public class CustomExpression implements Cloneable {
 	
 	private static final Logger log = LoggerFactory.getLogger(CustomExpression.class);
 	
-	private OpenRocketDocument doc;
+	private final OpenRocketDocument doc;
 	private String name, symbol, unit;
 	
 	protected String expression;
 	private ExpressionBuilder builder;
-	private List<CustomExpression> subExpressions = new ArrayList<CustomExpression>();
+	private final List<CustomExpression> subExpressions = new ArrayList<CustomExpression>();
 	
 	public CustomExpression(OpenRocketDocument doc) {
 		this.doc = doc;
@@ -227,7 +227,7 @@ public class CustomExpression implements Cloneable {
 	}
 	
 	public boolean checkSymbol() {
-		if (StringUtil.isEmpty(symbol)) {
+		if (StringUtils.isEmpty(symbol)) {
 			return false;
 		}
 		
@@ -254,7 +254,7 @@ public class CustomExpression implements Cloneable {
 	}
 	
 	public boolean checkName() {
-		if (StringUtil.isEmpty(name)) {
+		if (StringUtils.isEmpty(name)) {
 			return false;
 		}
 		
@@ -304,7 +304,7 @@ public class CustomExpression implements Cloneable {
 	 * building the expression.
 	 */
 	public boolean checkExpression() {
-		if (StringUtil.isEmpty(expression)) {
+		if (StringUtils.isEmpty(expression)) {
 			return false;
 		}
 		
@@ -521,7 +521,7 @@ public class CustomExpression implements Cloneable {
 	 * Used for temporary substitution when evaluating index and range expressions.
 	 */
 	public String hash() {
-		Integer hashint = new Integer(this.getExpressionString().hashCode() + symbol.hashCode());
+		Integer hashint = Integer.valueOf(this.getExpressionString().hashCode() + symbol.hashCode());
 		String hash = "$";
 		for (char c : hashint.toString().toCharArray()) {
 			if (c == '-')

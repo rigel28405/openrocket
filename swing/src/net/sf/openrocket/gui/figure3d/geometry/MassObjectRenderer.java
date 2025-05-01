@@ -114,22 +114,31 @@
  */
 package net.sf.openrocket.gui.figure3d.geometry;
 
-import javax.media.opengl.GL;
-import javax.media.opengl.GL2;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
 
 import net.sf.openrocket.rocketcomponent.MassObject;
+import net.sf.openrocket.util.RocketComponentUtils;
 
 final class MassObjectRenderer {
 	private static final boolean textureFlag = true;
 	
 	private MassObjectRenderer() {
 	}
-	
-	static final void drawMassObject(final GL2 gl, final MassObject o,
+
+	/**
+	 * Draw the mass object as a 3D figure.
+	 *
+	 * @param gl OpenGL object
+	 * @param o mass object to draw (e.g. Parachute or Mass Component)
+	 * @param slices number of slices for the 3D object (kind of like subdivision surface)
+	 * @param stacks number of stacks for the 3D object (kind of like subdivision surface)
+	 */
+	static void drawMassObject(final GL2 gl, final MassObject o,
 			final int slices, final int stacks) {
-		
-		double da, r, dz;
-		double x, y, z;
+
+		double da, r, dz;	// Axial length per slice, radius & length per stack
+		double x, y, z;		// X-, y- and z-position
 		int i, j;
 		
 		da = 2.0f * PI / slices;
@@ -140,8 +149,8 @@ final class MassObjectRenderer {
 		double t = 0.0f;
 		z = 0.0f;
 		for (j = 0; j < stacks; j++) {
-			r = getRadius(o, z);
-			double rNext = getRadius(o, z + dz);
+			r = RocketComponentUtils.getMassObjectRadius(o, z);
+			double rNext = RocketComponentUtils.getMassObjectRadius(o, z + dz);
 			
 			if (j == stacks - 1)
 				rNext = 0;
@@ -156,20 +165,24 @@ final class MassObjectRenderer {
 					x = sin((i * da));
 					y = cos((i * da));
 				}
-				
+
+				// Add radial offset
+				double xOffset = o.getRadialPosition() * sin(o.getRadialDirection());
+				double yOffset = o.getRadialPosition() * cos(o.getRadialDirection());
+
 				if (r == 0)
 					normal3d(gl, 0, 0, 1);
 				else
 					normal3d(gl, x, y, z);
 				TXTR_COORD(gl, s, t);
-				glVertex3d(gl, (x * r), (y * r), z);
+				glVertex3d(gl, (x * r) + xOffset, (y * r) + yOffset, z);
 				
 				if (rNext == 0)
 					normal3d(gl, 0, 0, -1);
 				else
 					normal3d(gl, x, y, z);
 				TXTR_COORD(gl, s, t + dt);
-				glVertex3d(gl, (x * rNext), (y * rNext), (z + dz));
+				glVertex3d(gl, (x * rNext) + xOffset, (y * rNext) + yOffset, (z + dz));
 				
 				s += ds;
 			} // for slices
@@ -178,22 +191,6 @@ final class MassObjectRenderer {
 			t += dt;
 			z += dz;
 		} // for stacks
-	}
-	
-	private static final double getRadius(MassObject o, double z) {
-		double arc = Math.min(o.getLength(), 2 * o.getRadius()) * 0.35f;
-		double r = o.getRadius();
-		if (z == 0 || z == o.getLength())
-			return 0;
-		if (z < arc) {
-			double zz = z - arc;
-			return (r - arc) + Math.sqrt(arc * arc - zz * zz);
-		}
-		if (z > o.getLength() - arc) {
-			double zz = (z - o.getLength() + arc);
-			return (r - arc) + Math.sqrt(arc * arc - zz * zz);
-		}
-		return o.getRadius();
 	}
 	
 	// ----------------------------------------------------------------------

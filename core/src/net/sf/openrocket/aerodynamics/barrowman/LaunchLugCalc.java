@@ -2,38 +2,25 @@ package net.sf.openrocket.aerodynamics.barrowman;
 
 import net.sf.openrocket.aerodynamics.AerodynamicForces;
 import net.sf.openrocket.aerodynamics.FlightConditions;
-import net.sf.openrocket.aerodynamics.WarningSet;
-import net.sf.openrocket.rocketcomponent.LaunchLug;
+import net.sf.openrocket.logging.WarningSet;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.util.MathUtil;
+import net.sf.openrocket.util.Transformation;
 
-public class LaunchLugCalc extends RocketComponentCalc {
+public class LaunchLugCalc extends TubeCalc {
 
-	private double CDmul;
-	private double refArea;
-	
 	public LaunchLugCalc(RocketComponent component) {
 		super(component);
-		
-		LaunchLug lug = (LaunchLug)component;
-		double ld = lug.getLength() / (2*lug.getOuterRadius());
-		
-		CDmul = Math.max(1.3 - ld, 1);
-		refArea = Math.PI * MathUtil.pow2(lug.getOuterRadius()) - 
-				  Math.PI * MathUtil.pow2(lug.getInnerRadius()) * Math.max(1 - ld, 0);
 	}
 
 	@Override
-	public void calculateNonaxialForces(FlightConditions conditions,
+	public void calculateNonaxialForces(FlightConditions conditions, Transformation transform,
 			AerodynamicForces forces, WarningSet warnings) {
 		// Nothing to be done
 	}
 
 	@Override
-	public double calculatePressureDragForce(FlightConditions conditions,
-			double stagnationCD, double baseCD, WarningSet warnings) {
-
-		return CDmul*stagnationCD * refArea / conditions.getRefArea();
+	public double calculateFrictionCD(FlightConditions conditions, double componentCf, WarningSet warnings) {
+		// launch lug doesn't add enough area to worry about
+		return 0;
 	}
-
 }
