@@ -32,7 +32,7 @@ public class ComponentPresetDatabase extends Database<ComponentPreset> implement
 	@Override
 	public List<ComponentPreset> listForType( ComponentPreset.Type type ) {
 		if ( type == null ) {
-			return Collections.emptyList();
+			return Collections.<ComponentPreset>emptyList();
 		}
 
 		List<ComponentPreset> result = new ArrayList<ComponentPreset>(list.size()/6);
@@ -75,7 +75,7 @@ public class ComponentPresetDatabase extends Database<ComponentPreset> implement
 	@Override
 	public List<ComponentPreset> listForTypes( ComponentPreset.Type ... type ) {
 		if( type == null || type.length == 0 ) {
-			return Collections.emptyList();
+			return Collections.<ComponentPreset>emptyList();
 		}
 
 		if (type.length == 1 ) {
@@ -99,7 +99,7 @@ public class ComponentPresetDatabase extends Database<ComponentPreset> implement
 
 	@Override
 	public List<ComponentPreset> listForTypes( List<ComponentPreset.Type> types ) {
-		return listForTypes( types.toArray(new ComponentPreset.Type[0]) );
+		return listForTypes( (ComponentPreset.Type[]) types.toArray() );
 	}
 
 	@Override

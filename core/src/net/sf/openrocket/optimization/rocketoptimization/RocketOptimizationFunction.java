@@ -38,7 +38,7 @@ public class RocketOptimizationFunction implements Function {
 	private final SimulationModifier[] modifiers;
 	
 
-	private final List<RocketOptimizationListener> listeners = new ArrayList<>();
+	private final List<RocketOptimizationListener> listeners = new ArrayList<RocketOptimizationListener>();
 	
 	
 	/**
@@ -83,12 +83,12 @@ public class RocketOptimizationFunction implements Function {
 					modifiers.length + " simulation modifiers");
 		}
 		
-		final Simulation simulation = newSimulationInstance(baseSimulation);
-		
+		Simulation simulation = newSimulationInstance(baseSimulation);
 		for (int i = 0; i < modifiers.length; i++) {
 			modifiers[i].modify(simulation, p[i]);
 		}
 		
+
 		// Check whether the point is within the simulation domain
 		Pair<Double, Value> d = domain.getDistanceToDomain(simulation);
 		double distance = d.getU();
@@ -106,6 +106,7 @@ public class RocketOptimizationFunction implements Function {
 			return goalValue;
 		}
 		
+
 		// Compute the optimization value
 		parameterValue = parameter.computeValue(simulation);
 		goalValue = goal.getMinimizationParameter(parameterValue);
@@ -117,24 +118,34 @@ public class RocketOptimizationFunction implements Function {
 			goalValue = Double.MAX_VALUE;
 		}
 		
-		fireEvent(  simulation, point, referenceValue,
-					new Value(parameterValue, parameter.getUnitGroup().getDefaultUnit()),
-					goalValue);
+		log.trace("Parameter value at point " + point + " is " + parameterValue + ", goal function value=" + goalValue);
+		
+		fireEvent(simulation, point, referenceValue, new Value(parameterValue, parameter.getUnitGroup().getDefaultUnit()),
+				goalValue);
 		
 		return goalValue;
 	}
+	
+	
+
 
 
 	/**
-	 * Returns a new deep copy of the simulation and rocket.
+	 * Returns a new deep copy of the simulation and rocket.  This methods performs
+	 * synchronization on the simulation for thread protection.
 	 * <p>
 	 * Note:  This method is package-private for unit testing purposes.
-	 *
-	 * @return      a new deep copy of the simulation and rocket
+	 * 
+	 * @return	a new deep copy of the simulation and rocket
 	 */
 	Simulation newSimulationInstance(Simulation simulation) {
-		return simulation.duplicateSimulation(simulation.getRocket().copyWithOriginalID());
+		synchronized (baseSimulation) {
+			Rocket newRocket = simulation.getRocket().copyWithOriginalID();
+			Simulation newSimulation = simulation.duplicateSimulation(newRocket);
+			return newSimulation;
+		}
 	}
+	
 	
 	/**
 	 * Add a listener to this function.  The listener will be notified each time the

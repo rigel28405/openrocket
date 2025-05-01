@@ -18,28 +18,14 @@ public abstract class InterpolatingAtmosphericModel implements AtmosphericModel 
 		if (levels == null)
 			computeLayers();
 		
-		if (altitude <= 0) {
-			// TODO: LOW: levels[0] returned null in some cases, see GitHub issue #952 for more information
-			if (levels[0] == null) {
-				computeLayers();
-			}
+		if (altitude <= 0)
 			return levels[0];
-		}
-		if (altitude >= DELTA * (levels.length - 1)) {
-			// TODO: LOW: levels[levels.length - 1] returned null in some cases, see GitHub issue #952 for more information
-			if (levels[levels.length - 1] == null) {
-				computeLayers();
-			}
+		if (altitude >= DELTA * (levels.length - 1))
 			return levels[levels.length - 1];
-		}
 		
 		int n = (int) (altitude / DELTA);
 		double d = (altitude - n * DELTA) / DELTA;
 		AtmosphericConditions c = new AtmosphericConditions();
-		// TODO: LOW: levels[n] returned null in some cases, see GitHub issue #2180 for more information
-		if (levels[n] == null) {
-			computeLayers();
-		}
 		c.setTemperature(levels[n].getTemperature() * (1 - d) + levels[n + 1].getTemperature() * d);
 		c.setPressure(levels[n].getPressure() * (1 - d) + levels[n + 1].getPressure() * d);
 		

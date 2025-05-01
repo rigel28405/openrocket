@@ -3,16 +3,17 @@ package net.sf.openrocket.file.openrocket.importt;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.xml.sax.SAXException;
-
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.Warning;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
 import net.sf.openrocket.file.simplesax.AbstractElementHandler;
 import net.sf.openrocket.file.simplesax.ElementHandler;
 import net.sf.openrocket.file.simplesax.PlainTextHandler;
 import net.sf.openrocket.rocketcomponent.FreeformFinSet;
+import net.sf.openrocket.rocketcomponent.IllegalFinPointException;
 import net.sf.openrocket.util.Coordinate;
+
+import org.xml.sax.SAXException;
 
 /**
  * A handler that reads the <point> specifications within the freeformfinset's
@@ -61,11 +62,10 @@ class FinSetPointHandler extends AbstractElementHandler {
 	@Override
 	public void endHandler(String element, HashMap<String, String> attributes,
 			String content, WarningSet warnings) {
-		finset.setPoints(coordinates.toArray(new Coordinate[0]));
-		// Update the tab position. This is because the tab position relies on the finset length, but because the
-		// <tabposition> tag comes before the <finpoints> tag in the .ork file, the tab position will be set first,
-		// using the default finset length, not the intended finset length that we extract in this part. So we update
-		// the tab position here to cope for the wrongly calculated tab position earlier.
-		finset.updateTabPosition();
+		try {
+			finset.setPoints(coordinates.toArray(new Coordinate[0]));
+		} catch (IllegalFinPointException e) {
+			warnings.add(Warning.fromString("Freeform fin set point definitions illegal, ignoring."));
+		}
 	}
 }

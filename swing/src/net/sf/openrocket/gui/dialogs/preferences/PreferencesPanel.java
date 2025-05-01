@@ -19,7 +19,6 @@ import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.Unit;
 import net.sf.openrocket.unit.UnitGroup;
 
-@SuppressWarnings("serial")
 public abstract class PreferencesPanel extends JPanel {
 	protected static final Logger log = LoggerFactory.getLogger(PreferencesDialog.class);
 	

@@ -20,21 +20,18 @@ import javax.swing.JPanel;
 import net.miginfocom.swing.MigLayout;
 import net.sf.openrocket.appearance.DecalImage;
 import net.sf.openrocket.document.OpenRocketDocument;
-import net.sf.openrocket.gui.dialogs.DecalNotFoundDialog;
 import net.sf.openrocket.gui.util.FileHelper;
 import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.util.DecalNotFoundException;
 
-@SuppressWarnings("serial")
 public class ExportDecalDialog extends JDialog {
 	
 	private final static Translator trans = Application.getTranslator();
 	
 	private final OpenRocketDocument document;
 	
-	private final JComboBox<DecalImage> decalComboBox;
+	private final JComboBox decalComboBox;
 	private final JFileChooser chooser;
 	
 	public ExportDecalDialog(Window parent, OpenRocketDocument doc) {
@@ -50,7 +47,7 @@ public class ExportDecalDialog extends JDialog {
 		
 		Collection<DecalImage> exportableDecals = document.getDecalList();
 		
-		decalComboBox = new JComboBox<DecalImage>(exportableDecals.toArray(new DecalImage[0]));
+		decalComboBox = new JComboBox(exportableDecals.toArray(new DecalImage[0]));
 		decalComboBox.setEditable(false);
 		panel.add(decalComboBox, "growx, wrap");
 		
@@ -90,7 +87,6 @@ public class ExportDecalDialog extends JDialog {
 						export(selectedDecal, selectedFile);
 						// If the user doesn't confirm over write, then leave this dialog open.
 						ExportDecalDialog.this.dispose();
-						((SwingPreferences) Application.getPreferences()).setDefaultDirectory(chooser.getCurrentDirectory());
 					}
 				}
 			}
@@ -105,8 +101,6 @@ public class ExportDecalDialog extends JDialog {
 		
 		try {
 			decal.exportImage(selectedFile);
-		} catch (DecalNotFoundException e) {
-			DecalNotFoundDialog.showDialog(this, e);
 		} catch (IOException iex) {
 			String message = MessageFormat.format(trans.get("ExportDecalDialog.exception"), selectedFile.getAbsoluteFile());
 			JOptionPane.showMessageDialog(this, message, "", JOptionPane.ERROR_MESSAGE);

@@ -5,6 +5,7 @@ import java.awt.event.ActionListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -26,7 +27,6 @@ import net.sf.openrocket.simulation.FlightData;
 import net.sf.openrocket.simulation.FlightDataBranch;
 import net.sf.openrocket.startup.Application;
 
-@SuppressWarnings("serial")
 public class StorageOptionChooser extends JPanel {
 	
 	public static final double DEFAULT_SAVE_TIME_SKIP = 0.20;
@@ -38,8 +38,8 @@ public class StorageOptionChooser extends JPanel {
 	private JRadioButton noneButton;
 	
 	private JSpinner timeSpinner;
-
-	private JLabel infoLabel;
+	
+	private JLabel estimateLabel;
 	
 	
 	private boolean artificialEvent = false;
@@ -50,11 +50,17 @@ public class StorageOptionChooser extends JPanel {
 		
 		this.document = doc;
 		
-
+		
+		ChangeListener changeUpdater = new ChangeListener() {
+			@Override
+			public void stateChanged(ChangeEvent e) {
+				updateEstimate();
+			}
+		};
 		ActionListener actionUpdater = new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				updateInfoLabel();
+				updateEstimate();
 			}
 		};
 		
@@ -74,9 +80,38 @@ public class StorageOptionChooser extends JPanel {
 		buttonGroup.add(allButton);
 		allButton.addActionListener(actionUpdater);
 		this.add(allButton, "spanx, wrap rel");
-				
-		//// Only summary data
-		noneButton = new JRadioButton(trans.get("StorageOptChooser.rdbut.Onlysummarydata"));
+		
+		//// Every
+		someButton = new JRadioButton(trans.get("StorageOptChooser.rdbut.Every"));
+		//// <html>Store plottable values approximately this far apart.<br>"
+		//// Larger values result in smaller files.
+		tip = trans.get("StorageOptChooser.lbl.longB1") +
+		trans.get("StorageOptChooser.lbl.longB2");
+		someButton.setToolTipText(tip);
+		buttonGroup.add(someButton);
+		someButton.addActionListener(actionUpdater);
+		this.add(someButton, "");
+		
+		timeSpinner = new JSpinner(new SpinnerNumberModel(0.0, 0.0, 5.0, 0.1));
+		timeSpinner.setToolTipText(tip);
+		timeSpinner.addChangeListener(new ChangeListener() {
+			@Override
+			public void stateChanged(ChangeEvent e) {
+				if (artificialEvent)
+					return;
+				someButton.setSelected(true);
+			}
+		});
+		this.add(timeSpinner, "wmin 55lp");
+		timeSpinner.addChangeListener(changeUpdater);
+		
+		//// seconds
+		JLabel label = new JLabel(trans.get("StorageOptChooser.lbl.seconds"));
+		label.setToolTipText(tip);
+		this.add(label, "wrap rel");
+		
+		//// Only primary figures
+		noneButton = new JRadioButton(trans.get("StorageOptChooser.rdbut.Onlyprimfig"));
 		//// <html>Store only the values shown in the summary table.<br>
 		//// This results in the smallest files.
 		noneButton.setToolTipText(trans.get("StorageOptChooser.lbl.longC1") +
@@ -85,10 +120,12 @@ public class StorageOptionChooser extends JPanel {
 		noneButton.addActionListener(actionUpdater);
 		this.add(noneButton, "spanx, wrap 20lp");
 		
-		// File size info label
-		infoLabel = new JLabel("");
-		infoLabel.setToolTipText(trans.get("StorageOptChooser.lbl.longD1"));
-		this.add(infoLabel, "spanx");
+		// Estimate is updated in loadOptions(opts)
+		estimateLabel = new JLabel("");
+		//// An estimate on how large the resulting file would
+		//// be with the present options.
+		estimateLabel.setToolTipText(trans.get("StorageOptChooser.lbl.longD1"));
+		this.add(estimateLabel, "spanx");
 		
 		
 		this.setBorder(BorderFactory.createCompoundBorder(
@@ -101,32 +138,74 @@ public class StorageOptionChooser extends JPanel {
 	
 	
 	public void loadOptions(StorageOptions opts) {
+		double t;
 		
 		// Data storage radio button
-		if (opts.getSaveSimulationData()) {
+		t = opts.getSimulationTimeSkip();
+		if (t == StorageOptions.SIMULATION_DATA_ALL) {
 			allButton.setSelected(true);
-		} else {
+			t = DEFAULT_SAVE_TIME_SKIP;
+		} else if (t == StorageOptions.SIMULATION_DATA_NONE) {
 			noneButton.setSelected(true);
+			t = DEFAULT_SAVE_TIME_SKIP;
+		} else {
+			someButton.setSelected(true);
 		}
 		
-		updateInfoLabel();
+		// Time skip spinner
+		artificialEvent = true;
+		timeSpinner.setValue(t);
+		artificialEvent = false;
+		
+		updateEstimate();
 	}
 	
 	
 	public void storeOptions(StorageOptions opts) {
-		opts.setSaveSimulationData(allButton.isSelected());
+		double t;
+		
+		if (allButton.isSelected()) {
+			t = StorageOptions.SIMULATION_DATA_ALL;
+		} else if (noneButton.isSelected()) {
+			t = StorageOptions.SIMULATION_DATA_NONE;
+		} else {
+			t = (Double)timeSpinner.getValue();
+		}
+		
+		opts.setSimulationTimeSkip(t);
+		
 		opts.setExplicitlySet(true);
 	}
+	
+	
+	
+	// TODO: MEDIUM: The estimation method always uses OpenRocketSaver!
+	private static final RocketSaver ROCKET_SAVER = new OpenRocketSaver();
+	
+	private void updateEstimate() {
+		StorageOptions opts = new StorageOptions();
+		
+		storeOptions(opts);
+		long size = ROCKET_SAVER.estimateFileSize(document, opts);
+		size = Math.max((size+512)/1024, 1);
 
-	private void updateInfoLabel() {
-		if (allButton.isSelected()) {
-			infoLabel.setText(trans.get("StorageOptChooser.lbl.info1"));
-		} else if (noneButton.isSelected()) {
-			infoLabel.setText(trans.get("StorageOptChooser.lbl.info3"));
+		String formatted;
+		
+		if (size >= 10000) {
+			formatted = (size/1000) + " MB";
+		} else if (size >= 1000){
+			formatted = (size/1000) + "." + ((size/100)%10) + " MB";
+		} else if (size >= 100) {
+			formatted = ((size/10)*10) + " kB";
 		} else {
-			infoLabel.setText(trans.get("StorageOptChooser.lbl.info2"));
+			formatted = size + " kB";
 		}
+
+		//// Estimated file size:
+		estimateLabel.setText(trans.get("StorageOptChooser.lbl.Estfilesize") + " " + formatted);
 	}
+	
+	
 	
 	/**
 	 * Asks the user the storage options using a modal dialog window if the document

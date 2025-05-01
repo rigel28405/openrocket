@@ -21,8 +21,6 @@ public class Streamer extends RecoveryDevice {
 	public Streamer() {
 		this.stripLength = 0.5;
 		this.stripWidth = 0.05;
-		super.displayOrder_side = 10;		// Order for displaying the component in the 2D side view
-		super.displayOrder_back = 8;		// Order for displaying the component in the 2D back view
 	}
 	
 	
@@ -31,16 +29,10 @@ public class Streamer extends RecoveryDevice {
 	}
 	
 	public void setStripLength(double stripLength) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof Streamer) {
-				((Streamer) listener).setStripLength(stripLength);
-			}
-		}
-
 		if (MathUtil.equals(this.stripLength, stripLength))
 			return;
 		this.stripLength = stripLength;
-//		clearPreset();
+		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
@@ -49,18 +41,17 @@ public class Streamer extends RecoveryDevice {
 	}
 	
 	public void setStripWidth(double stripWidth) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof Streamer) {
-				((Streamer) listener).setStripWidth(stripWidth);
-			}
-		}
-
 		if (MathUtil.equals(this.stripWidth, stripWidth))
 			return;
 		this.stripWidth = stripWidth;
-
+		this.length = stripWidth;
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+	}
+	
+	@Override
+	public void setLength(double length) {
+		setStripWidth(length);
 	}
 	
 	
@@ -71,12 +62,6 @@ public class Streamer extends RecoveryDevice {
 	}
 	
 	public void setAspectRatio(double ratio) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof Streamer) {
-				((Streamer) listener).setAspectRatio(ratio);
-			}
-		}
-
 		if (MathUtil.equals(getAspectRatio(), ratio))
 			return;
 		
@@ -84,7 +69,6 @@ public class Streamer extends RecoveryDevice {
 		double area = getArea();
 		stripWidth = MathUtil.safeSqrt(area / ratio);
 		stripLength = ratio * stripWidth;
-		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
@@ -95,19 +79,12 @@ public class Streamer extends RecoveryDevice {
 	}
 	
 	public void setArea(double area) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof Streamer) {
-				((Streamer) listener).setArea(area);
-			}
-		}
-
 		if (MathUtil.equals(getArea(), area))
 			return;
 		
 		double ratio = Math.max(getAspectRatio(), 0.01);
 		stripWidth = MathUtil.safeSqrt(area / ratio);
 		stripLength = ratio * stripWidth;
-		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
@@ -127,14 +104,6 @@ public class Streamer extends RecoveryDevice {
 		if ( preset.has(ComponentPreset.WIDTH)) {
 			this.stripWidth = preset.get(ComponentPreset.WIDTH);
 		}
-		//	Set Cd value when preset is selected after manual Cd change
-		double density = this.getMaterial().getDensity();
-		double cd;
-		cd = 0.034 * ((density + 0.025) / 0.105) * (stripLength + 1) / stripLength;
-		cd = MathUtil.min(cd, MAX_COMPUTED_CD);
- 		this.cd = cd;
-		this.cdAutomatic = true;
-
 		super.loadFromPreset(preset);
 		// Fix the length to the stripWidth since RocketComponent assigns ComponentPreset.LENGTH to length.
 		this.length = this.stripWidth;
@@ -145,7 +114,8 @@ public class Streamer extends RecoveryDevice {
 	@Override
 	public double getComponentCD(double mach) {
 		double density = this.getMaterial().getDensity();
-		double cd;	
+		double cd;
+		
 		cd = 0.034 * ((density + 0.025) / 0.105) * (stripLength + 1) / stripLength;
 		cd = MathUtil.min(cd, MAX_COMPUTED_CD);
 		return cd;

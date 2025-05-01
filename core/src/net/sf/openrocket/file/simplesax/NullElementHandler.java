@@ -2,14 +2,14 @@ package net.sf.openrocket.file.simplesax;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.Warning;
+import net.sf.openrocket.aerodynamics.WarningSet;
 
 import org.xml.sax.SAXException;
 
 /**
  * A singleton element handler that does not accept any content in the element
- * except whitespace text.  All sub-elements are ignored and a warning is produced
+ * except whitespace text.  All subelements are ignored and a warning is produced
  * of them.  It ignores any attributes.
  * <p>
  * This class can be used for elements that have no content but contain attributes.

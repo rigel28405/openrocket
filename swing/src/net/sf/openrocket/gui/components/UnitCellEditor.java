@@ -23,11 +23,10 @@ import net.sf.openrocket.unit.UnitGroup;
 public abstract class UnitCellEditor extends AbstractCellEditor
 		implements TableCellEditor, ActionListener {
 	
-	private static final long serialVersionUID = 8319509695751912662L;
-	private final JComboBox<Unit> editor;
+	private final JComboBox editor;
 	
 	public UnitCellEditor() {
-		editor = new JComboBox<Unit>();
+		editor = new JComboBox();
 		editor.setEditable(false);
 		editor.addActionListener(this);
 	}

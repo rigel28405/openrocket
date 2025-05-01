@@ -17,8 +17,8 @@ public class CenteringRingLoader extends BodyTubeLoader {
 	}
 
 	@Override
-	protected RockSimComponentFileType getFileType() {
-		return RockSimComponentFileType.CENTERING_RING;
+	protected RocksimComponentFileType getFileType() {
+		return RocksimComponentFileType.CENTERING_RING;
 	}
 
 }

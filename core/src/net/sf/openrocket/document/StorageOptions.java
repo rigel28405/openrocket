@@ -6,14 +6,15 @@ public class StorageOptions implements Cloneable {
 	
 	public enum FileType {
 		OPENROCKET,
-		ROCKSIM,
-		RASAERO,
-		WAVEFRONT_OBJ
+		ROCKSIM
 	}
+	
+	public static final double SIMULATION_DATA_NONE = Double.POSITIVE_INFINITY;
+	public static final double SIMULATION_DATA_ALL = 0;
 	
 	private FileType fileType = FileType.OPENROCKET;
 	
-	private boolean saveSimulationData = false;
+	private double simulationTimeSkip = SIMULATION_DATA_NONE;
 
 	private boolean explicitlySet = false;
 	
@@ -25,12 +26,12 @@ public class StorageOptions implements Cloneable {
 		this.fileType = fileType;
 	}
 
-	public boolean getSaveSimulationData() {
-		return saveSimulationData;
+	public double getSimulationTimeSkip() {
+		return simulationTimeSkip;
 	}
 
-	public void setSaveSimulationData(boolean s) {
-		saveSimulationData = s;
+	public void setSimulationTimeSkip(double simulationTimeSkip) {
+		this.simulationTimeSkip = simulationTimeSkip;
 	}
 	
 	public boolean isExplicitlySet() {

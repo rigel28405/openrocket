@@ -6,7 +6,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlRootElement;
 
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
 import net.sf.openrocket.rocketcomponent.BodyTube;
 import net.sf.openrocket.rocketcomponent.Bulkhead;
 import net.sf.openrocket.rocketcomponent.CenteringRing;
@@ -23,7 +23,7 @@ import net.sf.openrocket.util.Coordinate;
 /**
  * This class models the XML element for a Rocksim inside tube.
  */
-@XmlRootElement(name = RockSimCommonConstants.BODY_TUBE)
+@XmlRootElement(name = RocksimCommonConstants.BODY_TUBE)
 @XmlAccessorType(XmlAccessType.FIELD)
 public class InnerBodyTubeDTO extends BodyTubeDTO implements AttachableParts {
 	
@@ -45,14 +45,14 @@ public class InnerBodyTubeDTO extends BodyTubeDTO implements AttachableParts {
 	 */
 	public InnerBodyTubeDTO(InnerTube bt, AttachableParts parent) {
 		super(bt);
-		setEngineOverhang(bt.getMotorOverhang() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
-		setID(bt.getInnerRadius() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
-		setOD(bt.getOuterRadius() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
-		setMotorDia((bt.getMotorMountDiameter() / 2) * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
+		setEngineOverhang(bt.getMotorOverhang() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+		setID(bt.getInnerRadius() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
+		setOD(bt.getOuterRadius() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
+		setMotorDia((bt.getMotorMountDiameter() / 2) * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS);
 		setMotorMount(bt.isMotorMount());
 		setInsideTube(true);
 		setRadialAngle(bt.getRadialDirection());
-		setRadialLoc(bt.getRadialPosition() * RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+		setRadialLoc(bt.getRadialPosition() * RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
 		
 		List<RocketComponent> children = bt.getChildren();
 		for (int i = 0; i < children.size(); i++) {
@@ -62,27 +62,27 @@ public class InnerBodyTubeDTO extends BodyTubeDTO implements AttachableParts {
 				//Only if the inner tube is NOT a cluster, then create the corresponding Rocksim DTO and add it
 				//to the list of attached parts.  If it is a cluster, then it is handled specially outside of this
 				//loop.
-				if (innerTube.getInstanceCount() == 1) {
-					addAttachedPart(new InnerBodyTubeDTO(innerTube, this));
+				if (innerTube.getClusterCount() == 1) {
+					attachedParts.add(new InnerBodyTubeDTO(innerTube, this));
 				}
 			} else if (rocketComponents instanceof BodyTube) {
-				addAttachedPart(new BodyTubeDTO((BodyTube) rocketComponents));
+				attachedParts.add(new BodyTubeDTO((BodyTube) rocketComponents));
 			} else if (rocketComponents instanceof Transition) {
-				addAttachedPart(new TransitionDTO((Transition) rocketComponents));
+				attachedParts.add(new TransitionDTO((Transition) rocketComponents));
 			} else if (rocketComponents instanceof EngineBlock) {
-				addAttachedPart(new EngineBlockDTO((EngineBlock) rocketComponents));
+				attachedParts.add(new EngineBlockDTO((EngineBlock) rocketComponents));
 			} else if (rocketComponents instanceof TubeCoupler) {
-				addAttachedPart(new TubeCouplerDTO((TubeCoupler) rocketComponents));
+				attachedParts.add(new TubeCouplerDTO((TubeCoupler) rocketComponents));
 			} else if (rocketComponents instanceof CenteringRing) {
-				addAttachedPart(new CenteringRingDTO((CenteringRing) rocketComponents));
+				attachedParts.add(new CenteringRingDTO((CenteringRing) rocketComponents));
 			} else if (rocketComponents instanceof Bulkhead) {
-				addAttachedPart(new BulkheadDTO((Bulkhead) rocketComponents));
+				attachedParts.add(new BulkheadDTO((Bulkhead) rocketComponents));
 			} else if (rocketComponents instanceof Streamer) {
-				addAttachedPart(new StreamerDTO((Streamer) rocketComponents));
+				attachedParts.add(new StreamerDTO((Streamer) rocketComponents));
 			} else if (rocketComponents instanceof Parachute) {
-				addAttachedPart(new ParachuteDTO((Parachute) rocketComponents));
+				attachedParts.add(new ParachuteDTO((Parachute) rocketComponents));
 			} else if (rocketComponents instanceof MassObject) {
-				addAttachedPart(new MassObjectDTO((MassObject) rocketComponents));
+				attachedParts.add(new MassObjectDTO((MassObject) rocketComponents));
 			}
 		}
 		//Do the cluster.  For now this splits the cluster into separate tubes, which is how Rocksim represents it.
@@ -104,13 +104,8 @@ public class InnerBodyTubeDTO extends BodyTubeDTO implements AttachableParts {
 	 */
 	private void handleCluster(InnerTube it, AttachableParts p) {
 		
-		// old version - Oct, 19 2015
-		//Coordinate[] coords = { Coordinate.NUL };
-		//coords = it.shiftCoordinates(coords);
-				
-		// new version
-		Coordinate[] coords = it.getLocations();
-
+		Coordinate[] coords = { Coordinate.NUL };
+		coords = it.shiftCoordinates(coords);
 		for (int x = 0; x < coords.length; x++) {
 			InnerTube partialClone = InnerTube.makeIndividualClusterComponent(coords[x], it.getName() + " #" + (x + 1), it);
 			p.addAttachedPart(new InnerBodyTubeDTO(partialClone, p));
@@ -119,9 +114,7 @@ public class InnerBodyTubeDTO extends BodyTubeDTO implements AttachableParts {
 	
 	@Override
 	public void addAttachedPart(BasePartDTO part) {
-		if (!attachedParts.contains(part)) {
-			attachedParts.add(part);
-		}
+		attachedParts.add(part);
 	}
 	
 	@Override

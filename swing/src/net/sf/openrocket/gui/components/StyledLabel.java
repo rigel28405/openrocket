@@ -1,6 +1,5 @@
 package net.sf.openrocket.gui.components;
 
-import java.awt.Color;
 import java.awt.Font;
 
 import javax.swing.JLabel;
@@ -88,9 +87,11 @@ public class StyledLabel extends JLabel {
 	
 	private void checkPreferredSize(float size, Style style) {
 		String str = this.getText();
-		if (str.startsWith("<html>") && !str.contains("<br")) {
+		if (str.startsWith("<html>") && str.indexOf("<br") < 0) {
 			StyledLabel label = new StyledLabel("plaintext", size, style);
 			label.validate();
+			//System.out.println("Plain-text label: " + label.getPreferredSize());
+			//System.out.println("HTML label: " + this.getPreferredSize());
 		}
 	}
 	
@@ -106,9 +107,5 @@ public class StyledLabel extends JLabel {
 		Font font = this.getFont();
 		font = font.deriveFont(style.getFontStyle());
 		this.setFont(font);
-	}
-
-	public void setFontColor(Color color) {
-		this.setForeground(color);
 	}
 }

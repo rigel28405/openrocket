@@ -30,8 +30,10 @@ public class TransitionSaver extends SymmetricComponentSaver {
 	protected void addParams(net.sf.openrocket.rocketcomponent.RocketComponent c, List<String> elements) {
 		super.addParams(c, elements);
 		net.sf.openrocket.rocketcomponent.Transition trans = (net.sf.openrocket.rocketcomponent.Transition) c;
+		boolean nosecone = (trans instanceof NoseCone);
 		
-		Transition.Shape shape = trans.getShapeType();
+		
+		Transition.Shape shape = trans.getType();
 		elements.add("<shape>" + shape.name().toLowerCase(Locale.ENGLISH) + "</shape>");
 		if (shape.isClippable()) {
 			elements.add("<shapeclipped>" + trans.isClipped() + "</shapeclipped>");
@@ -39,31 +41,31 @@ public class TransitionSaver extends SymmetricComponentSaver {
 		if (shape.usesParameter()) {
 			elements.add("<shapeparameter>" + trans.getShapeParameter() + "</shapeparameter>");
 		}
-
-		// Nose cones need other parameter saving, due to the isFlipped() parameter
-		if (trans instanceof NoseCone) {
-			return;
+		
+		
+		if (!nosecone) {
+			if (trans.isForeRadiusAutomatic())
+				elements.add("<foreradius>auto</foreradius>");
+			else
+				elements.add("<foreradius>" + trans.getForeRadius() + "</foreradius>");
 		}
-
-		if (trans.isForeRadiusAutomatic())
-			elements.add("<foreradius>auto " + trans.getForeRadius() + "</foreradius>");
-		else
-			elements.add("<foreradius>" + trans.getForeRadius() + "</foreradius>");
 		
 		if (trans.isAftRadiusAutomatic())
-			elements.add("<aftradius>auto " + trans.getAftRadius() + "</aftradius>");
+			elements.add("<aftradius>auto</aftradius>");
 		else
 			elements.add("<aftradius>" + trans.getAftRadius() + "</aftradius>");
 		
 		
-		elements.add("<foreshoulderradius>" + trans.getForeShoulderRadius()
-				+ "</foreshoulderradius>");
-		elements.add("<foreshoulderlength>" + trans.getForeShoulderLength()
-				+ "</foreshoulderlength>");
-		elements.add("<foreshoulderthickness>" + trans.getForeShoulderThickness()
-				+ "</foreshoulderthickness>");
-		elements.add("<foreshouldercapped>" + trans.isForeShoulderCapped()
-				+ "</foreshouldercapped>");
+		if (!nosecone) {
+			elements.add("<foreshoulderradius>" + trans.getForeShoulderRadius()
+					+ "</foreshoulderradius>");
+			elements.add("<foreshoulderlength>" + trans.getForeShoulderLength()
+					+ "</foreshoulderlength>");
+			elements.add("<foreshoulderthickness>" + trans.getForeShoulderThickness()
+					+ "</foreshoulderthickness>");
+			elements.add("<foreshouldercapped>" + trans.isForeShoulderCapped()
+					+ "</foreshouldercapped>");
+		}
 		
 		elements.add("<aftshoulderradius>" + trans.getAftShoulderRadius()
 				+ "</aftshoulderradius>");

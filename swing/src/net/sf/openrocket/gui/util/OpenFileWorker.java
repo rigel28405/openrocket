@@ -69,8 +69,7 @@ public class OpenFileWorker extends SwingWorker<OpenRocketDocument, Void> {
 		is = new ProgressInputStream(is);
 		
 		try {
-			String fileName = file != null && file.getName() != null ? file.getName().replaceFirst("[.][^.]+$", "") : null;
-			OpenRocketDocument document = loader.load(is, fileName);
+			OpenRocketDocument document = loader.load(is);
 			
 			// Set document state
 			document.setFile(file);

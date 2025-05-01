@@ -12,7 +12,7 @@ public enum MaterialTypeDTO {
     SURFACE (Material.Type.SURFACE),
     BULK (Material.Type.BULK);
 
-    private final Material.Type corollary;
+    private Material.Type corollary;
 
     private MaterialTypeDTO(final Material.Type theCorollary) {
         corollary = theCorollary;
@@ -20,7 +20,8 @@ public enum MaterialTypeDTO {
 
     public static MaterialTypeDTO asDTO(Material.Type targetType) {
         MaterialTypeDTO[] values = values();
-        for (MaterialTypeDTO value : values) {
+        for (int i = 0; i < values.length; i++) {
+            MaterialTypeDTO value = values[i];
             if (value.corollary.equals(targetType)) {
                 return value;
             }

@@ -4,7 +4,6 @@ import java.text.Collator;
 import java.util.Comparator;
 
 import net.sf.openrocket.database.motor.ThrustCurveMotorSet;
-import net.sf.openrocket.gui.util.SwingPreferences;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.motor.DesignationComparator;
 import net.sf.openrocket.motor.ThrustCurveMotor;
@@ -31,18 +30,11 @@ enum ThrustCurveMotorColumns {
 			return Collator.getInstance();
 		}
 	},
-	//// Common name
-	NAME("TCurveMotorCol.NAME") {
+	//// Designation
+	DESIGNATION("TCurveMotorCol.DESIGNATION") {
 		@Override
 		public String getValue(ThrustCurveMotorSet m) {
-			if (!(Application.getPreferences() instanceof SwingPreferences)) {
-				return m.getCommonName();
-			}
-			if (((SwingPreferences) Application.getPreferences()).getMotorNameColumn()) {
-				return m.getDesignation();
-			} else {
-				return m.getCommonName();
-			}
+			return m.getDesignation();
 		}
 		
 		@Override
@@ -54,7 +46,7 @@ enum ThrustCurveMotorColumns {
 	TOTAL_IMPULSE("TCurveMotorCol.TOTAL_IMPULSE") {
 		@Override
 		public Object getValue(ThrustCurveMotorSet m) {
-			return m.getTotalImpulse();
+			return m.getTotalImpuse();
 		}
 		
 		@Override
@@ -66,10 +58,11 @@ enum ThrustCurveMotorColumns {
 			};
 		}
 	},
-	CASEINFO("TCurveMotorCol.CASEINFO") {
+	//// Type
+	TYPE("TCurveMotorCol.TYPE") {
 		@Override
 		public String getValue(ThrustCurveMotorSet m) {
-			return m.getCaseInfo();
+			return m.getType().getName();
 		}
 		
 		@Override
@@ -158,11 +151,11 @@ enum ThrustCurveMotorColumns {
 				UnitGroup.UNITS_IMPULSE.getDefaultUnit()
 						.toStringUnit(m.getTotalImpulseEstimate()) + "<br>");
 		tip += (trans.get("TCurveMotor.ttip.launchMass") + " " +
-				UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(m.getLaunchMass()) +
+				UnitGroup.UNITS_MASS.getDefaultUnit().toStringUnit(m.getLaunchCG().weight) +
 				"<br>");
 		tip += (trans.get("TCurveMotor.ttip.emptyMass") + " " +
 				UnitGroup.UNITS_MASS.getDefaultUnit()
-						.toStringUnit(m.getBurnoutMass()));
+						.toStringUnit(m.getEmptyCG().weight));
 		return tip;
 	}
 	

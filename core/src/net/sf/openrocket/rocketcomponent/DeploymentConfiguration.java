@@ -1,5 +1,7 @@
 package net.sf.openrocket.rocketcomponent;
 
+import java.util.EventObject;
+import java.util.List;
 
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.simulation.FlightEvent;
@@ -8,9 +10,7 @@ import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.ArrayList;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.Pair;
-
-import java.util.List;
-import java.util.Objects;
+import net.sf.openrocket.util.StateChangeListener;
 
 public class DeploymentConfiguration implements FlightConfigurableParameter<DeploymentConfiguration> {
 	
@@ -86,11 +86,11 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 	
 	private static final Translator trans = Application.getTranslator();
 	
+	private final List<StateChangeListener> listeners = new ArrayList<StateChangeListener>();
+	
 	private DeployEvent deployEvent = DeployEvent.EJECTION;
 	private double deployAltitude = 200;
 	private double deployDelay = 0;
-
-	private List<DeploymentConfiguration> configListeners = new ArrayList<>();
 	
 	public boolean isActivationEvent(FlightEvent e, RocketComponent source) {
 		return deployEvent.isActivationEvent(this, e, source);
@@ -101,10 +101,6 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 	}
 	
 	public void setDeployEvent(DeployEvent deployEvent) {
-		for (DeploymentConfiguration listener : configListeners) {
-			listener.setDeployEvent(deployEvent);
-		}
-
 		if (this.deployEvent == deployEvent) {
 			return;
 		}
@@ -112,6 +108,7 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 			throw new NullPointerException("deployEvent is null");
 		}
 		this.deployEvent = deployEvent;
+		fireChangeEvent();
 	}
 	
 	public double getDeployAltitude() {
@@ -119,14 +116,11 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 	}
 	
 	public void setDeployAltitude(double deployAltitude) {
-		for (DeploymentConfiguration listener : configListeners) {
-			listener.setDeployAltitude(deployAltitude);
-		}
-
 		if (MathUtil.equals(this.deployAltitude, deployAltitude)) {
 			return;
 		}
 		this.deployAltitude = deployAltitude;
+		fireChangeEvent();
 	}
 	
 	public double getDeployDelay() {
@@ -134,14 +128,11 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 	}
 	
 	public void setDeployDelay(double deployDelay) {
-		for (DeploymentConfiguration listener : configListeners) {
-			listener.setDeployDelay(deployDelay);
-		}
-
 		if (MathUtil.equals(this.deployDelay, deployDelay)) {
 			return;
 		}
 		this.deployDelay = deployDelay;
+		fireChangeEvent();
 	}
 	
 	@Override
@@ -157,57 +148,37 @@ public class DeploymentConfiguration implements FlightConfigurableParameter<Depl
 	}
 	
 	
+	
+	
+	@Override
+	public void addChangeListener(StateChangeListener listener) {
+		listeners.add(listener);
+	}
+	
+	@Override
+	public void removeChangeListener(StateChangeListener listener) {
+		listeners.remove(listener);
+	}
+	
+	
+	
+	private void fireChangeEvent() {
+		EventObject event = new EventObject(this);
+		Object[] list = listeners.toArray();
+		for (Object l : list) {
+			((StateChangeListener) l).stateChanged(event);
+		}
+	}
+	
+	
 	@Override
 	public DeploymentConfiguration clone() {
-        return copy(null);
-    }
-    public DeploymentConfiguration copy( final FlightConfigurationId copyId) {
 		DeploymentConfiguration that = new DeploymentConfiguration();
 		that.deployAltitude = this.deployAltitude;
 		that.deployDelay = this.deployDelay;
 		that.deployEvent = this.deployEvent;
 		return that;
 	}
-
-	@Override
-	public void update(){
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		DeploymentConfiguration that = (DeploymentConfiguration) o;
-		return Double.compare(that.deployAltitude, deployAltitude) == 0 && Double.compare(that.deployDelay, deployDelay) == 0 && deployEvent == that.deployEvent;
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(deployEvent, deployAltitude, deployDelay);
-	}
-
-	/**
-	 * Add a new config listener that will undergo the same configuration changes as this configuration.
-	 * @param listener new config listener
-	 * @return true if listener was successfully added, false if not
-	 */
-	public boolean addConfigListener(DeploymentConfiguration listener) {
-		if (listener == null) {
-			return false;
-		}
-		configListeners.add(listener);
-		return true;
-	}
-
-	public void removeConfigListener(DeploymentConfiguration listener) {
-		configListeners.remove(listener);
-	}
-
-	public void clearConfigListeners() {
-		configListeners.clear();
-	}
-
-	public List<DeploymentConfiguration> getConfigListeners() {
-		return configListeners;
-	}
+	
+	
 }

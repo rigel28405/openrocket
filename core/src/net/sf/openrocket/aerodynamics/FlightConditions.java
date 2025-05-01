@@ -6,7 +6,7 @@ import java.util.EventObject;
 import java.util.List;
 
 import net.sf.openrocket.models.atmosphere.AtmosphericConditions;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.ChangeSource;
 import net.sf.openrocket.util.Coordinate;
@@ -63,11 +63,8 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	/** Current roll rate. */
 	private double rollRate = 0;
 	
-	/** Current pitch rate. */
 	private double pitchRate = 0;
-	/** Current yaw rate. */
 	private double yawRate = 0;
-	
 	
 	private Coordinate pitchCenter = Coordinate.NUL;
 	
@@ -87,7 +84,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	 * 
 	 * @param config   the configuration of which the reference length is taken.
 	 */
-	public FlightConditions(FlightConfiguration config) {
+	public FlightConditions(Configuration config) {
 		if (config != null)
 			setRefLength(config.getReferenceLength());
 		this.modID = UniqueID.next();
@@ -98,14 +95,13 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	 * Set the reference length from the given configuration.
 	 * @param config	the configuration from which to get the reference length.
 	 */
-	public void setReference(FlightConfiguration config) {
+	public void setReference(Configuration config) {
 		setRefLength(config.getReferenceLength());
 	}
 	
 	
 	/**
 	 * Set the reference length and area.
-	 * fires change event
 	 */
 	public void setRefLength(double length) {
 		refLength = length;
@@ -115,7 +111,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	}
 	
 	/**
-	 * @return the reference length.
+	 * Return the reference length.
 	 */
 	public double getRefLength() {
 		return refLength;
@@ -123,7 +119,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	/**
 	 * Set the reference area and length.
-	 * fires change event
 	 */
 	public void setRefArea(double area) {
 		refArea = area;
@@ -132,7 +127,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	}
 	
 	/**
-	 * @return the reference area.
+	 * Return the reference area.
 	 */
 	public double getRefArea() {
 		return refArea;
@@ -142,7 +137,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	/**
 	 * Sets the angle of attack.  It calculates values also for the methods 
 	 * {@link #getSinAOA()} and {@link #getSincAOA()}. 
-	 * fires change event if it's different from previous value
+	 * 
 	 * @param aoa   the angle of attack.
 	 */
 	public void setAOA(double aoa) {
@@ -167,7 +162,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	 * to be the sine of <code>aoa</code> for cases in which this value is known.
 	 * The AOA must still be specified, as the sine is not unique in the range
 	 * of 0..180 degrees.
-	 * fires change event if it's different from previous value
 	 * 
 	 * @param aoa		the angle of attack in radians.
 	 * @param sinAOA	the sine of the angle of attack.
@@ -192,21 +186,21 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	
 	/**
-	 * @return the angle of attack.
+	 * Return the angle of attack.
 	 */
 	public double getAOA() {
 		return aoa;
 	}
 	
 	/**
-	 * @return the sine of the angle of attack.
+	 * Return the sine of the angle of attack.
 	 */
 	public double getSinAOA() {
 		return sinAOA;
 	}
 	
 	/**
-	 * @return the sinc of the angle of attack (sin(AOA) / AOA).  This method returns
+	 * Return the sinc of the angle of attack (sin(AOA) / AOA).  This method returns
 	 * one if the angle of attack is zero.
 	 */
 	public double getSincAOA() {
@@ -216,8 +210,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	/**
 	 * Set the direction of the lateral airflow.
-	 * fires change event if it's different from previous value
-	 * 
 	 */
 	public void setTheta(double theta) {
 		if (MathUtil.equals(this.theta, theta))
@@ -227,7 +219,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	}
 	
 	/**
-	 * @return the direction of the lateral airflow.
+	 * Return the direction of the lateral airflow.
 	 */
 	public double getTheta() {
 		return theta;
@@ -237,8 +229,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	/**
 	 * Set the current Mach speed.  This should be (but is not required to be) in 
 	 * reference to the speed of sound of the atmospheric conditions.
-	 * 
-	 * fires change event if it's different from previous value
 	 */
 	public void setMach(double mach) {
 		mach = Math.max(mach, 0);
@@ -254,7 +244,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	}
 	
 	/**
-	 * @return the current Mach speed.
+	 * Return the current Mach speed.
 	 */
 	public double getMach() {
 		return mach;
@@ -282,7 +272,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	
 	/**
-	 * @return sqrt(abs(1 - Mach^2)).  This is calculated in the setting call and is
+	 * Return sqrt(abs(1 - Mach^2)).  This is calculated in the setting call and is
 	 * therefore fast.
 	 */
 	public double getBeta() {
@@ -291,7 +281,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	
 	/**
-	 * @return the current roll rate.
+	 * Return the current roll rate.
 	 */
 	public double getRollRate() {
 		return rollRate;
@@ -300,7 +290,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	/**
 	 * Set the current roll rate.
-	 * fires change event if it's different from previous
 	 */
 	public void setRollRate(double rate) {
 		if (MathUtil.equals(this.rollRate, rate))
@@ -311,19 +300,11 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	}
 	
 	
-	/**
-	 * 
-	 * @return current pitch rate
-	 */
 	public double getPitchRate() {
 		return pitchRate;
 	}
 	
-	/**
-	 * sets the pitch rate
-	 * fires change event if it's different from previous
-	 * @param pitchRate
-	 */
+	
 	public void setPitchRate(double pitchRate) {
 		if (MathUtil.equals(this.pitchRate, pitchRate))
 			return;
@@ -331,10 +312,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 		fireChangeEvent();
 	}
 	
-	/**
-	 * 
-	 * @return current yaw rate
-	 */
+	
 	public double getYawRate() {
 		return yawRate;
 	}
@@ -424,7 +402,7 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 	
 	
 	/**
-	 * @return a copy of the flight conditions.  The copy has no listeners.  The
+	 * Return a copy of the flight conditions.  The copy has no listeners.  The
 	 * atmospheric conditions is also cloned.
 	 */
 	@Override
@@ -476,9 +454,6 @@ public class FlightConditions implements Cloneable, ChangeSource, Monitorable {
 		listenerList.remove(listener);
 	}
 	
-	/**
-	 * wake up call to listeners
-	 */
 	protected void fireChangeEvent() {
 		modID = UniqueID.next();
 		// Copy the list before iterating to prevent concurrent modification exceptions.

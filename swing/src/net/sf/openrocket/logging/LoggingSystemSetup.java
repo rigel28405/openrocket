@@ -55,14 +55,14 @@ public class LoggingSystemSetup {
 	 */
 	public static DelegatorLogger getInstance() {
 		Logger logger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-		LogbackBufferLoggerAdaptor adaptor = (LogbackBufferLoggerAdaptor) logger.getAppender("buffer");
-		return adaptor.getLogHelper();
+		LogbackBufferLoggerAdaptor adapater = (LogbackBufferLoggerAdaptor) logger.getAppender("buffer");
+		return adapater.getLogHelper();
 	}
 	
 	public static LogLevelBufferLogger getBufferLogger() {
 		Logger logger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-		LogbackBufferLoggerAdaptor adaptor = (LogbackBufferLoggerAdaptor) logger.getAppender("buffer");
-		return adaptor.getLogBuffer();
+		LogbackBufferLoggerAdaptor adapater = (LogbackBufferLoggerAdaptor) logger.getAppender("buffer");
+		return adapater.getLogBuffer();
 	}
 	
 }

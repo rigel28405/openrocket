@@ -1,5 +1,6 @@
 package net.sf.openrocket.rocketcomponent;
 
+import net.sf.openrocket.util.ChangeSource;
 
 /**
  * Interface for a parameter object that can be configured per 
@@ -7,21 +8,12 @@ package net.sf.openrocket.rocketcomponent;
  *
  * @param <E>	the parameter type
  */
-public interface FlightConfigurableParameter<E> {
+public interface FlightConfigurableParameter<E> extends ChangeSource {
 	
 	/**
-	 * return an exact copy of this object
+	 * Return a copy of this object.  The listeners must not be copied
+	 * to the new object.
 	 */
-	E clone();
-
-    /**
-     * return a copy of this object, corresponding to the specified Id
-     *
-     * @param fcid id to attach the new object to
-     * @return the desired copy
-     */
-    E copy( final FlightConfigurationId fcid );
-
-	void update();
+	public E clone();
 	
 }

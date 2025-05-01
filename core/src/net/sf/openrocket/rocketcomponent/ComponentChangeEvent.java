@@ -5,91 +5,41 @@ import java.util.EventObject;
 public class ComponentChangeEvent extends EventObject {
 	private static final long serialVersionUID = 1L;
 	
-	public enum TYPE {
-		ERROR(-1, "Error"),
-		NON_FUNCTIONAL(1, "nonFunctional"),
-		MASS(2, "Mass"),
-		AERODYNAMIC(4, "Aerodynamic"),
-		TREE( 8, "TREE"),
-		UNDO( 16, "UNDO"),
-		MOTOR( 32, "Motor"),
-		EVENT( 64, "Event"),
-		TEXTURE ( 128, "Texture"),
-		GRAPHIC( 256, "Configuration"),
-		TREE_CHILDREN( 512, "TREE_CHILDREN"),
-		;
-		
-		protected int value;
-		protected String name;
-		
-		private TYPE( final int _val, final String _name){
-			this.value = _val;
-			this.name = _name;
-		}
-		
-		public boolean matches( final int testValue ){
-			return (0 != (this.value & testValue ));
-		}
-		
-	}
-
+	
 	/** A change that does not affect simulation results in any way (name, color, etc.) */
-	public static final int NONFUNCTIONAL_CHANGE = TYPE.NON_FUNCTIONAL.value;
+	public static final int NONFUNCTIONAL_CHANGE = 1;
 	/** A change that affects the mass properties of the rocket */
-	public static final int MASS_CHANGE = TYPE.MASS.value;
+	public static final int MASS_CHANGE = 2;
 	/** A change that affects the aerodynamic properties of the rocket */
-	public static final int AERODYNAMIC_CHANGE = TYPE.AERODYNAMIC.value;
+	public static final int AERODYNAMIC_CHANGE = 4;
 	/** A change that affects the mass and aerodynamic properties of the rocket */
-	public static final int AEROMASS_CHANGE = (TYPE.MASS.value | TYPE.AERODYNAMIC.value );
-	public static final int BOTH_CHANGE = AEROMASS_CHANGE;  // syntactic sugar / backward compatibility
-
+	public static final int BOTH_CHANGE = MASS_CHANGE | AERODYNAMIC_CHANGE; // Mass & Aerodynamic
 	
 	/** A change that affects the rocket tree structure */
-	public static final int TREE_CHANGE = TYPE.TREE.value;
-	/** A change that affects the children's tree structure */
-	public static final int TREE_CHANGE_CHILDREN = TYPE.TREE_CHILDREN.value;
+	public static final int TREE_CHANGE = 8;
 	/** A change caused by undo/redo. */
-	public static final int UNDO_CHANGE = TYPE.UNDO.value;
+	public static final int UNDO_CHANGE = 16;
 	/** A change in the motor configurations or names */
-	public static final int MOTOR_CHANGE = TYPE.MOTOR.value;
+	public static final int MOTOR_CHANGE = 32;
 	/** A change that affects the events occurring during flight. */
-	public static final int EVENT_CHANGE = TYPE.EVENT.value;
+	public static final int EVENT_CHANGE = 64;
 	/** A change to the 3D texture assigned to a component*/
-	public static final int TEXTURE_CHANGE = TYPE.TEXTURE.value;
-	// when a flight configuration fires an event, it is of this type
-	// UI-only change, but does not effect the true
-	public static final int GRAPHIC_CHANGE = TYPE.GRAPHIC.value;
+	public static final int TEXTURE_CHANGE = 128;
 	
-	//// A bit-field that contains all possible change types. 
-	//// Will output as -1. for an explanation, see "twos-complement" representation of signed integers
-	//public static final int ALL_CHANGE =  0xFFFFFFFF;
-			
+	/** A bit-field that contains all possible change types. */
+	public static final int ALL_CHANGE = 0xFFFFFFFF;
+	
 	private final int type;
 	
 	
-	public ComponentChangeEvent(RocketComponent component, final int type) {
+	public ComponentChangeEvent(RocketComponent component, int type) {
 		super(component);
+		if (type == 0) {
+			throw new IllegalArgumentException("no event type provided");
+		}
 		this.type = type;
 	}
 	
-
-	public ComponentChangeEvent(RocketComponent component, final ComponentChangeEvent.TYPE type) {
-		super(component);
-		if ((TYPE.ERROR ==  type)||(null== type)) {
-			throw new IllegalArgumentException("no event type provided");
-		}
-		this.type = type.value;
-	}
-	
-
-	public static TYPE getTypeEnum( final int typeNumber ){
-		for( TYPE ccet : ComponentChangeEvent.TYPE.values() ){
-			if( ccet.value == typeNumber ){
-				return ccet;
-			}
-		}
-		throw new IllegalArgumentException(" type number "+typeNumber+" is not a valid Type enum...");
-	}
 	
 	/**
 	 * Return the source component of this event as specified in the constructor.
@@ -99,56 +49,43 @@ public class ComponentChangeEvent extends EventObject {
 		return (RocketComponent) super.getSource();
 	}
 	
+	public boolean isTextureChange() {
+		return (type & TEXTURE_CHANGE) != 0;
+	}
+	
 	public boolean isAerodynamicChange() {
-		return TYPE.AERODYNAMIC.matches( this.type);
-	}
-	
-
-	public boolean isEventChange() {
-		return TYPE.EVENT.matches( this.type);
-	}
-
-	public boolean isFunctionalChange() {
-		return ! this.isNonFunctionalChange();
-	}
-	
-	public boolean isNonFunctionalChange() {
-		return (TYPE.NON_FUNCTIONAL.matches( this.type));
+		return (type & AERODYNAMIC_CHANGE) != 0;
 	}
 	
 	public boolean isMassChange() {
-		return TYPE.MASS.matches(this.type);
+		return (type & MASS_CHANGE) != 0;
 	}
-
-	public boolean isTextureChange() {
-		return TYPE.TEXTURE.matches(this.type);
+	
+	public boolean isOtherChange() {
+		return (type & BOTH_CHANGE) == 0;
 	}
 	
 	public boolean isTreeChange() {
-		return TYPE.TREE.matches(this.type);
-	}
-	public boolean isTreeChildrenChange() {
-		return TYPE.TREE_CHILDREN.matches(this.type);
+		return (type & TREE_CHANGE) != 0;
 	}
 	
 	public boolean isUndoChange() {
-		return TYPE.UNDO.matches(this.type);
+		return (type & UNDO_CHANGE) != 0;
 	}
 	
-	
 	public boolean isMotorChange() {
-		return TYPE.MOTOR.matches(this.type);
+		return (type & MOTOR_CHANGE) != 0;
 	}
 	
 	public int getType() {
-		return this.type;
+		return type;
 	}
 	
 	@Override
 	public String toString() {
 		String s = "";
 		
-		if (isNonFunctionalChange())
+		if ((type & NONFUNCTIONAL_CHANGE) != 0)
 			s += ",nonfunc";
 		if (isMassChange())
 			s += ",mass";
@@ -156,13 +93,11 @@ public class ComponentChangeEvent extends EventObject {
 			s += ",aero";
 		if (isTreeChange())
 			s += ",tree";
-		if (isTreeChildrenChange())
-			s += ",treechild";
 		if (isUndoChange())
 			s += ",undo";
 		if (isMotorChange())
 			s += ",motor";
-		if (isEventChange())
+		if ((type & EVENT_CHANGE) != 0)
 			s += ",event";
 		
 		if (s.length() > 0)

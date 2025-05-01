@@ -50,14 +50,11 @@ public class ExampleDesignFile implements Comparable<ExampleDesignFile> {
 			logger.debug("Cannot find jar file, trying to load from directory");
 			designs = getDirFileNames();
 		}
-
-		if (designs == null ){
-			return new ExampleDesignFile[0];
+		if (designs == null || designs.length == 0) {
+			return null;
 		}
-
-		if( 0 < designs.length ) {
-			Arrays.sort(designs);
-		}
+		
+		Arrays.sort(designs);
 		
 		return designs;
 	}

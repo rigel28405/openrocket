@@ -1,7 +1,5 @@
 package net.sf.openrocket.l10n;
 
-import java.util.MissingResourceException;
-
 /**
  * A translator implementation that returns the logical key in brackets instead
  * of an actual translation.  The class optionally verifies that the translation
@@ -49,15 +47,6 @@ public class DebugTranslator implements Translator {
 		}
 		return translation;
 	}
-
-	@Override
-	public boolean checkIfKeyExists(String key) {
-		try {
-			translator.get(key);
-			return true;
-		} catch (MissingResourceException e) {
-			return false;
-		}
-	}
+	
 	
 }

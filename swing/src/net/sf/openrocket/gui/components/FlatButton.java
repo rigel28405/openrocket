@@ -12,7 +12,6 @@ import javax.swing.JButton;
  * 
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-@SuppressWarnings("serial")
 public class FlatButton extends JButton {
 	
 	public FlatButton() {

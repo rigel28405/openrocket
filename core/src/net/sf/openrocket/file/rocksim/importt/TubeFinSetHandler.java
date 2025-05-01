@@ -1,15 +1,14 @@
 package net.sf.openrocket.file.rocksim.importt;
 
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
-import net.sf.openrocket.file.rocksim.RockSimFinishCode;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimFinishCode;
 import net.sf.openrocket.file.simplesax.ElementHandler;
 import net.sf.openrocket.file.simplesax.PlainTextHandler;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.TubeFinSet;
-
 import org.xml.sax.SAXException;
 
 import java.util.HashMap;
@@ -33,14 +32,25 @@ public class TubeFinSetHandler extends PositionDependentHandler<TubeFinSet> {
      * @throws IllegalArgumentException thrown if <code>c</code> is null
      */
     public TubeFinSetHandler(DocumentLoadingContext context, RocketComponent c, WarningSet warnings) throws IllegalArgumentException {
-    	super(context);
-    	if (c == null) {
-    		throw new IllegalArgumentException("The parent component of a tube fin may not be null.");
-    	}
-    	tubeFin = new TubeFinSet();
-    	if (isCompatible(c, TubeFinSet.class, warnings)) {
-    		c.addChild(tubeFin);
-    	}
+        super(context);
+        if (c == null) {
+            throw new IllegalArgumentException("The parent component of a tube fin may not be null.");
+        }
+        tubeFin = new TubeFinSet();
+        if (isCompatible(c, TubeFinSet.class, warnings)) {
+                c.addChild(tubeFin);
+            }
+        }
+
+
+    /**
+   	 * Set the relative position onto the component.
+   	 *
+   	 * @param position  the OpenRocket position
+   	 */
+    @Override
+    protected void setRelativePosition(final RocketComponent.Position position) {
+        tubeFin.setRelativePosition(position);
     }
 
     /**
@@ -80,26 +90,26 @@ public class TubeFinSetHandler extends PositionDependentHandler<TubeFinSet> {
    		super.closeElement(element, attributes, content, warnings);
 
    		try {
-   			if (RockSimCommonConstants.OD.equals(element)) {
-   				tubeFin.setOuterRadius(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
+   			if (RocksimCommonConstants.OD.equals(element)) {
+   				tubeFin.setOuterRadius(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
    			}
-   			if (RockSimCommonConstants.ID.equals(element)) {
-                tubeFin.setInnerRadius(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
+   			if (RocksimCommonConstants.ID.equals(element)) {
+                tubeFin.setInnerRadius(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
    			}
-   			if (RockSimCommonConstants.LEN.equals(element)) {
-                tubeFin.setLength(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH));
+   			if (RocksimCommonConstants.LEN.equals(element)) {
+                tubeFin.setLength(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH));
    			}
-   			if (RockSimCommonConstants.MATERIAL.equals(element)) {
+   			if (RocksimCommonConstants.MATERIAL.equals(element)) {
    				setMaterialName(content);
    			}
-            if (RockSimCommonConstants.RADIAL_ANGLE.equals(element)) {
+            if (RocksimCommonConstants.RADIAL_ANGLE.equals(element)) {
                 tubeFin.setBaseRotation(Double.parseDouble(content));
             }
-   			if (RockSimCommonConstants.TUBE_COUNT.equals(element)) {
+   			if (RocksimCommonConstants.TUBE_COUNT.equals(element)) {
                 tubeFin.setFinCount(Integer.parseInt(content));
    			}
-   			if (RockSimCommonConstants.FINISH_CODE.equals(element)) {
-                tubeFin.setFinish(RockSimFinishCode.fromCode(Integer.parseInt(content)).asOpenRocket());
+   			if (RocksimCommonConstants.FINISH_CODE.equals(element)) {
+                tubeFin.setFinish(RocksimFinishCode.fromCode(Integer.parseInt(content)).asOpenRocket());
    			}
    		} catch (NumberFormatException nfe) {
    			warnings.add("Could not convert " + element + " value of " + content + ".  It is expected to be a number.");

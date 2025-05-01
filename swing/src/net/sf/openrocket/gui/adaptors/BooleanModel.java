@@ -6,19 +6,15 @@ import java.beans.PropertyChangeListener;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.EventListener;
 import java.util.EventObject;
 import java.util.List;
 
 import javax.swing.AbstractAction;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.logging.Markers;
-import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.ChangeSource;
 import net.sf.openrocket.util.Invalidatable;
@@ -43,8 +39,7 @@ import net.sf.openrocket.util.StateChangeListener;
  * 
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-public class BooleanModel extends AbstractAction implements StateChangeListener, ChangeSource, Invalidatable {
-	private static final long serialVersionUID = -7299680391506320196L;
+public class BooleanModel extends AbstractAction implements StateChangeListener, Invalidatable {
 	private static final Logger log = LoggerFactory.getLogger(BooleanModel.class);
 	
 	private final ChangeSource source;
@@ -70,7 +65,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 	private boolean oldEnabled;
 	
 	private Invalidator invalidator = new Invalidator(this);
-	private final ArrayList<EventListener> listeners = new ArrayList<>();
 	
 	
 	/**
@@ -106,11 +100,8 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 		this.valueName = valueName;
 		
 		Method getter = null, setter = null;
-	      
-        if(RocketComponent.class.isAssignableFrom(source.getClass())) {
-            ((RocketComponent)source).addChangeListener(this);
-        }
-        
+		
+
 		// Try get/is and set
 		try {
 			getter = source.getClass().getMethod("is" + valueName);
@@ -205,15 +196,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 		componentEnableState.add(enableState);
 		updateEnableStatus();
 	}
-
-	/**
-	 * Remove a component from the list of enable components controlled by this model.
-	 * @param component component to remove from the list
-	 */
-	public void removeEnableComponent(Component component) {
-		checkState(true);
-		components.remove(component);
-	}
 	
 	/**
 	 * Add a component which will be enabled when this boolean is <code>true</code>.
@@ -276,15 +258,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 			oldEnabled = e;
 			setEnabled(e);
 		}
-
-		for (EventListener listener : listeners) {
-			if (listener instanceof StateChangeListener) {
-				((StateChangeListener) listener).stateChanged(event);
-			} else if (listener instanceof ChangeListener) {
-				ChangeEvent cevent = new ChangeEvent(this);
-				((ChangeListener) listener).stateChanged(cevent);
-			}
-		}
 	}
 	
 	
@@ -307,15 +280,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 			updateEnableStatus();
 			firing--;
 		}
-
-		for (EventListener listener : listeners) {
-			if (listener instanceof StateChangeListener) {
-				((StateChangeListener) listener).stateChanged(e);
-			} else if (listener instanceof ChangeListener) {
-				ChangeEvent cevent = new ChangeEvent(this);
-				((ChangeListener) listener).stateChanged(cevent);
-			}
-		}
 	}
 	
 	
@@ -323,34 +287,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 	public void addPropertyChangeListener(PropertyChangeListener listener) {
 		checkState(true);
 		super.addPropertyChangeListener(listener);
-	}
-
-	/**
-	 * Add a listener to the model.  Adds the model as a listener to the value source if this
-	 * is the first listener.
-	 * @param listener Listener to add.
-	 */
-	@Override
-	public void addChangeListener(StateChangeListener listener) {
-		checkState(true);
-
-		if (listeners.add(listener)) {
-			log.trace(this + " adding listener (total " + listeners.size() + "): " + listener);
-		}
-	}
-
-	/**
-	 * Remove a listener from the model.  Removes the model from being a listener to the Component
-	 * if this was the last listener of the model.
-	 * @param listener Listener to remove.
-	 */
-	@Override
-	public void removeChangeListener(StateChangeListener listener) {
-		checkState(false);
-
-		if (listeners.remove(listener)) {
-			log.trace(this + " removing listener (total " + listeners.size() + "): " + listener);
-		}
 	}
 	
 	
@@ -370,10 +306,6 @@ public class BooleanModel extends AbstractAction implements StateChangeListener,
 				this.removePropertyChangeListener(l);
 			}
 		}
-		if (!this.listeners.isEmpty()) {
-			log.warn("Invalidating " + this + " while still having listeners " + this.listeners);
-		}
-		this.listeners.clear();
 		if (source != null) {
 			source.removeChangeListener(this);
 		}

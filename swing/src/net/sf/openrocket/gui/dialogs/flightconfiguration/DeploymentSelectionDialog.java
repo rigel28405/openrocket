@@ -4,7 +4,6 @@ import java.awt.Dialog;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -27,14 +26,11 @@ import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.rocketcomponent.DeploymentConfiguration;
 import net.sf.openrocket.rocketcomponent.DeploymentConfiguration.DeployEvent;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
 import net.sf.openrocket.rocketcomponent.RecoveryDevice;
 import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
-@SuppressWarnings("serial")
 public class DeploymentSelectionDialog extends JDialog {
 	
 	private static final Translator trans = Application.getTranslator();
@@ -47,13 +43,13 @@ public class DeploymentSelectionDialog extends JDialog {
 	private final JSpinner altSpinner;
 	private final UnitSelector altUnit;
 	private final JSlider altSlider;
-
-	private boolean isOverrideDefault;
 	
-	public DeploymentSelectionDialog(Window parent, final Rocket rocket, final FlightConfigurationId id, final RecoveryDevice component) {
+	public DeploymentSelectionDialog(Window parent, final Rocket rocket, final RecoveryDevice component) {
 		super(parent, trans.get("edtmotorconfdlg.title.Selectdeploymentconf"), Dialog.ModalityType.APPLICATION_MODAL);
-
-		newConfiguration = component.getDeploymentConfigurations().get(id).clone();
+		
+		final String id = rocket.getDefaultConfiguration().getFlightConfigurationID();
+		
+		newConfiguration = component.getDeploymentConfiguration().get(id).clone();
 		
 		JPanel panel = new JPanel(new MigLayout("fill"));
 		
@@ -62,17 +58,16 @@ public class DeploymentSelectionDialog extends JDialog {
 		panel.add(defaultButton, "span, gapleft para, wrap rel");
 		String str = trans.get("DeploymentSelectionDialog.opt.override");
 		str = str.replace("{0}", descriptor.format(rocket, id));
-		final JRadioButton overrideButton = new JRadioButton(str);
-		overrideButton.addItemListener(e -> isOverrideDefault = e.getStateChange() == ItemEvent.SELECTED);
-		overrideButton.setSelected(false);
+		final JRadioButton overrideButton = new JRadioButton(str, false);
 		panel.add(overrideButton, "span, gapleft para, wrap para");
 		
 		ButtonGroup buttonGroup = new ButtonGroup();
 		buttonGroup.add(defaultButton);
 		buttonGroup.add(overrideButton);
 		
-		// Select the button based on current configuration.  If the configuration is overridden, the overrideButton is selected.
-		boolean isOverridden = !component.getDeploymentConfigurations().isDefault(id);
+		// Select the button based on current configuration.  If the configuration is overridden
+		// The the overrideButton is selected.
+		boolean isOverridden = !component.getDeploymentConfiguration().isDefault(id);
 		if (isOverridden) {
 			overrideButton.setSelected(true);
 		}
@@ -81,12 +76,12 @@ public class DeploymentSelectionDialog extends JDialog {
 		//// Deploys at:
 		panel.add(new JLabel(trans.get("ParachuteCfg.lbl.Deploysat")), "");
 		
-		final JComboBox<DeployEvent> deployEvent = new JComboBox<DeployEvent>(new EnumModel<>(newConfiguration, "DeployEvent"));
+		final JComboBox<?> event = new JComboBox(new EnumModel<DeployEvent>(newConfiguration, "DeployEvent"));
 		if( (component.getStageNumber() + 1 ) == rocket.getStageCount() ){
 			//	This is the bottom stage:  Restrict deployment options.
-		    deployEvent.removeItem( DeployEvent.LOWER_STAGE_SEPARATION );
+			event.removeItem( DeployEvent.LOWER_STAGE_SEPARATION );
 		}
-		panel.add( deployEvent, "spanx 3, growx, wrap");
+		panel.add(event, "spanx 3, growx, wrap");
 		
 		// ... and delay
 		//// plus
@@ -114,7 +109,7 @@ public class DeploymentSelectionDialog extends JDialog {
 		altSlider = new BasicSlider(alt.getSliderModel(100, 1000));
 		panel.add(altSlider, "w 100lp, wrap");
 		
-		deployEvent.addActionListener(new ActionListener() {
+		event.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				updateState();
@@ -124,14 +119,14 @@ public class DeploymentSelectionDialog extends JDialog {
 		
 		panel.add(new JPanel(), "span, split, growx");
 		
-		JButton okButton = new SelectColorButton(trans.get("button.ok"));
+		JButton okButton = new JButton(trans.get("button.ok"));
 		okButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				if (defaultButton.isSelected()) {
-					component.getDeploymentConfigurations().setDefault(newConfiguration);
+					component.getDeploymentConfiguration().setDefault(newConfiguration);
 				} else {
-					component.getDeploymentConfigurations().set(id, newConfiguration);
+					component.getDeploymentConfiguration().set(id, newConfiguration);
 				}
 				DeploymentSelectionDialog.this.setVisible(false);
 			}
@@ -139,7 +134,7 @@ public class DeploymentSelectionDialog extends JDialog {
 		
 		panel.add(okButton, "sizegroup btn");
 		
-		JButton cancel = new SelectColorButton(trans.get("button.cancel"));
+		JButton cancel = new JButton(trans.get("button.cancel"));
 		cancel.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -151,7 +146,6 @@ public class DeploymentSelectionDialog extends JDialog {
 		
 		this.setContentPane(panel);
 		GUIUtil.setDisposableDialogOptions(this, okButton);
-		GUIUtil.installEscapeCloseButtonOperation(this, okButton);
 	}
 	
 	private void updateState() {
@@ -161,12 +155,6 @@ public class DeploymentSelectionDialog extends JDialog {
 		altUnit.setEnabled(enabled);
 		altSlider.setEnabled(enabled);
 	}
-
-	/**
-	 * Returns true if this dialog was used to override the default configuration.
-	 * @return true if this dialog was used to override the default configuration.
-	 */
-	public boolean isOverrideDefault() {
-		return isOverrideDefault;
-	}
+	
+	
 }

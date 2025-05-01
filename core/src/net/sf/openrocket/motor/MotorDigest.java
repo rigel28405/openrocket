@@ -1,6 +1,6 @@
 package net.sf.openrocket.motor;
 
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -143,9 +143,9 @@ public class MotorDigest {
 		MotorDigest motorDigest = new MotorDigest();
 		motorDigest.update(DataType.TIME_ARRAY, m.getTimePoints());
 		
-		final Coordinate[] cg = m.getCGPoints();
-		final double[] cgx = new double[cg.length];
-		final double[] mass = new double[cg.length];
+		Coordinate[] cg = m.getCGPoints();
+		double[] cgx = new double[cg.length];
+		double[] mass = new double[cg.length];
 		for (int i = 0; i < cg.length; i++) {
 			cgx[i] = cg[i].x;
 			mass[i] = cg[i].weight;
@@ -167,9 +167,13 @@ public class MotorDigest {
 		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException("MD5 digest not supported by JRE", e);
 		}
-
-		digest.update(comment.getBytes(StandardCharsets.UTF_8));
-
+		
+		try {
+			digest.update(comment.getBytes("UTF-8"));
+		} catch (UnsupportedEncodingException e) {
+			throw new IllegalStateException("UTF-8 encoding not supported by JRE", e);
+		}
+		
 		return TextUtil.hexString(digest.digest());
 	}
 	

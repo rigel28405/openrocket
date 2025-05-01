@@ -184,31 +184,31 @@ public class MathUtil {
 	public static double hypot(double x, double y) {
 		return Math.sqrt(x * x + y * y);
 	}
-	   
-    /**
-     * Reduce the angle x to the range -PI - PI.
-     * 
-     * Either -PI and PI might be returned, depending on the rounding function. 
-     * 
-     * @param x  Original angle.
-     * @return   The equivalent angle in the range -PI ... PI.
-     */
-    public static double reducePi(double x) {
-    	double d = Math.rint(x / (2 * Math.PI));
-    	return x - d * 2 * Math.PI;
-    }
-    
+	
 	/**
 	 * Reduce the angle x to the range 0 - 2*PI.
 	 * @param x  Original angle.
 	 * @return   The equivalent angle in the range 0 ... 2*PI.
 	 */
-	public static double reduce2Pi(double x) {
+	public static double reduce360(double x) {
 		double d = Math.floor(x / (2 * Math.PI));
 		return x - d * 2 * Math.PI;
 	}
-
-
+	
+	/**
+	 * Reduce the angle x to the range -PI - PI.
+	 * 
+	 * Either -PI and PI might be returned, depending on the rounding function. 
+	 * 
+	 * @param x  Original angle.
+	 * @return   The equivalent angle in the range -PI ... PI.
+	 */
+	public static double reduce180(double x) {
+		double d = Math.rint(x / (2 * Math.PI));
+		return x - d * 2 * Math.PI;
+	}
+	
+	
 	/**
 	 * Return the square root of a value.  If the value is negative, zero is returned.
 	 * This is safer in cases where rounding errors might make a value slightly negative.
@@ -331,13 +331,13 @@ public class MathUtil {
 		}
 		
 		int length = domain.size();
-		if (length <= 1 || t < domain.get(0) || t > domain.get(length - 1) + EPSILON) {
+		if (length <= 1 || t < domain.get(0) || t > domain.get(length - 1)) {
 			return Double.NaN;
 		}
 		
 		// Look for the index of the right end point.
 		int right = 1;
-		while (t > domain.get(right) + EPSILON) {
+		while (t > domain.get(right)) {
 			right++;
 		}
 		int left = right - 1;

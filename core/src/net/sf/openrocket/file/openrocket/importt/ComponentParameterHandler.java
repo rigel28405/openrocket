@@ -2,8 +2,8 @@ package net.sf.openrocket.file.openrocket.importt;
 
 import java.util.HashMap;
 
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.Warning;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
 import net.sf.openrocket.file.simplesax.AbstractElementHandler;
 import net.sf.openrocket.file.simplesax.ElementHandler;
@@ -13,7 +13,7 @@ import net.sf.openrocket.rocketcomponent.MotorMount;
 import net.sf.openrocket.rocketcomponent.RecoveryDevice;
 import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.rocketcomponent.AxialStage;
+import net.sf.openrocket.rocketcomponent.Stage;
 
 /**
  * A handler that populates the parameters of a previously constructed rocket component.
@@ -40,10 +40,6 @@ class ComponentParameterHandler extends AbstractElementHandler {
 		if ( element.equals("appearance")) {
 			return new AppearanceHandler(component,context);
 		}
-		// TODO: delete 'inside-appearance' when backward compatibility with 22.02.beta.01-22.02.beta.05 is not needed anymore
-		if (element.equals("insideappearance") || element.equals("inside-appearance")) {
-			return new InsideAppearanceHandler(component, context);
-		}
 		if (element.equals("motormount")) {
 			if (!(component instanceof MotorMount)) {
 				warnings.add(Warning.fromString("Illegal component defined as motor mount."));
@@ -65,13 +61,6 @@ class ComponentParameterHandler extends AbstractElementHandler {
 			}
 			return new MotorConfigurationHandler((Rocket) component, context);
 		}
-		if (element.equals("flightconfiguration")) {
-			if (!(component instanceof Rocket)) {
-				warnings.add(Warning.fromString("Illegal component defined for flight configuration."));
-				return null;
-			}
-			return new MotorConfigurationHandler((Rocket) component, context);
-		}
 		if ( element.equals("deploymentconfiguration")) {
 			if ( !(component instanceof RecoveryDevice) ) {
 				warnings.add(Warning.fromString("Illegal component defined as recovery device."));
@@ -80,11 +69,11 @@ class ComponentParameterHandler extends AbstractElementHandler {
 			return new DeploymentConfigurationHandler( (RecoveryDevice) component, context );
 		}
 		if ( element.equals("separationconfiguration")) {
-			if ( !(component instanceof AxialStage) ) {
+			if ( !(component instanceof Stage) ) {
 				warnings.add(Warning.fromString("Illegal component defined as stage."));
 				return null;
 			}
-			return new StageSeparationConfigurationHandler( (AxialStage) component, context );
+			return new StageSeparationConfigurationHandler( (Stage) component, context );
 		}
 		
 		return PlainTextHandler.INSTANCE;
@@ -93,12 +82,11 @@ class ComponentParameterHandler extends AbstractElementHandler {
 	@Override
 	public void closeElement(String element, HashMap<String, String> attributes,
 			String content, WarningSet warnings) {
-
-		// TODO: delete 'inside-appearance' when backward compatibility with 22.02.beta.01-22.02.beta.05 is not needed anymore
+		
 		if (element.equals("subcomponents") || element.equals("motormount") ||
 				element.equals("finpoints") || element.equals("motorconfiguration") ||
-				element.equals("appearance") || element.equals("insideappearance") || element.equals("inside-appearance") ||
-				element.equals("deploymentconfiguration") || element.equals("separationconfiguration")) {
+				element.equals("appearance") || element.equals("deploymentconfiguration") ||
+				element.equals("separationconfiguration")) {
 			return;
 		}
 		

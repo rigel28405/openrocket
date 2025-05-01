@@ -6,7 +6,6 @@ import java.awt.Font;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.IntStream;
 
 import javax.swing.JTree;
 import javax.swing.ToolTipManager;
@@ -17,8 +16,6 @@ import javax.swing.tree.TreePath;
 
 import net.sf.openrocket.gui.components.BasicTree;
 import net.sf.openrocket.gui.main.ComponentIcons;
-import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.gui.util.UITheme;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.optimization.rocketoptimization.SimulationModifier;
 import net.sf.openrocket.rocketcomponent.Rocket;
@@ -34,21 +31,11 @@ import net.sf.openrocket.util.TextUtil;
  * 
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-@SuppressWarnings("serial")
 public class SimulationModifierTree extends BasicTree {
 	
 	private final List<SimulationModifier> selectedModifiers;
 	private static final Translator trans = Application.getTranslator();
-
-	private static Color textColor;
-	private static Color dimTextColor;
-	private static Color textSelectionForegroundColor;
-	private static Color textSelectionBackgroundColor;
-
-	static {
-		initColors();
-	}
-
+	
 	/**
 	 * Sole constructor.
 	 * 
@@ -67,18 +54,6 @@ public class SimulationModifierTree extends BasicTree {
 		ToolTipManager.sharedInstance().registerComponent(this);
 		
 		expandComponents();
-	}
-
-	private static void initColors() {
-		updateColors();
-		UITheme.Theme.addUIThemeChangeListener(SimulationModifierTree::updateColors);
-	}
-
-	private static void updateColors() {
-		textColor = GUIUtil.getUITheme().getTextColor();
-		dimTextColor = GUIUtil.getUITheme().getDimTextColor();
-		textSelectionForegroundColor = GUIUtil.getUITheme().getTextSelectionForegroundColor();
-		textSelectionBackgroundColor = GUIUtil.getUITheme().getTextSelectionBackgroundColor();
 	}
 	
 	
@@ -174,13 +149,11 @@ public class SimulationModifierTree extends BasicTree {
 			
 			// Set icon (for rocket components, null for others)
 			setIcon(ComponentIcons.getSmallIcon(object.getClass()));
-
-			// By default, set background to transparent
-			setOpaque(false);
+			
 			
 			// Set text color/style
 			if (object instanceof RocketComponent) {
-				setForeground(dimTextColor);
+				setForeground(Color.GRAY);
 				setFont(componentFont);
 				
 				// Set tooltip
@@ -194,24 +167,16 @@ public class SimulationModifierTree extends BasicTree {
 					this.setToolTipText(null);
 				}
 			} else if (object instanceof String) {
-				setForeground(dimTextColor);
+				setForeground(Color.GRAY);
 				setFont(stringFont);
 			} else if (object instanceof SimulationModifier) {
 				
 				if (selectedModifiers.contains(object)) {
-					setForeground(dimTextColor);
-					setFont(stringFont);
+					setForeground(Color.GRAY);
 				} else {
-					if (tree.getSelectionRows() != null &&
-							IntStream.of(tree.getSelectionRows()).anyMatch(r -> r == row)) {
-						setForeground(textSelectionForegroundColor);
-						setBackground(textSelectionBackgroundColor);
-						setOpaque(true);
-					} else {
-						setForeground(textColor);
-					}
-					setFont(modifierFont);
+					setForeground(Color.BLACK);
 				}
+				setFont(modifierFont);
 				setText(((SimulationModifier) object).getName());
 				setToolTipText(((SimulationModifier) object).getDescription());
 			}

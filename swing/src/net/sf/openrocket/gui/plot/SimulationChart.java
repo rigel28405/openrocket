@@ -57,7 +57,7 @@ public class SimulationChart extends ChartPanel {
 				/* tooltips */true);
 		this.setMouseWheelEnabled(true);
 		this.setEnforceFileExtensions(true);
-		this.setInitialDelay(50);
+		this.setInitialDelay(500);
 		this.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
 	}
 	

@@ -7,11 +7,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.database.Databases;
 import net.sf.openrocket.file.DocumentLoadingContext;
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
-import net.sf.openrocket.file.rocksim.RockSimDensityType;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimDensityType;
 import net.sf.openrocket.file.simplesax.AbstractElementHandler;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.rocketcomponent.ExternalComponent;
@@ -46,7 +46,7 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 	/**
 	 * The internal Rocksim density type.
 	 */
-	private RockSimDensityType densityType = RockSimDensityType.ROCKSIM_BULK;
+	private RocksimDensityType densityType = RocksimDensityType.ROCKSIM_BULK;
 	
 	/**
 	 * The material name.
@@ -77,24 +77,24 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 			throws SAXException {
 		final C component = getComponent();
 		try {
-			if (RockSimCommonConstants.NAME.equals(element)) {
+			if (RocksimCommonConstants.NAME.equals(element)) {
 				component.setName(content);
 			}
-			if (RockSimCommonConstants.KNOWN_MASS.equals(element)) {
-				mass = Math.max(0d, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_MASS);
+			if (RocksimCommonConstants.KNOWN_MASS.equals(element)) {
+				mass = Math.max(0d, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_MASS);
 			}
-			if (RockSimCommonConstants.DENSITY.equals(element)) {
+			if (RocksimCommonConstants.DENSITY.equals(element)) {
 				density = Math.max(0d, Double.parseDouble(content));
 			}
-			if (RockSimCommonConstants.KNOWN_CG.equals(element)) {
-				cg = Math.max(0d, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
+			if (RocksimCommonConstants.KNOWN_CG.equals(element)) {
+				cg = Math.max(0d, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH);
 			}
-			if (RockSimCommonConstants.USE_KNOWN_CG.equals(element)) { //Rocksim sets UseKnownCG to true to control the override of both cg and mass
+			if (RocksimCommonConstants.USE_KNOWN_CG.equals(element)) { //Rocksim sets UseKnownCG to true to control the override of both cg and mass
 				boolean override = "1".equals(content);
 				setOverride(component, override, mass, cg);
 			}
-			if (RockSimCommonConstants.DENSITY_TYPE.equals(element)) {
-				densityType = RockSimDensityType.fromCode(Integer.parseInt(content));
+			if (RocksimCommonConstants.DENSITY_TYPE.equals(element)) {
+				densityType = RocksimDensityType.fromCode(Integer.parseInt(content));
 			}
 			
 			appearanceBuilder.processElement(element, content, warnings);
@@ -141,7 +141,7 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 	 *
 	 * @return a value in OpenRocket SURFACE density units
 	 */
-	protected double computeDensity(RockSimDensityType type, double rawDensity) {
+	protected double computeDensity(RocksimDensityType type, double rawDensity) {
 		return rawDensity / type.asOpenRocket();
 	}
 	
@@ -175,8 +175,7 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 		if (override) {
 			component.setCGOverridden(override);
 			component.setMassOverridden(override);
-			component.setSubcomponentsOverriddenMass(false); //Rocksim does not support this type of override
-			component.setSubcomponentsOverriddenCG(false); //Rocksim does not support this type of override
+			component.setOverrideSubcomponents(false); //Rocksim does not support this type of override
 			component.setOverrideMass(mass);
 			component.setOverrideCGX(cg);
 		}
@@ -219,7 +218,7 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 	 *
 	 * @return a Rocksim density type
 	 */
-	protected RockSimDensityType getDensityType() {
+	protected RocksimDensityType getDensityType() {
 		return densityType;
 	}
 	
@@ -301,7 +300,7 @@ public abstract class BaseHandler<C extends RocketComponent> extends AbstractEle
 	 *
 	 * @return the Method instance, or null
 	 */
-	private static Method getMethod(RocketComponent component, String name, Class<?>[] args) {
+	private static Method getMethod(RocketComponent component, String name, Class[] args) {
 		Method method = null;
 		try {
 			method = component.getClass().getMethod(name, args);

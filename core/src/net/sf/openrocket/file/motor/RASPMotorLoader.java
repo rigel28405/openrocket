@@ -2,8 +2,6 @@ package net.sf.openrocket.file.motor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -30,10 +28,7 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 	protected Charset getDefaultCharset() {
 		return CHARSET;
 	}
-
-	public List<ThrustCurveMotor.Builder> load(InputStream stream, String filename, boolean removeDelayFromDesignation) throws IOException {
-		return load(new InputStreamReader(stream, getDefaultCharset()), filename, removeDelayFromDesignation);
-	}
+	
 	
 	/**
 	 * Load a <code>Motor</code> from a RASP file specified by the <code>Reader</code>.
@@ -43,12 +38,12 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 	 * is calculated from the thrust curve by assuming a constant exhaust velocity.
 	 * 
 	 * @param reader  the source of the file.
-	 * @param removeDelayFromDesignation if true, the motor delay will be left out of the motor designation (e.g. "B6" instead of "B6-0")
 	 * @return		  a list of the {@link Motor} objects defined in the file.
 	 * @throws IOException  if an I/O error occurs or if the file format is illegal.
 	 */
-	public List<ThrustCurveMotor.Builder> load(Reader reader, String filename, boolean removeDelayFromDesignation) throws IOException {
-		List<ThrustCurveMotor.Builder> motors = new ArrayList<>();
+	@Override
+	public List<Motor> load(Reader reader, String filename) throws IOException {
+		List<Motor> motors = new ArrayList<Motor>();
 		BufferedReader in = new BufferedReader(reader);
 		
 		String manufacturer = "";
@@ -99,8 +94,7 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 				// desig diam len delays prop.w tot.w manufacturer
 				pieces = split(line);
 				if (pieces.length != 7) {
-					throw new IOException("Illegal file format. Motor header line must contain 7 fields:<br>" +
-							"&nbsp designation diameter length delays propellantWeight totalWeight manufacturer");
+					throw new IOException("Illegal file format.");
 				}
 				
 				designation = pieces[0];
@@ -114,7 +108,7 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 					for (int i = 0; i < buf.length; i++) {
 						if (buf[i].equalsIgnoreCase("P") ||
 								buf[i].equalsIgnoreCase("plugged")) {
-							delays.add(Motor.PLUGGED_DELAY);
+							delays.add(Motor.PLUGGED);
 						} else if (buf[i].matches("[0-9]+")) {
 							// Many RASP files have "100" as an only delay
 							double d = Double.parseDouble(buf[i]);
@@ -146,8 +140,7 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 						thrust.add(Double.parseDouble(buf[1]));
 						
 					} else {
-						throw new IOException("Illegal file format.<br>" +
-								"Data should only have 2 entries: a time and thrust value.");
+						throw new IOException("Illegal file format.");
 					}
 				}
 				
@@ -160,22 +153,16 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 					delayArray[i] = delays.get(i);
 				}
 				motors.add(createRASPMotor(manufacturer, designation, comment,
-						length, diameter, delayArray, propW, totalW, time, thrust, removeDelayFromDesignation));
+						length, diameter, delayArray, propW, totalW, time, thrust));
 			}
 			
 		} catch (NumberFormatException e) {
 			
-			throw new IOException("Illegal file format. Could not convert value to a number.<br" +
-					">Verify that each number is correctly formatted.");
+			throw new IOException("Illegal file format.");
 			
 		}
 		
 		return motors;
-	}
-
-	@Override
-	public List<ThrustCurveMotor.Builder> load(Reader reader, String filename) throws IOException {
-		return load(reader, filename, true);
 	}
 	
 	
@@ -183,9 +170,9 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 	 * Create a motor from RASP file data.
 	 * @throws IOException  if the data is illegal for a thrust curve
 	 */
-	private static ThrustCurveMotor.Builder createRASPMotor(String manufacturer, String designation,
+	private static Motor createRASPMotor(String manufacturer, String designation,
 			String comment, double length, double diameter, double[] delays,
-			double propW, double totalW, List<Double> time, List<Double> thrust, boolean removeDelayFromDesignation)
+			double propW, double totalW, List<Double> time, List<Double> thrust)
 			throws IOException {
 		
 		// Add zero time/thrust if necessary
@@ -201,10 +188,8 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 			thrustArray[i] = thrust.get(i);
 			cgArray[i] = new Coordinate(length / 2, 0, 0, mass.get(i));
 		}
-
-		if (removeDelayFromDesignation) {
-			designation = removeDelay(designation);
-		}
+		
+		designation = removeDelay(designation);
 		
 		// Create the motor digest from data available in RASP files
 		MotorDigest motorDigest = new MotorDigest();
@@ -216,19 +201,8 @@ public class RASPMotorLoader extends AbstractMotorLoader {
 		try {
 			
 			Manufacturer m = Manufacturer.getManufacturer(manufacturer);
-			ThrustCurveMotor.Builder builder = new ThrustCurveMotor.Builder();
-			builder.setManufacturer(m)
-					.setDesignation(designation)
-					.setDescription(comment)
-					.setMotorType(m.getMotorType())
-					.setStandardDelays(delays)
-					.setDiameter(diameter)
-					.setLength(length)
-					.setTimePoints(timeArray)
-					.setThrustPoints(thrustArray)
-					.setCGPoints(cgArray)
-					.setDigest(digest);
-			return builder;
+			return new ThrustCurveMotor(m, designation, comment, m.getMotorType(),
+					delays, diameter, length, timeArray, thrustArray, cgArray, digest);
 			
 		} catch (IllegalArgumentException e) {
 			

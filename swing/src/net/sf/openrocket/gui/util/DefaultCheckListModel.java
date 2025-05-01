@@ -32,6 +32,7 @@
 package net.sf.openrocket.gui.util;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -48,7 +49,7 @@ import javax.swing.AbstractListModel;
  *
  * @param <T> list element type
  */
-public class DefaultCheckListModel<T> extends AbstractListModel<T> {
+public class DefaultCheckListModel<T> extends AbstractListModel {
 	
 	private static final long serialVersionUID = 1L;
 	
@@ -64,7 +65,10 @@ public class DefaultCheckListModel<T> extends AbstractListModel<T> {
 			checks.clear();
 		}
 	}
-
+	
+	public DefaultCheckListModel(T... data) {
+		this(Arrays.asList(data));
+	}
 	
 	/* (non-Javadoc)
 	 * @see org.oxbow.swingbits.list.ICheckListModel#getSize()
@@ -80,7 +84,7 @@ public class DefaultCheckListModel<T> extends AbstractListModel<T> {
 	
 	
 	@Override
-	public T getElementAt(int index) {
+	public Object getElementAt(int index) {
 		return data().get(index);
 	}
 	

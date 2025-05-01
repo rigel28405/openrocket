@@ -1,32 +1,15 @@
 package net.sf.openrocket.rocketcomponent;
 
-import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.EventObject;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
-
-import net.sf.openrocket.aerodynamics.AerodynamicCalculator;
-import net.sf.openrocket.aerodynamics.AerodynamicForces;
-import net.sf.openrocket.aerodynamics.BarrowmanCalculator;
-import net.sf.openrocket.aerodynamics.FlightConditions;
-import net.sf.openrocket.logging.WarningSet;
-import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.startup.Preferences;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.appearance.Appearance;
 import net.sf.openrocket.appearance.Decal;
-import net.sf.openrocket.motor.Motor;
-import net.sf.openrocket.motor.MotorConfiguration;
 import net.sf.openrocket.preset.ComponentPreset;
-import net.sf.openrocket.rocketcomponent.position.AxialMethod;
-import net.sf.openrocket.rocketcomponent.position.RadiusMethod;
+import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.ArrayList;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.ChangeSource;
@@ -37,22 +20,55 @@ import net.sf.openrocket.util.Invalidator;
 import net.sf.openrocket.util.LineStyle;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.SafetyMutex;
+import net.sf.openrocket.util.SimpleStack;
 import net.sf.openrocket.util.StateChangeListener;
 import net.sf.openrocket.util.UniqueID;
 
-/**
- * 	Master class that defines components of rockets
- *	almost all hardware from the rocket extends from this abstract class
- *	
- */
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
 public abstract class RocketComponent implements ChangeSource, Cloneable, Iterable<RocketComponent> {
-	@SuppressWarnings("unused")
 	private static final Logger log = LoggerFactory.getLogger(RocketComponent.class);
 	
 	// Because of changes to Java 1.7.0-45's mechanism to construct DataFlavor objects (used in Drag and Drop)
 	// We cannot access static members of the Application object in this class.  Instead of holding
 	// on to the Translator object, we'll just use when we need it.
 	//private static final Translator trans = Application.getTranslator();
+	
+	
+	/*
+	 * Text is suitable to the form
+	 *    Position relative to:  <title>
+	 */
+	public enum Position {
+		/** Position relative to the top of the parent component. */
+		//// Top of the parent component
+		TOP(Application.getTranslator().get("RocketComponent.Position.TOP")),
+		/** Position relative to the middle of the parent component. */
+		//// Middle of the parent component
+		MIDDLE(Application.getTranslator().get("RocketComponent.Position.MIDDLE")),
+		/** Position relative to the bottom of the parent component. */
+		//// Bottom of the parent component
+		BOTTOM(Application.getTranslator().get("RocketComponent.Position.BOTTOM")),
+		/** Position after the parent component (for body components). */
+		//// After the parent component
+		AFTER(Application.getTranslator().get("RocketComponent.Position.AFTER")),
+		/** Specify an absolute X-coordinate position. */
+		//// Tip of the nose cone
+		ABSOLUTE(Application.getTranslator().get("RocketComponent.Position.ABSOLUTE"));
+		
+		private String title;
+		
+		Position(String title) {
+			this.title = title;
+		}
+		
+		@Override
+		public String toString() {
+			return title;
+		}
+	}
 	
 	/**
 	 * A safety mutex that can be used to prevent concurrent access to this component.
@@ -63,12 +79,12 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	/**
 	 * Parent component of the current component, or null if none exists.
 	 */
-	protected RocketComponent parent = null;
+	private RocketComponent parent = null;
 	
 	/**
 	 * List of child components of this component.
 	 */
-	protected ArrayList<RocketComponent> children = new ArrayList<RocketComponent>();
+	private ArrayList<RocketComponent> children = new ArrayList<RocketComponent>();
 	
 	
 	////////  Parameters common to all components:
@@ -82,51 +98,33 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	protected double length = 0;
 	
 	/**
-	 * How this component is axially positioned, possibly in relative to the parent component.
+	 * Positioning of this component relative to the parent component.
 	 */
-	protected AxialMethod axialMethod = AxialMethod.AFTER;
+	protected Position relativePosition;
 	
 	/**
 	 * Offset of the position of this component relative to the normal position given by
 	 * relativePosition.  By default zero, i.e. no position change.
 	 */
-	protected double axialOffset = 0;
+	protected double position = 0;
 	
-	/**
-	 * Position of this component relative to it's parent.  
-	 * In case (null == parent ): i.e. the Rocket/root component, the position is constrained to 0,0,0, and is the reference origin for the entire rocket.
-	 * Defaults to (0,0,0)
-	 */
-	protected Coordinate position = new Coordinate();
-
+	
 	// Color of the component, null means to use the default color
 	private Color color = null;
 	private LineStyle lineStyle = null;
 	
 	
-	// Override mass
-    protected double overrideMass = 0;
-	protected boolean massOverridden = false;
-	private boolean overrideSubcomponentsMass = false;
-	private RocketComponent massOverriddenBy = null;	// The (super-)parent component that overrides the mass of this component
-
-	// Override CG
+	// Override mass/CG
+	private double overrideMass = 0;
+	private boolean massOverriden = false;
 	private double overrideCGX = 0;
-	private boolean cgOverridden = false;
-	private boolean overrideSubcomponentsCG = false;
-	private RocketComponent CGOverriddenBy = null;	// The (super-)parent component that overrides the CG of this component
-
-	// Override CD
-	private double overrideCD = 0;
-	private boolean cdOverridden = false;
-	private boolean overrideSubcomponentsCD = false;
-	private RocketComponent CDOverriddenBy = null;	// The (super-)parent component that overrides the CD of this component
-
-	private boolean cdOverriddenByAncestor = false;
+	private boolean cgOverriden = false;
+	
+	private boolean overrideSubcomponents = false;
 	
 	
 	// User-given name of the component
-    protected String name = null;
+	private String name = null;
 	
 	// User-specified comment
 	private String comment = "";
@@ -139,31 +137,14 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	
 	// The realistic appearance of this component
 	private Appearance appearance = null;
-
-	// If true, component change events will not be fired
-	private boolean bypassComponentChangeEvent = false;
 	
 	
 	/**
 	 * Used to invalidate the component after calling {@link #copyFrom(RocketComponent)}.
 	 */
-	private final Invalidator invalidator = new Invalidator(this);
-
-	/**
-	 * List of components that will set their properties to the same as the current component
-	 */
-	protected List<RocketComponent> configListeners = new LinkedList<>();
-
-
-	/**
-	 * This is for determining the order in which the component should be drawn in the 2D views, both
-	 * in the side view and in the back view.
-	 * Lower values will be placed more in the back, higher values more in the front.
-	 * A high enough init value is picked to not mess with pre-defined values.
-	 */
-	protected int displayOrder_side = 100;
-	protected int displayOrder_back = 100;
-
+	private Invalidator invalidator = new Invalidator(this);
+	
+	
 	////  NOTE !!!  All fields must be copied in the method copyFrom()!  ////
 	
 	
@@ -172,16 +153,16 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * Default constructor.  Sets the name of the component to the component's static name
 	 * and the relative position of the component.
 	 */
-	public RocketComponent( AxialMethod newAxialMethod ) {
+	public RocketComponent(Position relativePosition) {
 		// These must not fire any events, due to Rocket undo system initialization
 		this.name = getComponentName();
-		this.axialMethod = newAxialMethod;
+		this.relativePosition = relativePosition;
 		newID();
 	}
 	
 	////////////  Methods that must be implemented  ////////////
 	
-	 
+	
 	/**
 	 * Static component name.  The name may not vary of the parameters, it must be static.
 	 */
@@ -260,8 +241,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	/**
 	 * Return a collection of bounding coordinates.  The coordinates must be such that
 	 * the component is fully enclosed in their convex hull.
-	 * 
-	 * Note: this function gets the bounds only for this component.  Sub-children must be called individually.
 	 *
 	 * @return	a collection of coordinates that bound the component.
 	 */
@@ -282,18 +261,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	
 	
 	////////////  Methods that may be overridden  ////////////
-	/**
-	 * Convenience method.   
-	 *   
-	 * @return indicates if a component is positioned via AFTER
-	 */
-	public boolean isAfter(){ 
-		return (AxialMethod.AFTER == this.axialMethod );
-	}
-
-	public boolean isAxisymmetric(){
-		return true;
-	}
+	
 	
 	/**
 	 * Shift the coordinates in the array corresponding to radial movement.  A component
@@ -307,10 +275,10 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @return    an array of shifted coordinates.  The method may modify the contents
 	 * 			  of the passed array and return the array itself.
 	 */
-//	protected Coordinate[] shiftCoordinates(Coordinate[] c) {
-//		checkState();
-//		return c;
-//	}
+	public Coordinate[] shiftCoordinates(Coordinate[] c) {
+		checkState();
+		return c;
+	}
 	
 	
 	/**
@@ -324,8 +292,8 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	protected void componentChanged(ComponentChangeEvent e) {
 		// No-op
 		checkState();
-		update();
 	}
+	
 	
 	
 	
@@ -360,10 +328,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		}
 	}
 	
-	/**
-	 * appends the debug string of the component into the passed builder
-	 * @param sb	String builder to be appended
-	 */
 	private void toDebugString(StringBuilder sb) {
 		sb.append(this.getClass().getSimpleName()).append('@').append(System.identityHashCode(this));
 		sb.append("[\"").append(this.getName()).append('"');
@@ -416,8 +380,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			checkState();
 			RocketComponent clone;
 			try {
-				clone = this.clone();
-				clone.id = this.id;
+				clone = (RocketComponent) this.clone();
 			} catch (CloneNotSupportedException e) {
 				throw new BugException("CloneNotSupportedException encountered, report a bug!", e);
 			}
@@ -432,7 +395,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			// Add copied children to the structure without firing events.
 			for (RocketComponent child : this.children) {
 				RocketComponent childCopy = child.copyWithOriginalID();
-				// Don't use addChild(...) method since it fires events
+				// Don't use add method since it fires events
 				clone.children.add(childCopy);
 				childCopy.parent = clone;
 			}
@@ -445,35 +408,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			mutex.unlock("copyWithOriginalID");
 		}
 	}
-
-	@Override
-	public RocketComponent clone() throws CloneNotSupportedException {
-		RocketComponent clone = (RocketComponent) super.clone();
-		// Make sure the InsideColorComponentHandler is cloned
-		if (clone instanceof InsideColorComponent && this instanceof InsideColorComponent) {
-			InsideColorComponentHandler icch = new InsideColorComponentHandler(clone);
-			icch.copyFrom(((InsideColorComponent) this).getInsideColorComponentHandler());
-			((InsideColorComponent) clone).setInsideColorComponentHandler(icch);
-		}
-		// Make sure the config listeners aren't cloned
-		clone.configListeners = new LinkedList<>();
-		clone.bypassComponentChangeEvent = false;
-		return clone;
-	}
 	
-	/**
-	 * Return true if any of this component's children are a RecoveryDevice
-	 */
-	public boolean hasRecoveryDevice() {
-	  Iterator<RocketComponent> iterator = this.iterator();
-	  while (iterator.hasNext()) {
-	    RocketComponent child = iterator.next();
-	    if (child instanceof RecoveryDevice) {
-	      return true;
-	    }
-	  }
-	  return false;
-	}
 	
 	//////////////  Methods that may not be overridden  ////////////
 	
@@ -512,7 +447,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 				});
 			}
 		}
-
+		// CHECK - should this be a TEXTURE_CHANGE and not NONFUNCTIONAL_CHANGE?
 		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
@@ -529,10 +464,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * Set the color of the object to use in 2D figures.
 	 */
 	public final void setColor(Color c) {
-		for (RocketComponent listener : configListeners) {
-			listener.setColor(c);
-		}
-
 		if ((color == null && c == null) ||
 				(color != null && color.equals(c)))
 			return;
@@ -549,10 +480,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	}
 	
 	public final void setLineStyle(LineStyle style) {
-		for (RocketComponent listener : configListeners) {
-			listener.setLineStyle(style);
-		}
-
 		if (this.lineStyle == style)
 			return;
 		checkState();
@@ -571,9 +498,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final double getOverrideMass() {
 		mutex.verify();
-		if (!isMassOverridden()) {
-			overrideMass = getComponentMass();
-		}
 		return overrideMass;
 	}
 	
@@ -584,15 +508,11 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param m  the override mass
 	 */
 	public final void setOverrideMass(double m) {
-		for (RocketComponent listener : configListeners) {
-			listener.setOverrideMass(m);
-		}
-
 		if (MathUtil.equals(m, overrideMass))
 			return;
 		checkState();
 		overrideMass = Math.max(m, 0);
-		if (massOverridden)
+		if (massOverriden)
 			fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
@@ -604,7 +524,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final boolean isMassOverridden() {
 		mutex.verify();
-		return massOverridden;
+		return massOverriden;
 	}
 	
 	/**
@@ -613,24 +533,11 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param o  whether the mass is overridden
 	 */
 	public final void setMassOverridden(boolean o) {
-		for (RocketComponent listener : configListeners) {
-			listener.setBypassChangeEvent(false);
-			listener.setMassOverridden(o);
-			listener.setBypassChangeEvent(true);
-		}
-
-		if (massOverridden == o) {
+		if (massOverriden == o) {
 			return;
 		}
 		checkState();
-		massOverridden = o;
-
-		// If mass not overridden, set override mass to the component mass
-		if (!massOverridden) {
-			overrideMass = getComponentMass();
-		}
-
-		updateChildrenMassOverriddenBy();
+		massOverriden = o;
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
 	
@@ -645,9 +552,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final Coordinate getOverrideCG() {
 		mutex.verify();
-		if (!isCGOverridden()) {
-			overrideCGX = getComponentCG().x;
-		}
 		return getComponentCG().setX(overrideCGX);
 	}
 	
@@ -658,9 +562,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final double getOverrideCGX() {
 		mutex.verify();
-		if (!isCGOverridden()) {
-			overrideCGX = getComponentCG().x;
-		}
 		return overrideCGX;
 	}
 	
@@ -670,10 +571,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param x  the x-coordinate of the override CG to set.
 	 */
 	public final void setOverrideCGX(double x) {
-		for (RocketComponent listener : configListeners) {
-			listener.setOverrideCGX(x);
-		}
-
 		if (MathUtil.equals(overrideCGX, x))
 			return;
 		checkState();
@@ -691,7 +588,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final boolean isCGOverridden() {
 		mutex.verify();
-		return cgOverridden;
+		return cgOverriden;
 	}
 	
 	/**
@@ -700,314 +597,47 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param o  whether the CG is overridden
 	 */
 	public final void setCGOverridden(boolean o) {
-		for (RocketComponent listener : configListeners) {
-			listener.setBypassChangeEvent(false);
-			listener.setCGOverridden(o);
-			listener.setBypassChangeEvent(true);
-		}
-
-		if (cgOverridden == o) {
+		if (cgOverriden == o) {
 			return;
 		}
 		checkState();
-		cgOverridden = o;
-
-		// If CG not overridden, set override CG to the component CG
-		if (!cgOverridden) {
-			overrideCGX = getComponentCG().x;
-		}
-
-		updateChildrenCGOverriddenBy();
+		cgOverriden = o;
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
-
-	/**
-	 * Calculates and returns the CD of the component.
-	 * TODO: LOW: should this value be cached instead of recalculated every time?
-	 * @param AOA angle of attack to use in the calculations (in radians)
-	 * @param theta wind direction to use in the calculations (in radians)
-	 * @param mach mach number to use in the calculations
-	 * @param rollRate roll rate to use in the calculations (in radians per second)
-	 * @return the CD of the component
-	 */
-	public double getComponentCD(double AOA, double theta, double mach, double rollRate) {
-		Rocket rocket;
-		try {
-			rocket = getRocket();
-		} catch (IllegalStateException e) {
-			// This can happen due to a race condition when a loadFrom() action is performed of the rocket (after
-			// an undo operation) but the rocket is not yet fully loaded (the sustainer does not yet have the rocket as
-			// its parent => getRocket() will not return the rocket, but the sustainer). In that case, just return 0 and
-			// hope that a future call of this method will succeed.
-			return 0;
-		}
-		final FlightConfiguration configuration = rocket.getSelectedConfiguration();
-		FlightConditions conditions = new FlightConditions(configuration);
-		WarningSet warnings = new WarningSet();
-		AerodynamicCalculator aerodynamicCalculator = new BarrowmanCalculator();
-
-		conditions.setAOA(AOA);
-		conditions.setTheta(theta);
-		conditions.setMach(mach);
-		conditions.setRollRate(rollRate);
-
-		Map<RocketComponent, AerodynamicForces> aeroData = aerodynamicCalculator.getForceAnalysis(configuration, conditions, warnings);
-		AerodynamicForces forces = aeroData.get(this);
-		if (forces != null) {
-			return forces.getCD();
-		}
-		return 0;
-	}
-
-	/** Return the current override CD. The CD is not necessarily overridden.
-	 * 
-	 * @return the override CD.
-	 */
-	public final double getOverrideCD() {
-		mutex.verify();
-		if (!isCDOverridden()) {
-			Preferences preferences = Application.getPreferences();
-			overrideCD = getComponentCD(0, 0, preferences.getDefaultMach(), 0);
-		}
-		return overrideCD;
-	}
-
-	/**
-	 * Set the current override CD to x.
-	 *
-	 * @param x the override CD to set.
-	 */
-	public final void setOverrideCD(double x) {
-		for (RocketComponent listener : configListeners) {
-			listener.setOverrideCD(x);
-		}
-
-		if (MathUtil.equals(overrideCD, x))
-			return;
-		checkState();
-		this.overrideCD = x;
-			
-		if (isCDOverridden()) {
-			if (isSubcomponentsOverriddenCD()) {
-				overrideSubcomponentsCD(true);
-			}
-			fireComponentChangeEvent(ComponentChangeEvent.AERODYNAMIC_CHANGE);
-		} else {
-			fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
-		}
-	}
-		
-
-
-	/**
-	 * Return whether the CD is currently overridden.
-	 * 
-	 * @return whether the CD is overridden
-	 */
-	public final boolean isCDOverridden() {
-		mutex.verify();
-		return cdOverridden;
-	}
-
-
-	/**
-	 * Set whether the CD is currently directly overridden.
-	 *
-	 * @param o whether the CD is currently directly overridden
-	 */
-	public final void setCDOverridden(boolean o) {
-		for (RocketComponent listener : configListeners) {
-			listener.setCDOverridden(o);
-		}
-
-		if (cdOverridden == o) {
-			return;
-		}
-		checkState();
-		cdOverridden = o;
-		updateChildrenCDOverriddenBy();
-
-		// if overrideSubcompoents is set, we need to descend the component
-		// tree.  If we are overriding our own CD, we need to override all
-		// our descendants.  If we are not overriding our own CD, we are
-		// also not overriding our descendants
-		if (isSubcomponentsOverriddenCD()) {
-			overrideSubcomponentsCD(o);
-		}
-
-		if (!cdOverridden) {
-			Preferences preferences = Application.getPreferences();
-			overrideCD = getComponentCD(0, 0, preferences.getDefaultMach(), 0);
-		}
-		
-		fireComponentChangeEvent(ComponentChangeEvent.AERODYNAMIC_CHANGE);
-	}
-
-	/**
-	 * Return whether the CD is currently overridden by an ancestor.
-	 * 
-	 * @return whether the CD is overridden by an ancestor
-	 */
-	public final boolean isCDOverriddenByAncestor() {
-		mutex.verify();
-		return cdOverriddenByAncestor;
-	}
+	
 	
 	
 	/**
-	 * Return whether the mass override overrides all subcomponent values
+	 * Return whether the mass and/or CG override overrides all subcomponent values
 	 * as well.  The default implementation is a normal getter/setter implementation,
 	 * however, subclasses are allowed to override this behavior if some subclass
 	 * always or never overrides subcomponents.  In this case the subclass should
 	 * also override {@link #isOverrideSubcomponentsEnabled()} to return
 	 * <code>false</code>.
 	 *
-	 * @return	whether the current mass, CG, and/or CD override overrides subcomponents as well.
+	 * @return	whether the current mass and/or CG override overrides subcomponents as well.
 	 */
-	public boolean isSubcomponentsOverriddenMass() {
+	public boolean getOverrideSubcomponents() {
 		mutex.verify();
-		return overrideSubcomponentsMass;
-	}
-
-	// For compatibility with files created with 15.03
-	public void setSubcomponentsOverridden(boolean override) {
-		setSubcomponentsOverriddenMass(override);
-		setSubcomponentsOverriddenCG(override);
-		setSubcomponentsOverriddenCD(override);
+		return overrideSubcomponents;
 	}
 	
 	
 	/**
-	 * Set whether the mass override overrides all subcomponent values
-	 * as well.  See {@link #isSubcomponentsOverriddenMass()} for details.
+	 * Set whether the mass and/or CG override overrides all subcomponent values
+	 * as well.  See {@link #getOverrideSubcomponents()} for details.
 	 *
-	 * @param override	whether the mass override overrides all subcomponent.
+	 * @param override	whether the mass and/or CG override overrides all subcomponent.
 	 */
-	public void setSubcomponentsOverriddenMass(boolean override) {
-		for (RocketComponent listener : configListeners) {
-			listener.setSubcomponentsOverriddenMass(override);
-		}
-
-		if (overrideSubcomponentsMass == override) {
+	public void setOverrideSubcomponents(boolean override) {
+		if (overrideSubcomponents == override) {
 			return;
 		}
 		checkState();
-		overrideSubcomponentsMass = override;
-
-		updateChildrenMassOverriddenBy();
-
-		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE | ComponentChangeEvent.TREE_CHANGE_CHILDREN);
+		overrideSubcomponents = override;
+		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
-
-	/**
-	 * Return whether the CG override overrides all subcomponent values
-	 * as well.  The default implementation is a normal getter/setter implementation,
-	 * however, subclasses are allowed to override this behavior if some subclass
-	 * always or never overrides subcomponents.  In this case the subclass should
-	 * also override {@link #isOverrideSubcomponentsEnabled()} to return
-	 * <code>false</code>.
-	 *
-	 * @return	whether the current CG override overrides subcomponents as well.
-	 */
-	public boolean isSubcomponentsOverriddenCG() {
-		mutex.verify();
-		return overrideSubcomponentsCG;
-	}
-
-
-	/**
-	 * Set whether the CG override overrides all subcomponent values
-	 * as well.  See {@link #isSubcomponentsOverriddenCG()} for details.
-	 *
-	 * @param override	whether the CG override overrides all subcomponent.
-	 */
-	public void setSubcomponentsOverriddenCG(boolean override) {
-		for (RocketComponent listener : configListeners) {
-			listener.setSubcomponentsOverriddenCG(override);
-		}
-
-		if (overrideSubcomponentsCG == override) {
-			return;
-		}
-		checkState();
-		overrideSubcomponentsCG = override;
-
-		updateChildrenCGOverriddenBy();
-
-		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE | ComponentChangeEvent.TREE_CHANGE_CHILDREN);
-	}
-
-	/**
-	 * Return whether the CD override overrides all subcomponent values
-	 * as well.  The default implementation is a normal getter/setter implementation,
-	 * however, subclasses are allowed to override this behavior if some subclass
-	 * always or never overrides subcomponents.  In this case the subclass should
-	 * also override {@link #isOverrideSubcomponentsEnabled()} to return
-	 * <code>false</code>.
-	 *
-	 * @return	whether the current CD override overrides subcomponents as well.
-	 */
-	public boolean isSubcomponentsOverriddenCD() {
-		mutex.verify();
-		return overrideSubcomponentsCD;
-	}
-
-
-	/**
-	 * Set whether the CD override overrides all subcomponent values
-	 * as well.  See {@link #isSubcomponentsOverriddenCD()} for details.
-	 *
-	 * @param override	whether the CD override overrides all subcomponent.
-	 */
-	public void setSubcomponentsOverriddenCD(boolean override) {
-		for (RocketComponent listener : configListeners) {
-			listener.setSubcomponentsOverriddenCD(override);
-		}
-
-		if (overrideSubcomponentsCD == override) {
-			return;
-		}
-		checkState();
-		overrideSubcomponentsCD = override;
-
-		updateChildrenCDOverriddenBy();
-
-		overrideSubcomponentsCD(override);
-
-		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE | ComponentChangeEvent.TREE_CHANGE_CHILDREN);
-	}
-
-	/**
-	 * Recursively descend component tree and set descendant CD override values
-	 *
-	 * Logic:  
-	 *    If we are setting the override true, descend the component tree marking
-	 *    every component as overridden by ancestor
-	 *
-	 *    If we are setting the override false, descend the component tree marking every
-	 *    component as not overridden by ancestor.
-	 *        If in the course of descending the tree we encounter a descendant whose direct
-	 *        CD override and overrideSubcomponentsCD flags are both true, descend from there
-	 *        setting the ancestoroverride from that component
-	 *
-	 * @param override whether setting or clearing overrides
-	 *
-	 */
-	void overrideSubcomponentsCD(boolean override) {
-		for (RocketComponent c: this.children) {
-			if (c.isCDOverriddenByAncestor() != override) {
-
-				c.cdOverriddenByAncestor = override;
-
-				if (!override && c.isCDOverridden() && c.isSubcomponentsOverriddenCD()) {
-					c.overrideSubcomponentsCD(true);
-				} else {
-					c.overrideSubcomponentsCD(override);
-				}
-			}
-		}
-	}
-						
+	
 	/**
 	 * Return whether the option to override all subcomponents is enabled or not.
 	 * The default implementation returns <code>false</code> if neither mass nor
@@ -1020,71 +650,11 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public boolean isOverrideSubcomponentsEnabled() {
 		mutex.verify();
-		return isCGOverridden() || isMassOverridden() || isCDOverridden();
+		return isCGOverridden() || isMassOverridden();
 	}
-
-	/**
-	 * Returns which (super-)parent overrides the mass of this component, or null if no parent does so.
-	 */
-	public RocketComponent getMassOverriddenBy() {
-		return massOverriddenBy;
-	}
-
-	/**
-	 * Returns which (super-)parent overrides the CG of this component, or null if no parent does so.
-	 */
-	public RocketComponent getCGOverriddenBy() {
-		return CGOverriddenBy;
-	}
-
-	/**
-	 * Returns which (super-)parent overrides the CD of this component, or null if no parent does so.
-	 */
-	public RocketComponent getCDOverriddenBy() {
-		return CDOverriddenBy;
-	}
-
-	private void updateChildrenMassOverriddenBy() {
-		RocketComponent overriddenBy = massOverridden && overrideSubcomponentsMass ? this : null;
-		for (RocketComponent c : getAllChildren()) {
-			c.massOverriddenBy = overriddenBy;
-			// We need to update overriddenBy in case one of the children components has its subcomponents overridden
-			if (overriddenBy == null) {
-				overriddenBy = c.massOverridden && c.overrideSubcomponentsMass ? c : null;
-			}
-		}
-	}
-
-	private void updateChildrenCGOverriddenBy() {
-		RocketComponent overriddenBy = cgOverridden && overrideSubcomponentsCG ? this : null;
-		for (RocketComponent c : getAllChildren()) {
-			c.CGOverriddenBy = overriddenBy;
-			// We need to update overriddenBy in case one of the children components has its subcomponents overridden
-			if (overriddenBy == null) {
-				overriddenBy = c.cgOverridden && c.overrideSubcomponentsCG ? c : null;
-			}
-		}
-	}
-
-	private void updateChildrenCDOverriddenBy() {
-		RocketComponent overriddenBy = cdOverridden && overrideSubcomponentsCD ? this : null;
-		for (RocketComponent c : getAllChildren()) {
-			c.CDOverriddenBy = overriddenBy;
-			// We need to update overriddenBy in case one of the children components has its subcomponents overridden
-			if (overriddenBy == null) {
-				overriddenBy = c.cdOverridden && c.overrideSubcomponentsCD ? c : null;
-			}
-		}
-	}
-
-	/**
-	 * placeholder. This allows code to generally test if this component represents multiple instances with just one function call. 
-	 * 
-	 * @return number of instances
-	 */
-	public int getInstanceCount() {
-		return 1;
-	}
+	
+	
+	
 	
 	/**
 	 * Get the user-defined name of the component.
@@ -1099,12 +669,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * the default name, currently the component name.
 	 */
 	public final void setName(String name) {
-		for (RocketComponent listener : configListeners) {
-			listener.setBypassChangeEvent(false);
-			listener.setName(name);
-			listener.setBypassChangeEvent(true);
-		}
-
 		if (this.name.equals(name)) {
 			return;
 		}
@@ -1113,7 +677,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			this.name = getComponentName();
 		else
 			this.name = name;
-
 		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
@@ -1135,10 +698,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param comment  the comment of the component.
 	 */
 	public final void setComment(String comment) {
-		for (RocketComponent listener : configListeners) {
-			listener.setComment(comment);
-		}
-
 		if (this.comment.equals(comment))
 			return;
 		checkState();
@@ -1146,7 +705,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			this.comment = "";
 		else
 			this.comment = comment;
-
 		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
@@ -1178,10 +736,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param preset	the preset component to load, or <code>null</code> to clear the preset.
 	 */
 	public final void loadPreset(ComponentPreset preset) {
-		for (RocketComponent listener : configListeners) {
-			listener.loadPreset(preset);
-		}
-
 		if (presetComponent == preset) {
 			return;
 		}
@@ -1215,14 +769,13 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			loadFromPreset(preset);
 			
 			this.presetComponent = preset;
+			fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 			
 		} finally {
 			if (rocket != null) {
 				rocket.thaw();
 			}
 		}
-
-		fireComponentChangeEvent(ComponentChangeEvent.NONFUNCTIONAL_CHANGE);
 	}
 	
 	
@@ -1250,10 +803,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * otherwise.
 	 */
 	public final void clearPreset() {
-		for (RocketComponent listener : configListeners) {
-			listener.clearPreset();
-		}
-
 		if (presetComponent == null)
 			return;
 		presetComponent = null;
@@ -1271,10 +820,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		return id;
 	}
 	
-	public final String getDebugName() {
-		return (name + "/" + id.substring(0,8));
-	}
-	
 	/**
 	 * Generate a new ID for this component.
 	 */
@@ -1282,16 +827,8 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		mutex.verify();
 		this.id = UniqueID.uuid();
 	}
-
-	/**
-	 * Set the ID for this component.
-	 * Generally not recommended to directly set the ID, this is done automatically. Only use this in case you have to.
-	 * @param newID new ID
-	 */
-	public void setID(String newID) {
-		mutex.verify();
-		this.id = newID;
-	}
+	
+	
 	
 	
 	/**
@@ -1302,18 +839,19 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * If the length of a component is settable, the class must define the setter method
 	 * itself.
 	 */
-	public double getLength() {
+	public final double getLength() {
 		mutex.verify();
 		return length;
 	}
-
+	
 	/**
 	 * Get the positioning of the component relative to its parent component.
-	 *
-	 * @return This will return one of the enums of {@link AxialMethod}
+	 * This is one of the enums of {@link Position}.  A setter method is not provided,
+	 * but can be provided by a subclass.
 	 */
-	public final AxialMethod getAxialMethod() {
-		return axialMethod;
+	public final Position getRelativePosition() {
+		mutex.verify();
+		return relativePosition;
 	}
 	
 	
@@ -1326,351 +864,121 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * it should override this with a public method that simply calls this
 	 * supermethod AND fire a suitable ComponentChangeEvent.
 	 *
-	 * @param newAxialMethod	the relative positioning.
+	 * @param position	the relative positioning.
 	 */
-	public void setAxialMethod(final AxialMethod newAxialMethod) {
-		for (RocketComponent listener : configListeners) {
-			listener.setAxialMethod(newAxialMethod);
-		}
-
-		if (newAxialMethod == this.axialMethod) {
-			// no change.
+	protected void setRelativePosition(RocketComponent.Position position) {
+		if (this.relativePosition == position)
 			return;
+		checkState();
+		
+		// Update position so as not to move the component
+		if (this.parent != null) {
+			double thisPos = this.toRelative(Coordinate.NUL, this.parent)[0].x;
+			
+			switch (position) {
+			case ABSOLUTE:
+				this.position = this.toAbsolute(Coordinate.NUL)[0].x;
+				break;
+			
+			case TOP:
+				this.position = thisPos;
+				break;
+			
+			case MIDDLE:
+				this.position = thisPos - (this.parent.length - this.length) / 2;
+				break;
+			
+			case BOTTOM:
+				this.position = thisPos - (this.parent.length - this.length);
+				break;
+			
+			default:
+				throw new BugException("Unknown position type: " + position);
+			}
 		}
-
-		// this variable changes the internal representation, but not the physical position
-		// the relativePosition (method) is just the lens through which external code may view this component's position. 
-		this.axialMethod = newAxialMethod;
-		this.axialOffset = getAxialOffset(newAxialMethod);
-
-		// // this doesn't cause any physical change-- just how it's described.
-		// fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+		
+		this.relativePosition = position;
+		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
-
+	
+	
 	/**
 	 * Determine position relative to given position argument.  Note: This is a side-effect free method.  No state
 	 * is modified.
 	 *
-	 * @param asMethod the relative positioning method to be used for the computation
+	 * @param thePosition the relative position to be used as the basis for the computation
+	 * @param relativeTo  the position is computed relative the the given component
 	 *
 	 * @return double position of the component relative to the parent, with respect to <code>position</code>
 	 */
-	public double getAxialOffset(AxialMethod asMethod) {
-		double parentLength = 0;
-		if (this.parent != null && !(this.parent instanceof Rocket)) {
-		    parentLength = this.parent.getLength();
+	public double asPositionValue(Position thePosition, RocketComponent relativeTo) {
+		double result = this.position;
+		if (relativeTo != null) {
+			double thisPos = this.toRelative(Coordinate.NUL, relativeTo)[0].x;
+			
+			switch (thePosition) {
+			case ABSOLUTE:
+				result = this.toAbsolute(Coordinate.NUL)[0].x;
+				break;
+			case TOP:
+				result = thisPos;
+				break;
+			case MIDDLE:
+				result = thisPos - (relativeTo.length - this.length) / 2;
+				break;
+			case BOTTOM:
+				result = thisPos - (relativeTo.length - this.length);
+				break;
+			default:
+				throw new BugException("Unknown position type: " + thePosition);
+			}
 		}
-
-		if(AxialMethod.ABSOLUTE == asMethod){
-			return this.getComponentLocations()[0].x;
-		}else {
-			return asMethod.getAsOffset(this.position.x, getLength(), parentLength);
-		}
+		return result;
 	}
 	
-	public double getAxialOffset() {
-		return this.axialOffset;
-	}
-
-	public double getAxialFront(){
-	    return this.position.x;
-    }
-
-	public double getRadiusOffset() {
+	/**
+	 * Get the position value of the component.  The exact meaning of the value is
+	 * dependent on the current relative positioning.
+	 *
+	 * @return  the positional value.
+	 */
+	public final double getPositionValue() {
 		mutex.verify();
-		return 0;
-	}
-
-	public double getRadiusOffset(RadiusMethod method) {
-		double radius = getRadiusMethod().getRadius(parent, this, getRadiusOffset());
-		return method.getAsOffset(parent, this, radius);
-	}
-
-	public RadiusMethod getRadiusMethod() {
-		return RadiusMethod.COAXIAL;
+		return position;
 	}
 	
-	public double getAngleOffset() {
-		mutex.verify();
-		return 0;
-	}
-	
-	public boolean isAncestor(final RocketComponent testComp) {
-		RocketComponent curComp = testComp.parent;
-		while (curComp != null) {
-			if (this == curComp) {
-				return true;
-			}
-			curComp = curComp.parent;
-		}
-		return false;
-	}
-	
-	protected void setAfter() {
-		checkState();
-		
-		if (null == this.parent) {
-			// Probably initialization order issue.  Ignore for now.
-			return;
-		}
-		
-		this.axialMethod = AxialMethod.AFTER;
-		this.axialOffset = 0.;
-		
-		// if first component in the stage. => position from the top of the parent
-		final int thisIndex = this.parent.getChildPosition( this );
-		if( 0 == thisIndex ) {
-			this.position = this.position.setX(0.);
-		}else if( 0 < thisIndex ) {
-			int idx = thisIndex - 1;
-			RocketComponent referenceComponent = parent.getChild(idx);
-			while (!getRocket().getSelectedConfiguration().isComponentActive(referenceComponent) && idx > 0) {
-				idx--;
-				referenceComponent = parent.getChild(idx);
-			}
-
-			// If previous components are inactive, set this as the new reference point
-			if (!getRocket().getSelectedConfiguration().isComponentActive(referenceComponent)) {
-				this.position = this.position.setX(0.);
-				return;
-			}
-
-			double refLength = referenceComponent.getLength();
-			double refRelX = referenceComponent.getPosition().x;
-
-			this.position = this.position.setX(refRelX + refLength);
-		}
-	}
 	
 	/**
 	 * Set the position value of the component.  The exact meaning of the value
 	 * depends on the current relative positioning.
+	 * <p>
+	 * The default implementation is of protected visibility, since many components
+	 * do not support setting the relative position.  A component that does support
+	 * it should override this with a public method that simply calls this
+	 * supermethod AND fire a suitable ComponentChangeEvent.
 	 *
-	 * @param newOffset  the desired offset of this component, using the components current axial-method
-     */
-    public void setAxialOffset(double newOffset) {
-		this.setAxialOffset(this.axialMethod, newOffset);
-		this.fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
-	}
-
-	protected void setAxialOffset( final AxialMethod requestedMethod, final double requestedOffset) {
-		checkState();
-
-		double newX = Double.NaN;
-
-		if (null == this.parent) {
-			// best-effort approximation.  this should be corrected later on in the initialization process.
-			newX = requestedOffset;
-		} else if (AxialMethod.ABSOLUTE == requestedMethod){
-			// in this case, this is simply the intended result
-			newX = requestedOffset - this.parent.getComponentLocations()[0].x;
-		} else if ( this.isAfter()){
-			this.setAfter();
+	 * @param value		the position value of the component.
+	 */
+	public void setPositionValue(double value) {
+		if (MathUtil.equals(this.position, value))
 			return;
-		} else {
-			newX = requestedMethod.getAsPosition(requestedOffset, getLength(), this.parent.getLength());
-		}
-		
-		// snap to zero if less than the threshold 'EPSILON'
-		final double EPSILON = 0.000001;
-		if (EPSILON > Math.abs(newX)) {
-			newX = 0.0;
-		} else if (Double.isNaN(newX)){
-			throw new BugException("setAxialOffset is broken -- attempted to update as NaN: " + this.toDebugDetail());
-		}
-
-		// store for later:
-		this.axialMethod = requestedMethod;
-		this.axialOffset = requestedOffset;
-		this.position = this.position.setX( newX );
-	}
-	
-	protected void update() {
-		this.setAxialOffset(this.axialMethod, this.axialOffset);
-	}
-
-	private final void updateChildren(){
-		this.update();
-		for( RocketComponent rc : children ){
-			rc.updateChildren();
-		}
-	}
-
-	public Coordinate getPosition() {
-		return this.position;
-	}	
-	
-	/**
-	 * Returns coordinates of this component's instances in relation to this.parent.
-	 * <p>
-	 * For example, the absolute position of any given instance is the parent's position 
-	 * plus the instance position returned by this method   
-	 * <p>
-	 * NOTE: the length of this array returned always equals this.getInstanceCount()
-	 *
-	 * @return    a generated (i.e. new) array of instance locations
-	 */
-	// @Override Me !
-	public Coordinate[] getInstanceLocations(){
 		checkState();
-
-		Coordinate center = this.position;
-		Coordinate[] offsets = getInstanceOffsets();
-
-		Coordinate[] locations= new Coordinate[offsets.length];
-		for (int instanceNumber = 0; instanceNumber < locations.length; instanceNumber++) {
-			locations[instanceNumber] = center.add( offsets[instanceNumber] );
-		}
-
-		return locations;
-	}
-
-	/** 
-	 * Provides locations of all instances of component relative to this component's reference point
-	 *
-	 * <p>
-	 * NOTE: the length of this array returned always equals this.getInstanceCount()
-	 * NOTE: default implementation just returns (0,0,0)
-	 *
-	 * @returns returns an array of coordinates, relative to its parent's position
-	 */
-	public Coordinate[] getInstanceOffsets(){
-		return new Coordinate[]{Coordinate.ZERO};
-	}
-
-	// this is an inefficient way to calculate all of the locations;
-	// it also breaks locality, (i.e. is a rocket-wide calculation )
-	@Deprecated
-	public Coordinate[] getLocations() {
-		return getComponentLocations();
+		this.position = value;
 	}
 	
-	/** 
-	 * Provides locations of all instances of component *accounting for all parent instancing*
-	 * 
-	 * <p>
-	 * NOTE: the length of this array MAY OR MAY NOT EQUAL this.getInstanceCount()
-     *    --> RocketComponent::getInstanceCount() counts how many times this component replicates on its own
-     *    --> vs. the total instance count due to parent assembly instancing, e.g. a 2-instance rail button in a
-	 *        3-instance pod set will return 6 locations, not 2
-     *
-	 * @return Coordinates of all instance locations in the rocket, relative to the rocket's origin
-	 */
-	public Coordinate[] getComponentLocations() {
-		if (this.parent == null) {
-			// == improperly initialized components OR the root Rocket instance 
-			return getInstanceOffsets();
-		} else {
-			Coordinate[] parentPositions = this.parent.getComponentLocations();
-			int parentCount = parentPositions.length;
-			
-			// override <instance>.getInstanceLocations() in each subclass
-			Coordinate[] instanceLocations = this.getInstanceLocations();
-			int instanceCount = instanceLocations.length;
-			
-			// usual case optimization
-			if ((parentCount == 1) && (instanceCount == 1)) {
-				return new Coordinate[]{parentPositions[0].add(instanceLocations[0])};
-			}
-			
-			int thisCount = instanceCount * parentCount;
-			Coordinate[] thesePositions = new Coordinate[thisCount];
-			for (int pi = 0; pi < parentCount; pi++) {
-				for (int ii = 0; ii < instanceCount; ii++) {
-					thesePositions[pi + parentCount*ii] = parentPositions[pi].add(instanceLocations[ii]);
-				}
-			}
-			return thesePositions;
-		}
-	}
 	
-	public double[] getInstanceAngles(){
-		return new double[getInstanceCount()]; 
-	}
-
-	/**
-	 * Provides angles of all instances of component *accounting for all parent instancing*
-	 *
-	 * <p>
-	 * NOTE: the length of this array MAY OR MAY NOT EQUAL this.getInstanceCount()
-	 *    --> RocketComponent::getInstanceCount() counts how many times this component replicates on its own
-	 *    --> vs. the total instance count due to parent assembly instancing, e.g. a 2-instance rail button in a
-	 *        3-instance pod set will return 6 locations, not 2
-	 *
-	 * @return Coordinates of all instance angles in the rocket, relative to the rocket's origin
-	 * 				x-component = rotation around x-axis, y = around y-axis, and z around z-axis
-	 * 	  			!!! OpenRocket rotations follow left-hand rule of rotation !!!
-	 */
-	public Coordinate[] getComponentAngles() {
-		if (this.parent == null) {
-			// == improperly initialized components OR the root Rocket instance
-			return axialRotToCoord(getInstanceAngles());
-		} else {
-			Coordinate[] parentAngles = this.parent.getComponentAngles();
-			int parentCount = parentAngles.length;
-
-			// override <instance>.getInstanceAngles() in each subclass
-			Coordinate[] instanceAngles = axialRotToCoord(this.getInstanceAngles());
-			int instanceCount = instanceAngles.length;
-
-			// usual case optimization
-			if ((parentCount == 1) && (instanceCount == 1)) {
-				return new Coordinate[] {parentAngles[0].add(instanceAngles[0])};
-			}
-
-			int thisCount = instanceCount * parentCount;
-			Coordinate[] theseAngles = new Coordinate[thisCount];
-			for (int pi = 0; pi < parentCount; pi++) {
-				for (int ii = 0; ii < instanceCount; ii++) {
-					theseAngles[pi + parentCount*ii] = parentAngles[pi].add(instanceAngles[ii]);
-				}
-			}
-			return theseAngles;
-		}
-	}
-
-	/**
-	 * Converts an array of axial angles to an array of coordinates.
-	 * x-component = rotation around x-axis, y = around y-axis, and z around z-axis
-	 * 		!!! OpenRocket rotations follow left-hand rule of rotation !!!
-	 * @param angles array of axial angles
-	 * @return array of coordinates
-	 */
-	private Coordinate[] axialRotToCoord(double[] angles) {
-		Coordinate[] coords = new Coordinate[angles.length];
-		for (int i = 0; i < angles.length; i++) {
-			coords[i] = new Coordinate(angles[i], 0, 0);
-		}
-		return coords;
-	}
 	
 	///////////  Coordinate changes  ///////////
 	
 	/**
-	 * Returns coordinate c in absolute/global/rocket coordinates.  Equivalent to toComponent(c,null).
-	 * Input coordinate C is interpreted to be position relative to this component's *center*, just as 
-	 * this component's center is the root of the component coordinate frame. 
-	 * 
-	 * @param c    Coordinate in the component's coordinate system.
-	 * @return     an array of coordinates describing <code>c</code> in global coordinates.
+	 * Returns coordinate c in absolute coordinates.  Equivalent to toComponent(c,null).
 	 */
 	public Coordinate[] toAbsolute(Coordinate c) {
 		checkState();
-		final String lockText = "toAbsolute";
-		mutex.lock(lockText);
-		Coordinate[] thesePositions = this.getComponentLocations();
-		
-		final int instanceCount = thesePositions.length;
-		
-		Coordinate[] toReturn = new Coordinate[instanceCount];
-		for (int coordIndex = 0; coordIndex < instanceCount; coordIndex++) {
-			toReturn[coordIndex] = thesePositions[coordIndex].add(c);
-		}
-		
-		mutex.unlock(lockText);
-		return toReturn;
+		return toRelative(c, null);
 	}
-
+	
+	
 	/**
 	 * Return coordinate <code>c</code> described in the coordinate system of
 	 * <code>dest</code>.  If <code>dest</code> is <code>null</code> returns
@@ -1688,57 +996,115 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * 			   relative to <code>dest</code>.
 	 */
 	public final Coordinate[] toRelative(Coordinate c, RocketComponent dest) {
-		if (null == dest) {
-			throw new BugException("calling toRelative(c,null) is being refactored. ");
-		}
-		
 		checkState();
 		mutex.lock("toRelative");
-		
-		// not sure if this will give us an answer, or THE answer... 
-		//final Coordinate sourceLoc = this.getLocation()[0];
-		final Coordinate[] destLocs = dest.getLocations();
-		Coordinate[] toReturn = new Coordinate[destLocs.length];
-		for (int coordIndex = 0; coordIndex < destLocs.length; coordIndex++) {
-			toReturn[coordIndex] = this.getLocations()[0].add(c).sub(destLocs[coordIndex]);
+		try {
+			double absoluteX = Double.NaN;
+			RocketComponent search = dest;
+			Coordinate[] array = new Coordinate[1];
+			array[0] = c;
+			
+			RocketComponent component = this;
+			while ((component != search) && (component.parent != null)) {
+				
+				array = component.shiftCoordinates(array);
+				
+				switch (component.relativePosition) {
+				case TOP:
+					for (int i = 0; i < array.length; i++) {
+						array[i] = array[i].add(component.position, 0, 0);
+					}
+					break;
+				
+				case MIDDLE:
+					for (int i = 0; i < array.length; i++) {
+						array[i] = array[i].add(component.position +
+								(component.parent.length - component.length) / 2, 0, 0);
+					}
+					break;
+				
+				case BOTTOM:
+					for (int i = 0; i < array.length; i++) {
+						array[i] = array[i].add(component.position +
+								(component.parent.length - component.length), 0, 0);
+					}
+					break;
+				
+				case AFTER:
+					// Add length of all previous brother-components with POSITION_RELATIVE_AFTER
+					int index = component.parent.children.indexOf(component);
+					assert (index >= 0);
+					for (index--; index >= 0; index--) {
+						RocketComponent comp = component.parent.children.get(index);
+						double componentLength = comp.getTotalLength();
+						for (int i = 0; i < array.length; i++) {
+							array[i] = array[i].add(componentLength, 0, 0);
+						}
+					}
+					for (int i = 0; i < array.length; i++) {
+						array[i] = array[i].add(component.position + component.parent.length, 0, 0);
+					}
+					break;
+				
+				case ABSOLUTE:
+					search = null; // Requires back-search if dest!=null
+					if (Double.isNaN(absoluteX)) {
+						absoluteX = component.position;
+					}
+					break;
+				
+				default:
+					throw new BugException("Unknown relative positioning type of component" +
+							component + ": " + component.relativePosition);
+				}
+				
+				component = component.parent; // parent != null
+			}
+			
+			if (!Double.isNaN(absoluteX)) {
+				for (int i = 0; i < array.length; i++) {
+					array[i] = array[i].setX(absoluteX + c.x);
+				}
+			}
+			
+			// Check whether destination has been found or whether to backtrack
+			// TODO: LOW: Backtracking into clustered components uses only one component
+			if ((dest != null) && (component != dest)) {
+				Coordinate[] origin = dest.toAbsolute(Coordinate.NUL);
+				for (int i = 0; i < array.length; i++) {
+					array[i] = array[i].sub(origin[0]);
+				}
+			}
+			
+			return array;
+		} finally {
+			mutex.unlock("toRelative");
 		}
-		
-		mutex.unlock("toRelative");
-		return toReturn;
 	}
-	
-//	protected static final Coordinate[] rebase(final Coordinate toMove[], final Coordinate source, final Coordinate dest) {
-//		final Coordinate delta = source.sub(dest);
-//		Coordinate[] toReturn = new Coordinate[toMove.length];
-//		for (int coordIndex = 0; coordIndex < toMove.length; coordIndex++) {
-//			toReturn[coordIndex] = toMove[coordIndex].add(delta);
-//		}
-//		
-//		return toReturn;
-//	}
 	
 	
 	/**
-	 * Iteratively sum the lengths of all subcomponents that have position
+	 * Recursively sum the lengths of all subcomponents that have position
 	 * Position.AFTER.
 	 *
 	 * @return  Sum of the lengths.
 	 */
-//	private final double getTotalLength() {
-//		checkState();
-//		this.checkComponentStructure();
-//		mutex.lock("getTotalLength");
-//		try {
-//			double l = 0;
-//			if (relativePosition == Position.AFTER)
-//				l = length;
-//			for (int i = 0; i < children.size(); i++)
-//				l += children.get(i).getTotalLength();
-//			return l;
-//		} finally {
-//			mutex.unlock("getTotalLength");
-//		}
-//	}
+	private final double getTotalLength() {
+		checkState();
+		this.checkComponentStructure();
+		mutex.lock("getTotalLength");
+		try {
+			double l = 0;
+			if (relativePosition == Position.AFTER)
+				l = length;
+			for (int i = 0; i < children.size(); i++)
+				l += children.get(i).getTotalLength();
+			return l;
+		} finally {
+			mutex.unlock("getTotalLength");
+		}
+	}
+	
 	
 	
 	/////////// Total mass and CG calculation ////////////
@@ -1750,7 +1116,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final double getMass() {
 		mutex.verify();
-		if (massOverridden)
+		if (massOverriden)
 			return overrideMass;
 		return getComponentMass();
 	}
@@ -1760,9 +1126,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final double getSectionMass() {
 		Double massSubtotal = getMass();
-		if (massOverridden && overrideSubcomponentsMass) {
-			return massSubtotal;
-		}
 		mutex.verify();
 		for (RocketComponent rc : children) {
 			massSubtotal += rc.getSectionMass();
@@ -1781,10 +1144,10 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	public final Coordinate getCG() {
 		checkState();
-		if (cgOverridden)
+		if (cgOverriden)
 			return getOverrideCG().setWeight(getMass());
 		
-		if (massOverridden)
+		if (massOverriden)
 			return getComponentCG().setWeight(getMass());
 		
 		return getComponentCG();
@@ -1826,105 +1189,15 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * {@link #addChild(RocketComponent,int)}.
 	 *
 	 * @param component  The component to add.
-	 * @param trackStage If component is a stage, this check will decide whether the rocket should track that stage (add it to the stageList etc.)
-	 * @throws IllegalArgumentException  if the component is already part of some
-	 * 									 component tree.
-	 * @see #addChild(RocketComponent,int)
-	 */
-	public final void addChild(RocketComponent component, boolean trackStage) {
-		checkState();
-		addChild(component, children.size(), trackStage);
-	}
-
-	/**
-	 * Adds a child to the rocket component tree.  The component is added to the end
-	 * of the component's child list.  This is a helper method that calls
-	 * {@link #addChild(RocketComponent,int)}.
-	 *
-	 * @param component  The component to add.
 	 * @throws IllegalArgumentException  if the component is already part of some
 	 * 									 component tree.
 	 * @see #addChild(RocketComponent,int)
 	 */
 	public final void addChild(RocketComponent component) {
-		addChild(component, true);
-	}
-
-	/**
-	 * Adds a child to the rocket component tree.  The component is added to
-	 * the given position of the component's child list.
-	 * <p>
-	 * This method may be overridden to enforce more strict component addition rules.
-	 * The tests should be performed first and then this method called.
-	 *
-	 * @param component	The component to add.
-	 * @param index		Position to add component to.
-	 * @param trackStage If component is a stage, this check will decide whether the rocket should track that stage (add it to the stageList etc.)
-	 * @throws IllegalArgumentException  If the component is already part of
-	 * 									 some component tree.
-	 */
-	public void addChild(RocketComponent component, int index, boolean trackStage) {
 		checkState();
-
-		if (component.parent != null) {
-			throw new IllegalArgumentException("component " + component.getComponentName() +
-					" is already in a tree");
-		}
-
-		// Ensure that the no loops are created in component tree [A -> X -> Y -> B, B.addChild(A)]
-		if (this.getRoot().equals(component)) {
-			throw new IllegalStateException("Component " + component.getComponentName() +
-					" is a parent of " + this.getComponentName() + ", attempting to create cycle in tree.");
-		}
-
-		if (!isCompatible(component)) {
-			throw new IllegalStateException("Component: " + component.getComponentName() +
-					" not currently compatible with component: " + getComponentName());
-		}
-
-		children.add(index, component);
-		component.parent = this;
-		if (this.massOverridden && this.overrideSubcomponentsMass) {
-			component.massOverriddenBy = this;
-		} else {
-			component.massOverriddenBy = this.massOverriddenBy;
-		}
-		if (this.cgOverridden && this.overrideSubcomponentsCG) {
-			component.CGOverriddenBy = this;
-		} else {
-			component.CGOverriddenBy = this.CGOverriddenBy;
-		}
-		if (this.cdOverridden && this.overrideSubcomponentsCD) {
-			component.CDOverriddenBy = this;
-		} else {
-			component.CDOverriddenBy = this.CDOverriddenBy;
-		}
-		for (Iterator<RocketComponent> it = component.iterator(false); it.hasNext(); ) {
-			RocketComponent child = it.next();
-			// You only want to change the overriddenBy if the overriddenBy of component changed (i.e. is not null),
-			// otherwise you could lose overriddenBy information of the sub-children that have one of this component's
-			// children as its overrideBy component.
-			if (component.massOverriddenBy != null) {
-				child.massOverriddenBy = component.massOverriddenBy;
-			}
-			if (component.CGOverriddenBy != null) {
-				child.CGOverriddenBy = component.CGOverriddenBy;
-			}
-			if (component.CDOverriddenBy != null) {
-				child.CDOverriddenBy = component.CDOverriddenBy;
-			}
-		}
-
-		if (trackStage && (component instanceof AxialStage)) {
-			AxialStage nStage = (AxialStage) component;
-			this.getRocket().trackStage(nStage);
-		}
-
-		this.checkComponentStructure();
-		component.checkComponentStructure();
-
-		fireAddRemoveEvent(component);
+		addChild(component, children.size());
 	}
+	
 	
 	/**
 	 * Adds a child to the rocket component tree.  The component is added to
@@ -1939,88 +1212,50 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * 									 some component tree.
 	 */
 	public void addChild(RocketComponent component, int index) {
-		addChild(component, index, true);
-	}
-
-	/**
-	 * Removes a child from the rocket component tree.
-	 * (redirect to the removed-by-component
-	 *
-	 * @param n  remove the n'th child.
-	 * @param trackStage If component is a stage, this check will decide whether the rocket should track that stage (remove it to the stageList etc.)
-	 * @throws IndexOutOfBoundsException  if n is out of bounds
-	 */
-	public final void removeChild(int n, boolean trackStage) {
 		checkState();
-		RocketComponent component = this.getChild(n);
-		this.removeChild(component, trackStage);
+		
+		if (component.parent != null) {
+			throw new IllegalArgumentException("component " + component.getComponentName() +
+					" is already in a tree");
+		}
+		
+		// Ensure that the no loops are created in component tree [A -> X -> Y -> B, B.addChild(A)]
+		if (this.getRoot().equals(component)) {
+			throw new IllegalStateException("Component " + component.getComponentName() +
+					" is a parent of " + this.getComponentName() + ", attempting to create cycle in tree.");
+		}
+		
+		if (!isCompatible(component)) {
+			throw new IllegalStateException("Component " + component.getComponentName() +
+					" not currently compatible with component " + getComponentName());
+		}
+		
+		children.add(index, component);
+		component.parent = this;
+		
+		this.checkComponentStructure();
+		component.checkComponentStructure();
+		
+		fireAddRemoveEvent(component);
 	}
 	
 	/**
 	 * Removes a child from the rocket component tree.
-	 * (redirect to the removed-by-component
 	 *
 	 * @param n  remove the n'th child.
 	 * @throws IndexOutOfBoundsException  if n is out of bounds
 	 */
 	public final void removeChild(int n) {
-		removeChild(n, true);
-	}
-	
-	/**
-	 * Removes a child from the rocket component tree.  Does nothing if the component
-	 * is not present as a child.
-	 *
-	 * @param component		the component to remove
-	 * @param trackStage If component is a stage, this check will decide whether the rocket should track that stage (remove it to the stageList etc.)
-	 * @return				whether the component was a child
-	 */
-	public final boolean removeChild(RocketComponent component, boolean trackStage) {
 		checkState();
+		RocketComponent component = children.remove(n);
+		component.parent = null;
 		
+		this.checkComponentStructure();
 		component.checkComponentStructure();
 		
-
-		if (children.remove(component)) {
-			component.parent = null;
-			for (RocketComponent c : component) {
-				// You only want to set the override components to null if the child's override component is either
-				// this component, or a (super-)parent of this component. Otherwise, you could lose the overrideBy
-				// information of sub-children that have one of this component's children as its overrideBy component.
-				if (c.massOverriddenBy == this || c.massOverriddenBy == this.massOverriddenBy) {
-					c.massOverriddenBy = null;
-				}
-				if (c.CGOverriddenBy == this || c.CGOverriddenBy == this.CGOverriddenBy) {
-					c.CGOverriddenBy = null;
-				}
-				if (c.CDOverriddenBy == this || c.CDOverriddenBy == this.CDOverriddenBy) {
-					c.CDOverriddenBy = null;
-				}
-			}
-
-			if (trackStage) {
-				if (component instanceof AxialStage) {
-					AxialStage stage = (AxialStage) component;
-					this.getRocket().forgetStage(stage);
-				}
-
-				// Remove sub-stages of the removed component
-				for (AxialStage stage : component.getSubStages()) {
-					this.getRocket().forgetStage(stage);
-				}
-			}
-			
-			this.checkComponentStructure();
-			component.checkComponentStructure();
-			
-			fireAddRemoveEvent(component);
-			updateBounds();
-			
-			return true;
-		}
-		return false;
+		fireAddRemoveEvent(component);
 	}
-
+	
 	/**
 	 * Removes a child from the rocket component tree.  Does nothing if the component
 	 * is not present as a child.
@@ -2029,7 +1264,20 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @return				whether the component was a child
 	 */
 	public final boolean removeChild(RocketComponent component) {
-		return removeChild(component, true);
+		checkState();
+		
+		component.checkComponentStructure();
+		
+		if (children.remove(component)) {
+			component.parent = null;
+			
+			this.checkComponentStructure();
+			component.checkComponentStructure();
+			
+			fireAddRemoveEvent(component);
+			return true;
+		}
+		return false;
 	}
 	
 	
@@ -2050,7 +1298,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			this.checkComponentStructure();
 			component.checkComponentStructure();
 			
-			updateBounds();
 			fireAddRemoveEvent(component);
 		}
 	}
@@ -2086,41 +1333,11 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		this.checkComponentStructure();
 		return children.get(n);
 	}
-
-	/**
-	 * Returns all the direct children of this component. The result is a clone of the children list and may be edited.
-	 * @return direct children of this component.
-	 */
+	
 	public final List<RocketComponent> getChildren() {
 		checkState();
 		this.checkComponentStructure();
 		return children.clone();
-	}
-
-	/**
-	 * Returns all the children of this component, including children of sub-components (children of children).
-	 * The order is the same as you would read in the component tree (disregarding parent-child relations; just top to
-	 * bottom).
-	 */
-	public final List<RocketComponent> getAllChildren() {
-		checkState();
-		this.checkComponentStructure();
-		List<RocketComponent> children = new ArrayList<>();
-		for (RocketComponent child : getChildren()) {
-			children.add(child);
-			children.addAll(child.getAllChildren());
-		}
-		return children;
-	}
-
-	/**
-	 * Checks whether this component contains <component> as one of its (sub-)children.
-	 * @param component component to check
-	 * @return true if component is a (sub-)child of this component
-	 */
-	public final boolean containsChild(RocketComponent component) {
-		List<RocketComponent> allChildren = getAllChildren();
-		return allChildren.contains(component);
 	}
 	
 	
@@ -2147,59 +1364,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		checkState();
 		return parent;
 	}
-
-	/**
-	 * Get all the parent and super-parent components of this component.
-	 * @return parent and super-parents of this component
-	 */
-	public final List<RocketComponent> getParents() {
-		checkState();
-		List<RocketComponent> result = new LinkedList<>();
-		RocketComponent currComp = this;
-
-		while (currComp.parent != null) {
-			currComp = currComp.parent;
-			result.add(currComp);
-		}
-
-		return result;
-	}
-
-	/**
-	 * Iteratively checks whether the list of components contains the parent or super-parent (parent of parent of parent of...)
-	 * of component.
-	 * @param components list of components that may contain the parent
-	 * @param component component to check the parent for
-	 * @return true if the list contains the parent, false if not
-	 */
-	public static boolean listContainsParent(List<RocketComponent> components, RocketComponent component) {
-		RocketComponent c = component;
-		while (c.getParent() != null) {
-			if (components.contains(c.getParent())) {
-				return true;
-			}
-			c = c.getParent();
-		}
-		return false;
-	}
-
-	/**
-	 * Checks whether all components in the list have the same class as this component.
-	 * @param components list to check
-	 * @return true if all components are of the same class, false if not
-	 */
-	public boolean checkAllClassesEqual(List<RocketComponent> components) {
-		if (components == null || components.size() == 0) {
-			return true;
-		}
-		Class<? extends RocketComponent> myClass = this.getClass();
-		for (RocketComponent c : components) {
-			if (!c.getClass().equals(myClass)) {
-				return false;
-			}
-		}
-		return true;
-	}
 	
 	/**
 	 * Get the root component of the component tree.
@@ -2209,9 +1373,8 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	public final RocketComponent getRoot() {
 		checkState();
 		RocketComponent gp = this;
-		while (gp.parent != null){
+		while (gp.parent != null)
 			gp = gp.parent;
-		}
 		return gp;
 	}
 	
@@ -2237,109 +1400,18 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * IllegalStateException if a Stage is not in the parentage of this component.
 	 *
 	 * @return	The Stage component this component belongs to.
-	 * @throws	IllegalStateException   if we cannot find an AxialStage above <code>this</code> 
+	 * @throws	IllegalStateException   if a Stage component is not in the parentage.
 	 */
-	public final AxialStage getStage() {
+	public final Stage getStage() {
 		checkState();
-
-		RocketComponent curComponent = this;
-		while ( null != curComponent ) {
-			if (curComponent instanceof AxialStage)
-				return (AxialStage) curComponent;
-			curComponent = curComponent.parent;
+		RocketComponent c = this;
+		while (c != null) {
+			if (c instanceof Stage)
+				return (Stage) c;
+			c = c.getParent();
 		}
-		throw new IllegalStateException("getStage() called on hierarchy without an AxialStage.");
+		throw new IllegalStateException("getStage() called without Stage as a parent.");
 	}
-
-	/**
-	 * Returns all the stages that are a child or sub-child of this component.
-	 * @return all the stages that are a child or sub-child of this component.
-	 */
-	public final List<AxialStage> getSubStages() {
-		List<AxialStage> result = new LinkedList<>();
-		Iterator<RocketComponent> it = iterator(false);
-		while (it.hasNext()) {
-			RocketComponent c = it.next();
-			if (c instanceof AxialStage)
-				result.add((AxialStage) c);
-		}
-		return result;
-	}
-	
-	/**
-	 * Return the first component assembly component that this component belongs to.
-	 *
-	 * @return	The Stage component this component belongs to.
-	 * @throws	IllegalStateException   if we cannot find an AxialStage above <code>this</code> 
-	 */
-	public final ComponentAssembly getAssembly() {
-		checkState();
-
-		RocketComponent curComponent = this;
-		while ( null != curComponent ) {
-			if( ComponentAssembly.class.isAssignableFrom( curComponent.getClass()))
-				return (ComponentAssembly) curComponent;
-		}
-		throw new IllegalStateException("getAssembly() called on hierarchy without a ComponentAssembly.");
-	}
-
-	/**
-	 * Return all the component assemblies that are a direct/indirect child of this component
-	 * @return list of ComponentAssembly components that are a direct/indirect child of this component
-	 */
-	public final List<ComponentAssembly> getAllChildAssemblies() {
-		checkState();
-
-		Iterator<RocketComponent> children = iterator(false);
-
-		List<ComponentAssembly> result = new ArrayList<>();
-
-		while (children.hasNext()) {
-			RocketComponent child = children.next();
-			if (child instanceof ComponentAssembly) {
-				result.add((ComponentAssembly) child);
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Return all the component assemblies that are a direct child of this component
-	 * @return list of ComponentAssembly components that are a direct child of this component
-	 */
-	public final List<ComponentAssembly> getDirectChildAssemblies() {
-		checkState();
-
-		List<ComponentAssembly> result = new ArrayList<>();
-
-		for (RocketComponent child : this.getChildren()) {
-			if (child instanceof ComponentAssembly) {
-				result.add((ComponentAssembly) child);
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Return all the component assemblies that are a parent or super-parent of this component
-	 * @return list of ComponentAssembly components that are a parent or super-parent of this component
-	 */
-	public final List<RocketComponent> getParentAssemblies() {
-		checkState();
-
-		List<RocketComponent> result = new LinkedList<>();
-		RocketComponent currComp = this;
-
-		while (currComp.parent != null) {
-			currComp = currComp.parent;
-			if (currComp instanceof ComponentAssembly) {
-				result.add(currComp);
-			}
-		}
-
-		return result;
-	}
-	
 	
 	/**
 	 * Return the stage number of the stage this component belongs to.  The stages
@@ -2347,13 +1419,23 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 *
 	 * @return   the stage number this component belongs to.
 	 */
-	public int getStageNumber() {
+	public final int getStageNumber() {
 		checkState();
+		if (parent == null) {
+			throw new IllegalArgumentException("getStageNumber() called for root component");
+		}
 		
-		// obviously, this depends on AxialStage overriding <code> .getStageNumber() </code>.
-		// It does as of this writing, but check it just to be sure.... 
-		return this.getStage().getStageNumber();
+		RocketComponent stage = this;
+		while (!(stage instanceof Stage)) {
+			stage = stage.parent;
+			if (stage == null || stage.parent == null) {
+				throw new IllegalStateException("getStageNumber() could not find parent " +
+						"stage.");
+			}
+		}
+		return stage.parent.getChildPosition(stage);
 	}
+	
 	
 	/**
 	 * Find a component with the given ID.  The component tree is searched from this component
@@ -2367,32 +1449,15 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		checkState();
 		Iterator<RocketComponent> iter = this.iterator(true);
 		while (iter.hasNext()) {
-			final RocketComponent c = iter.next();
+			RocketComponent c = iter.next();
 			if (c.getID().equals(idToFind))
 				return c;
 		}
 		return null;
 	}
-
-	public final RocketComponent getNextComponent() {
-		checkState();
-		if (getChildCount() > 0)
-			return getChild(0);
-
-		RocketComponent current = this;
-		RocketComponent nextParent = this.parent;
-
-		while (nextParent != null) {
-			int pos = nextParent.getChildPosition(current);
-			if (pos < nextParent.getChildCount() - 1)
-				return nextParent.getChild(pos + 1);
-
-			current = nextParent;
-			nextParent = current.parent;
-		}
-		return null;
-	}
-
+	
+	
+	// TODO: Move these methods elsewhere (used only in SymmetricComponent)
 	public final RocketComponent getPreviousComponent() {
 		checkState();
 		this.checkComponentStructure();
@@ -2422,7 +1487,28 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 			c = c.getChild(c.getChildCount() - 1);
 		return c;
 	}
-
+	
+	// TODO: Move these methods elsewhere (used only in SymmetricComponent)
+	public final RocketComponent getNextComponent() {
+		checkState();
+		if (getChildCount() > 0)
+			return getChild(0);
+		
+		RocketComponent current = this;
+		RocketComponent nextParent = this.parent;
+		
+		while (nextParent != null) {
+			int pos = nextParent.getChildPosition(current);
+			if (pos < nextParent.getChildCount() - 1)
+				return nextParent.getChild(pos + 1);
+			
+			current = nextParent;
+			nextParent = current.parent;
+		}
+		return null;
+	}
+	
+	
 	///////////  Event handling  //////////
 	//
 	// Listener lists are provided by the root Rocket component,
@@ -2497,7 +1583,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	protected void fireComponentChangeEvent(ComponentChangeEvent e) {
 		checkState();
-		if (parent == null || bypassComponentChangeEvent) {
+		if (parent == null) {
 			/* Ignore if root invalid. */
 			return;
 		}
@@ -2512,61 +1598,8 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 * @param type  Type of event
 	 * @see #fireComponentChangeEvent(ComponentChangeEvent)
 	 */
-	public void fireComponentChangeEvent(int type) {
+	protected void fireComponentChangeEvent(int type) {
 		fireComponentChangeEvent(new ComponentChangeEvent(this, type));
-	}
-
-	public void setBypassChangeEvent(boolean newValue) {
-		this.bypassComponentChangeEvent = newValue;
-	}
-
-	/**
-	 * Returns whether the current component if ignoring ComponentChangeEvents.
-	 * @return true if the component is ignoring ComponentChangeEvents.
-	 */
-	public boolean isBypassComponentChangeEvent() {
-		return this.bypassComponentChangeEvent;
-	}
-
-	/**
-	 * Add a new config listener that will undergo the same configuration changes as this.component.
-	 * @param listener new config listener
-	 * @return true if listener was successfully added, false if not
-	 */
-	public boolean addConfigListener(RocketComponent listener) {
-		if (isBypassComponentChangeEvent()) {
-			// This is a precaution. If you are multi-comp editing and the current component is bypassing events,
-			// the editing will be REALLY weird, see GitHub issue #1956.
-			throw new IllegalStateException("Cannot add config listener while bypassing events");
-		}
-		if (listener == null) {
-			return false;
-		}
-		if (listener.getConfigListeners().size() > 0) {
-			throw new IllegalArgumentException("Listener already has config listeners");
-		}
-		if (configListeners.contains(listener) || listener == this) {
-			return false;
-		}
-		configListeners.add(listener);
-		listener.setBypassChangeEvent(true);
-		return true;
-	}
-
-	public void removeConfigListener(RocketComponent listener) {
-		configListeners.remove(listener);
-		listener.setBypassChangeEvent(false);
-	}
-
-	public void clearConfigListeners() {
-		for (RocketComponent listener : configListeners) {
-			listener.setBypassChangeEvent(false);
-		}
-		configListeners.clear();
-	}
-
-	public List<RocketComponent> getConfigListeners() {
-		return configListeners;
 	}
 	
 	
@@ -2675,14 +1708,6 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		return id.hashCode();
 	}
 	
-	/** 
-	 * the default implementation is mostly a placeholder here, however in inheriting classes, 
-	 * this function is useful to indicate adjacent placements and view sizes
-	 */
-	protected void updateBounds() {
-		return;
-	}
-	
 	///////////// Visitor pattern implementation
 	public <R> R accept(RocketComponentVisitor<R> visitor) {
 		visitor.visit(this);
@@ -2693,16 +1718,9 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	
 	
 	
-	/**
-	 * Helper method to add two points on opposite corners of a box around the rocket centerline.  This box will be (x_max - x_min) long, and 2*r wide/high.
-	 */
-	protected static final void addBoundingBox(Collection<Coordinate> bounds, double x_min, double x_max, double r) {
-		bounds.add(new Coordinate(x_min, -r, -r));
-		bounds.add(new Coordinate(x_max, r, r));
-	}
 	
 	/**
-	 * Helper method to add four bounds rotated around the given x coordinate at radius 'r', and 90deg between each.
+	 * Helper method to add rotationally symmetric bounds at the specified coordinates.
 	 * The X-axis value is <code>x</code> and the radius at the specified position is
 	 * <code>r</code>.
 	 */
@@ -2726,7 +1744,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	
 	protected static final double ringMass(double outerRadius, double innerRadius,
 			double length, double density) {
-		return Math.PI * Math.max(MathUtil.pow2(outerRadius) - MathUtil.pow2(innerRadius),0) *
+		return Math.PI * (MathUtil.pow2(outerRadius) - MathUtil.pow2(innerRadius)) *
 				length * density;
 	}
 	
@@ -2741,6 +1759,8 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		// 1/2 * (r1^2 + r2^2)
 		return (MathUtil.pow2(innerRadius) + MathUtil.pow2(outerRadius)) / 2;
 	}
+	
+	
 	
 	////////////  OTHER
 	
@@ -2764,7 +1784,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	protected List<RocketComponent> copyFrom(RocketComponent src) {
 		checkState();
-		List<RocketComponent> toInvalidate = new ArrayList<>();
+		List<RocketComponent> toInvalidate = new ArrayList<RocketComponent>();
 		
 		if (this.parent != null) {
 			throw new UnsupportedOperationException("copyFrom called for non-root component, parent=" +
@@ -2795,30 +1815,18 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 		
 		// Set all parameters
 		this.length = src.length;
-		this.axialMethod = src.axialMethod;
+		this.relativePosition = src.relativePosition;
 		this.position = src.position;
 		this.color = src.color;
 		this.lineStyle = src.lineStyle;
 		this.overrideMass = src.overrideMass;
-		this.massOverridden = src.massOverridden;
+		this.massOverriden = src.massOverriden;
 		this.overrideCGX = src.overrideCGX;
-		this.cgOverridden = src.cgOverridden;
-		this.cdOverriddenByAncestor = src.cdOverriddenByAncestor;
-		this.overrideSubcomponentsMass = src.overrideSubcomponentsMass;
-		this.overrideSubcomponentsCG = src.overrideSubcomponentsCG;
-		this.overrideSubcomponentsCD = src.overrideSubcomponentsCD;
+		this.cgOverriden = src.cgOverriden;
+		this.overrideSubcomponents = src.overrideSubcomponents;
 		this.name = src.name;
 		this.comment = src.comment;
 		this.id = src.id;
-		this.displayOrder_side = src.displayOrder_side;
-		this.displayOrder_back = src.displayOrder_back;
-		this.configListeners = new LinkedList<>();
-		this.bypassComponentChangeEvent = false;
-		if (this instanceof InsideColorComponent && src instanceof InsideColorComponent) {
-			InsideColorComponentHandler icch = new InsideColorComponentHandler(this);
-			icch.copyFrom(((InsideColorComponent) src).getInsideColorComponentHandler());
-			((InsideColorComponent) this).setInsideColorComponentHandler(icch);
-		}
 		
 		// Add source components to invalidation tree
 		for (RocketComponent c : src) {
@@ -2842,7 +1850,7 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 	 */
 	private static class RocketComponentIterator implements Iterator<RocketComponent> {
 		// Stack holds iterators which still have some components left.
-		private final Deque<Iterator<RocketComponent>> iteratorStack = new ArrayDeque<Iterator<RocketComponent>>();
+		private final SimpleStack<Iterator<RocketComponent>> iteratorStack = new SimpleStack<Iterator<RocketComponent>>();
 		
 		private final Rocket root;
 		private final int treeModID;
@@ -2923,130 +1931,5 @@ public abstract class RocketComponent implements ChangeSource, Cloneable, Iterab
 					"RocketComponent iterator");
 		}
 	}
-
-	/// debug functions
-	public String toDebugName(){
-		return this.getName()+"<"+this.getClass().getSimpleName()+">("+this.getID().substring(0,8)+")";
-	}
 	
-	// multi-line output
-	protected StringBuilder toDebugDetail() {
-		StringBuilder buf = new StringBuilder();
-
-		// infer the calling method name
-		StackTraceElement[] stackTrace = (new Exception()).getStackTrace();
-		String callingMethod = stackTrace[1].getMethodName();
-		for( StackTraceElement el : stackTrace ){
-			if( ! "toDebugDetail".equals(el.getMethodName())){
-				callingMethod = el.getMethodName();
-				break;
-			}
-		}
-
-		buf.append(String.format(" >> Dumping Detailed Information from: %s\n", callingMethod));
-		buf.append(String.format("      At Component: %s, of class: %s \n", this.getName(), this.getClass().getSimpleName()));
-		buf.append(String.format("      position: %.6f    at offset: %.4f via: %s\n", this.position.x, this.axialOffset, this.axialMethod.name()));
-		buf.append(String.format("      length: %.4f\n", getLength() ));
-		return buf;
-	}
-	
-	// Primarily for debug use
-	public String toDebugTree() {
-		StringBuilder buffer = new StringBuilder();
-		buffer.append("\n   ====== ====== ====== ====== ====== ====== ====== ====== ====== ====== ====== ======\n");
-		buffer.append("     [Name]                               [Length]          [Rel Pos]                [Abs Pos]  \n");
-		this.toDebugTreeHelper(buffer, "");
-		buffer.append("\n   ====== ====== ====== ====== ====== ====== ====== ====== ====== ====== ====== ======\n");
-		return buffer.toString();
-	}
-	
-
-	public void toDebugTreeHelper(StringBuilder buffer, final String indent) {
-		this.toDebugTreeNode(buffer, indent);
-		
-		Iterator<RocketComponent> iterator = this.children.iterator();
-		while (iterator.hasNext()) {
-			iterator.next().toDebugTreeHelper(buffer, indent + "....");
-		}
-	}
-	
-	
-	public void toDebugTreeNode(final StringBuilder buffer, final String indent) {
-		String prefix = String.format("%s%s (x%d)", indent, this.getName(), this.getInstanceCount() );
-		
-		// 1) instanced vs non-instanced
-		if( 1 == getInstanceCount() ){
-			// un-instanced RocketComponents (usual case)
-			buffer.append(String.format("%-40s|  %5.3f; %24s; %24s; ", prefix, this.getLength(), this.axialOffset, this.getComponentLocations()[0]));
-			buffer.append(String.format("(offset: %4.1f  via: %s )\n", this.getAxialOffset(), this.axialMethod.name()));
-		}else if( this instanceof Instanceable ){
-			// instanced components -- think motor clusters or booster stage clusters
-			final String patternName = ((Instanceable)this).getPatternName();
-			buffer.append(String.format("%-40s (cluster: %s )", prefix, patternName));
-			buffer.append(String.format("(offset: %4.1f  via: %s )\n", this.getAxialOffset(), this.axialMethod.name()));
-			
-			for (int instanceNumber = 0; instanceNumber < this.getInstanceCount(); instanceNumber++) {
-				final String instancePrefix = String.format("%s    [%2d/%2d]", indent, instanceNumber+1, getInstanceCount());
-				buffer.append(String.format("%-40s|  %5.3f; %24s; %24s;\n", instancePrefix, getLength(), this.axialOffset, getLocations()[instanceNumber]));
-			}
-		}else{
-			throw new IllegalStateException("This is a developer error! If you implement an instanced class, please subclass the Instanceable interface.");
-		}
-		
-		// 2) if this is an ACTING motor mount:
-		if(( this instanceof MotorMount ) &&( ((MotorMount)this).isMotorMount())){ 
-			// because InnerTube and BodyTube don't really share a common ancestor besides RocketComponent
-			// ... and it's easier to have all this code in one place...
-			toDebugMountNode( buffer, indent);
-		}
-	}
-	
-	
-	public void toDebugMountNode(final StringBuilder buffer, final String indent) {		
-		MotorMount mnt = (MotorMount)this;
-
-//		Coordinate[] relCoords = this.getInstanceOffsets();
-		Coordinate[] absCoords = this.getComponentLocations();
-		FlightConfigurationId curId = this.getRocket().getSelectedConfiguration().getFlightConfigurationID();
-//		final int instanceCount = this.getInstanceCount();
-		MotorConfiguration curInstance = mnt.getMotorConfig( curId);
-		if( curInstance.isEmpty() ){
-			// print just the tube locations
-			buffer.append(indent+"    [X] This Instance doesn't have any motors for the active configuration.\n");
-		}else{
-			// curInstance has a motor ... 
-			Motor curMotor = curInstance.getMotor();
-			final double motorOffset = this.getLength() - curMotor.getLength();
-			final String instancePrefix = String.format("%s    [ */%2d]", indent, getInstanceCount());
-			
-			buffer.append(String.format("%-40sThrust: %f N; \n", 
-					indent+"  Mounted: "+curMotor.getDesignation(), curMotor.getMaxThrustEstimate() ));
-			
-			Coordinate motorRelativePosition = new Coordinate(motorOffset, 0, 0);
-			Coordinate tubeAbs = absCoords[0];
-			Coordinate motorAbsolutePosition = new Coordinate(tubeAbs.x+motorOffset,tubeAbs.y,tubeAbs.z);
-			buffer.append(String.format("%-40s|  %5.3f; %24s; %24s;\n", instancePrefix, curMotor.getLength(), motorRelativePosition, motorAbsolutePosition));
-			
-		}
-	}
-
-	public boolean isMotorMount() {
-		return false;
-	}
-
-	public int getDisplayOrder_side() {
-		return displayOrder_side;
-	}
-
-	public void setDisplayOrder_side(int displayOrder_side) {
-		this.displayOrder_side = displayOrder_side;
-	}
-
-	public int getDisplayOrder_back() {
-		return displayOrder_back;
-	}
-
-	public void setDisplayOrder_back(int displayOrder_back) {
-		this.displayOrder_back = displayOrder_back;
-	}
 }

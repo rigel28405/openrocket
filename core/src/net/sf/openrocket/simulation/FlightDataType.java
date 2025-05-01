@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.util.StringUtils;
+import net.sf.openrocket.util.StringUtil;
 
 /**
  * A class defining a storable simulation variable type.  This class defined numerous ready
@@ -57,9 +57,9 @@ public class FlightDataType implements Comparable<FlightDataType> {
 	
 	
 	//// Lateral position and motion
-	//// Position East of launch
+	//// Position upwind
 	public static final FlightDataType TYPE_POSITION_X = newType(trans.get("FlightDataType.TYPE_POSITION_X"), "Px", UnitGroup.UNITS_DISTANCE, 30);
-	//// Position North of launch
+	//// Position parallel to wind
 	public static final FlightDataType TYPE_POSITION_Y = newType(trans.get("FlightDataType.TYPE_POSITION_Y"), "Py", UnitGroup.UNITS_DISTANCE, 31);
 	//// Lateral distance
 	public static final FlightDataType TYPE_POSITION_XY = newType(trans.get("FlightDataType.TYPE_POSITION_XY"), "Pl", UnitGroup.UNITS_DISTANCE, 32);
@@ -91,8 +91,8 @@ public class FlightDataType implements Comparable<FlightDataType> {
 	//// Stability information
 	//// Mass
 	public static final FlightDataType TYPE_MASS = newType(trans.get("FlightDataType.TYPE_MASS"), "m", UnitGroup.UNITS_MASS, 50);
-	//// Motor mass
-	public static final FlightDataType TYPE_MOTOR_MASS = newType(trans.get("FlightDataType.TYPE_MOTOR_MASS"), "mp", UnitGroup.UNITS_MASS, 51);
+	//// Propellant mass
+	public static final FlightDataType TYPE_PROPELLANT_MASS = newType(trans.get("FlightDataType.TYPE_PROPELLANT_MASS"), "mp", UnitGroup.UNITS_MASS, 51);
 	//// Longitudinal moment of inertia
 	public static final FlightDataType TYPE_LONGITUDINAL_INERTIA = newType(trans.get("FlightDataType.TYPE_LONGITUDINAL_INERTIA"), "Il", UnitGroup.UNITS_INERTIA, 52);
 	//// Rotational moment of inertia
@@ -209,7 +209,7 @@ public class FlightDataType implements Comparable<FlightDataType> {
 		TYPE_PITCH_RATE,
 		TYPE_YAW_RATE,
 		TYPE_MASS,
-		TYPE_MOTOR_MASS,
+		TYPE_PROPELLANT_MASS,
 		TYPE_LONGITUDINAL_INERTIA,
 		TYPE_ROTATIONAL_INERTIA,
 		TYPE_CP_LOCATION,
@@ -251,7 +251,7 @@ public class FlightDataType implements Comparable<FlightDataType> {
 	 * This returns an existing data type if the symbol matches that of an existing type. 
 	 * 
 	 * If the symbol matches but the unit and description information differ, then the old stored datatype
-	 * is erased and the updated version based on the given parameters is returned.
+	 * is erased and the updated version based on the given parametes is returned.
 	 * The only exception is if the description or unitgroup are undefined (null or empty string). In this case 
 	 * we just get these parameters from the existing type when making the new one.
 	 * 
@@ -272,7 +272,7 @@ public class FlightDataType implements Comparable<FlightDataType> {
 			// found it from symbol
 			
 			// if name was not given (empty string), can use the one we found
-			if ( s == null || StringUtils.isEmpty(s)){
+			if ( s == null || StringUtil.isEmpty(s)){
 				s = type.getName();
 			}
 			if ( u == null ){

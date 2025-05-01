@@ -20,35 +20,22 @@ import java.util.regex.Pattern;
 
 import net.sf.openrocket.appearance.DecalImage;
 import net.sf.openrocket.document.attachments.FileSystemAttachment;
-import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.startup.Application;
+import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.ChangeSource;
-import net.sf.openrocket.util.DecalNotFoundException;
 import net.sf.openrocket.util.FileUtils;
 import net.sf.openrocket.util.StateChangeListener;
 
-/**
- * 
- * Class that handles decal usage registration
- *
- */
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class DecalRegistry {
+	private static Logger log = LoggerFactory.getLogger(DecalRegistry.class);
 	
-	/**
-	 * default constructor, does nothing
-	 */
 	DecalRegistry() {
 	}
 	
-	/** the decal usage map*/
-	private final Map<String, DecalImageImpl> registeredDecals = new HashMap<String, DecalImageImpl>();
+	private Map<String, DecalImageImpl> registeredDecals = new HashMap<String, DecalImageImpl>();
 	
-	/**
-	 * returns a new decal with the same image but with unique names
-	 * supports only classes and subclasses of DecalImageImpl
-	 * @param original	the decal to be made unique
-	 * @return
-	 */
 	public DecalImage makeUniqueImage(DecalImage original) {
 		
 		if (!(original instanceof DecalImageImpl)) {
@@ -74,11 +61,6 @@ public class DecalRegistry {
 		
 	}
 	
-	/**
-	 * get the image from an attachment
-	 * @param attachment
-	 * @return
-	 */
 	public DecalImage getDecalImage(Attachment attachment) {
 		String decalName = attachment.getName();
 		DecalImageImpl d;
@@ -93,7 +75,7 @@ public class DecalRegistry {
 			decalName = makeUniqueName(location.getName());
 			
 			d = new DecalImageImpl(decalName, attachment);
-			d.setDecalFile(location);
+			d.setFileSystemLocation(location);
 			
 			registeredDecals.put(decalName, d);
 			return d;
@@ -123,10 +105,7 @@ public class DecalRegistry {
 		private final Attachment delegate;
 		
 		private String name;
-		private File decalFile;
-		private final Translator trans = Application.getTranslator();
-		// Flag to check whether this DecalImage should be ignored for saving
-		private boolean ignored = false;
+		private File fileSystemLocation;
 		
 		private DecalImageImpl(String name, Attachment delegate) {
 			this.name = name;
@@ -137,7 +116,6 @@ public class DecalRegistry {
 			this.delegate = delegate;
 		}
 		
-		@Override
 		public String getName() {
 			return name != null ? name : delegate.getName();
 		}
@@ -155,14 +133,10 @@ public class DecalRegistry {
 		* @throws FileNotFoundException
 		* @throws IOException
 		 */
-		@Override
-		public InputStream getBytes() throws FileNotFoundException, IOException, DecalNotFoundException {
+		public InputStream getBytes() throws FileNotFoundException, IOException {
 			// First check if the decal is located on the file system
-			File exportedFile = getDecalFile();
+			File exportedFile = getFileSystemLocation();
 			if (exportedFile != null) {
-				if (!exportedFile.exists()) {
-					throw new DecalNotFoundException(exportedFile.getAbsolutePath(), this);
-				}
 				InputStream rawIs = new FileInputStream(exportedFile);
 				try {
 					byte[] bytes = FileUtils.readBytes(rawIs);
@@ -172,45 +146,34 @@ public class DecalRegistry {
 				}
 				
 			}
+			
+			return delegate.getBytes();
+		}
+		
+		@Override
+		public void exportImage(File file) throws IOException {
 			try {
-				return delegate.getBytes();
-			} catch (DecalNotFoundException decex) {
-				throw new DecalNotFoundException(delegate.getName(), this);
+				InputStream is = getBytes();
+				OutputStream os = new BufferedOutputStream(new FileOutputStream(file));
+				
+				FileUtils.copy(is, os);
+				
+				is.close();
+				os.close();
+				
+				this.fileSystemLocation = file;
+				
+			} catch (IOException iex) {
+				throw new BugException(iex);
 			}
 		}
 		
-		@Override
-		public void exportImage(File file) throws IOException, DecalNotFoundException {
-			InputStream is;
-			is = getBytes();
-			OutputStream os = new BufferedOutputStream(new FileOutputStream(file));
-
-			FileUtils.copy(is, os);
-
-			is.close();
-			os.close();
+		File getFileSystemLocation() {
+			return fileSystemLocation;
 		}
 		
-		/**
-		 * 
-		 * @return
-		 */
-		public File getDecalFile() {
-			return decalFile;
-		}
-
-		public void setDecalFile(File file) {
-			this.decalFile = file;
-		}
-
-		@Override
-		public boolean isIgnored() {
-			return this.ignored;
-		}
-
-		@Override
-		public void setIgnored(boolean ignored) {
-			this.ignored = ignored;
+		void setFileSystemLocation(File fileSystemLocation) {
+			this.fileSystemLocation = fileSystemLocation;
 		}
 		
 		@Override
@@ -226,7 +189,7 @@ public class DecalRegistry {
 		@Override
 		protected DecalImageImpl clone() {
 			DecalImageImpl clone = new DecalImageImpl(this.delegate);
-			clone.decalFile = this.decalFile;
+			clone.fileSystemLocation = this.fileSystemLocation;
 			
 			return clone;
 		}
@@ -244,15 +207,10 @@ public class DecalRegistry {
 		
 	}
 	
-	/**
-	 * Find decal that has file {file} as source
-	 * @param file decal source file
-	 * @return
-	 */
 	private DecalImageImpl findDecalForFile(File file) {
 		
 		for (DecalImageImpl d : registeredDecals.values()) {
-			if (file.equals(d.getDecalFile())) {
+			if (file.equals(d.getFileSystemLocation())) {
 				return d;
 			}
 		}
@@ -284,25 +242,28 @@ public class DecalRegistry {
 	private static final int NUMBER_INDEX = 3;
 	private static final int EXTENSION_INDEX = 4;
 	
-	/**
-	 * Makes a unique name for saving decal files in case the name already exists
-	 * @param name	the name of the decal
-	 * @return	the name formatted and unique
-	 */
 	private String makeUniqueName(String name) {
 		
-		String newName = checkPathConsistency(name);
-		String basename = getGroup(BASE_NAME_INDEX,fileNamePattern.matcher(newName));
-		String extension = getGroup(EXTENSION_INDEX,fileNamePattern.matcher(newName));
+		String newName = name;
+		if (!newName.startsWith("decals/")) {
+			newName = "decals/" + name;
+		}
+		String basename = "";
+		String extension = "";
+		Matcher nameMatcher = fileNamePattern.matcher(newName);
+		if (nameMatcher.matches()) {
+			basename = nameMatcher.group(BASE_NAME_INDEX);
+			extension = nameMatcher.group(EXTENSION_INDEX);
+		}
 		
 		Set<Integer> counts = new TreeSet<Integer>();
 		
 		boolean needsRewrite = false;
-
+		
 		for (DecalImageImpl d : registeredDecals.values()) {
 			Matcher m = fileNamePattern.matcher(d.getName());
 			if (m.matches()) {
-				if (isofSameBaseAndExtension(m, basename, extension)) {
+				if (basename.equals(m.group(BASE_NAME_INDEX)) && extension.equals(m.group(EXTENSION_INDEX))) {
 					String intString = m.group(NUMBER_INDEX);
 					if (intString != null) {
 						Integer i = Integer.parseInt(intString);
@@ -319,54 +280,13 @@ public class DecalRegistry {
 			return newName;
 		}
 		
-		return MessageFormat.format("{0} ({1}).{2}", basename, findMissingInteger(counts),extension);
-	}
-
-	/**
-	 * Searches the count for a new Integer
-	 * @param counts	the count set
-	 * @return	a unique integer in the count
-	 */
-	private Integer findMissingInteger(Set<Integer> counts) {
+		// find a missing integer;
 		Integer newIndex = 1;
 		while (counts.contains(newIndex)) {
 			newIndex++;
 		}
-		return newIndex;
-	}
-
-	/**
-	 * Tests if a matcher has the same basename and extension
-	 * @param m			the matcher being tested
-	 * @param basename	the basename
-	 * @param extension	the extension
-	 * @return
-	 */
-	private boolean isofSameBaseAndExtension(Matcher m, String basename, String extension) {
-		return basename.equals(m.group(BASE_NAME_INDEX)) && extension.equals(m.group(EXTENSION_INDEX));
-	}
-	
-	/**
-	 * gets the String group from a matcher
-	 * @param index		the index of the group to
-	 * @param matcher	the matcher for the search
-	 * @return the String according with the group, empty if there's no match
-	 */
-	private String getGroup(int index, Matcher matcher) {
-		if (matcher.matches()) 
-			return matcher.group(index);
-		return "";
-	}
-
-	/**
-	 * checks if the name starts with "decals/"
-	 * @param name	the name being checked
-	 * @return	the name complete with the starting folder
-	 */
-	private String checkPathConsistency(String name){
-		if (name.startsWith("decals/")) 
-			return	name;
-		return "decals/" + name;
+		
+		return MessageFormat.format("{0} ({1}).{2}", basename, newIndex, extension);
 	}
 	
 }

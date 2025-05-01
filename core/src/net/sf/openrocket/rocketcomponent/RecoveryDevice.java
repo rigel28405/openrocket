@@ -19,26 +19,31 @@ import net.sf.openrocket.util.MathUtil;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public abstract class RecoveryDevice extends MassObject implements FlightConfigurableComponent {
-	////
-	protected double DragCoefficient;
-	protected double cd = Parachute.DEFAULT_CD;
-	protected boolean cdAutomatic = true;
-	////
-	private final Material.Surface defaultMaterial;
+	
+	private double cd = Parachute.DEFAULT_CD;
+	private boolean cdAutomatic = true;
+	
 	private Material.Surface material;
-
-	private FlightConfigurableParameterSet<DeploymentConfiguration> deploymentConfigurations;
+	
+	private FlightConfigurationImpl<DeploymentConfiguration> deploymentConfigurations;
+	
+	
 	
 	public RecoveryDevice() {
-		this.deploymentConfigurations = new FlightConfigurableParameterSet<>( new DeploymentConfiguration());
-		defaultMaterial = (Material.Surface) Application.getPreferences().getDefaultComponentMaterial(RecoveryDevice.class, Material.Type.SURFACE);
+		this.deploymentConfigurations = new FlightConfigurationImpl<DeploymentConfiguration>(this, ComponentChangeEvent.EVENT_CHANGE, new DeploymentConfiguration());
 		setMaterial(Application.getPreferences().getDefaultComponentMaterial(RecoveryDevice.class, Material.Type.SURFACE));
 	}
+	
+	
+	
+	
 	
 	public abstract double getArea();
 	
 	public abstract double getComponentCD(double mach);
-
+	
+	
+	
 	public double getCD() {
 		return getCD(0);
 	}
@@ -50,17 +55,10 @@ public abstract class RecoveryDevice extends MassObject implements FlightConfigu
 	}
 	
 	public void setCD(double cd) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof RecoveryDevice) {
-				((RecoveryDevice) listener).setCD(cd);
-			}
-		}
-
 		if (MathUtil.equals(this.cd, cd) && !isCDAutomatic())
 			return;
 		this.cd = cd;
 		this.cdAutomatic = false;
-		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.AERODYNAMIC_CHANGE);
 	}
 	
@@ -70,12 +68,6 @@ public abstract class RecoveryDevice extends MassObject implements FlightConfigu
 	}
 	
 	public void setCDAutomatic(boolean auto) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof RecoveryDevice) {
-				((RecoveryDevice) listener).setCDAutomatic(auto);
-			}
-		}
-
 		if (cdAutomatic == auto)
 			return;
 		this.cdAutomatic = auto;
@@ -89,12 +81,6 @@ public abstract class RecoveryDevice extends MassObject implements FlightConfigu
 	}
 	
 	public final void setMaterial(Material mat) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof RecoveryDevice) {
-				((RecoveryDevice) listener).setMaterial(mat);
-			}
-		}
-
 		if (!(mat instanceof Material.Surface)) {
 			throw new IllegalArgumentException("Attempted to set non-surface material " + mat);
 		}
@@ -104,80 +90,39 @@ public abstract class RecoveryDevice extends MassObject implements FlightConfigu
 		clearPreset();
 		fireComponentChangeEvent(ComponentChangeEvent.MASS_CHANGE);
 	}
-
-	public FlightConfigurableParameterSet<DeploymentConfiguration> getDeploymentConfigurations() {
+	
+	
+	public FlightConfiguration<DeploymentConfiguration> getDeploymentConfiguration() {
 		return deploymentConfigurations;
 	}
 	
-	@Override
-	public void copyFlightConfiguration(FlightConfigurationId oldConfigId, FlightConfigurationId newConfigId) {
-		deploymentConfigurations.copyFlightConfiguration(oldConfigId, newConfigId);
-	}
 	
 	@Override
-	public void reset( final FlightConfigurationId fcid){
-		deploymentConfigurations.reset(fcid);
+	public void cloneFlightConfiguration(String oldConfigId, String newConfigId) {
+		deploymentConfigurations.cloneFlightConfiguration(oldConfigId, newConfigId);
 	}
+	
 	
 	@Override
 	public double getComponentMass() {
 		return getArea() * getMaterial().getDensity();
 	}
-
+	
 	@Override
 	protected void loadFromPreset(ComponentPreset preset) {
-	//	//	Set preset parachute line material
-		//	NEED a better way to set preset if field is empty ----
 		if (preset.has(ComponentPreset.MATERIAL)) {
-			String surfaceMaterialEmpty = preset.get(ComponentPreset.MATERIAL).toString();
-			int count = surfaceMaterialEmpty.length();
-			if (count > 12 ) {
-				Material m = preset.get(ComponentPreset.MATERIAL);
-				this.material = (Material.Surface) m;
-			} else {
-				this.material = defaultMaterial;
-			}
-		} else {
-			this.material = defaultMaterial;
+			Material m = preset.get(ComponentPreset.MATERIAL);
+			this.material = (Material.Surface) m;
 		}
 		super.loadFromPreset(preset);
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
-
+	
 	@Override
 	protected RocketComponent copyWithOriginalID() {
 		RecoveryDevice copy = (RecoveryDevice) super.copyWithOriginalID();
-		copy.deploymentConfigurations = new FlightConfigurableParameterSet<>(deploymentConfigurations);
+		copy.deploymentConfigurations = new FlightConfigurationImpl<DeploymentConfiguration>(deploymentConfigurations,
+				copy, ComponentChangeEvent.EVENT_CHANGE);
 		return copy;
-	}
-
-	@Override
-	public boolean addConfigListener(RocketComponent listener) {
-		boolean success = super.addConfigListener(listener);
-		if (listener instanceof RecoveryDevice) {
-			DeploymentConfiguration thisConfig = getDeploymentConfigurations().getDefault();
-			DeploymentConfiguration listenerConfig = ((RecoveryDevice) listener).getDeploymentConfigurations().getDefault();
-			success = success && thisConfig.addConfigListener(listenerConfig);
-			return success;
-		}
-		return false;
-	}
-
-	@Override
-	public void removeConfigListener(RocketComponent listener) {
-		super.removeConfigListener(listener);
-		if (listener instanceof RecoveryDevice) {
-			DeploymentConfiguration thisConfig = getDeploymentConfigurations().getDefault();
-			DeploymentConfiguration listenerConfig = ((RecoveryDevice) listener).getDeploymentConfigurations().getDefault();
-			thisConfig.removeConfigListener(listenerConfig);
-		}
-	}
-
-	@Override
-	public void clearConfigListeners() {
-		super.clearConfigListeners();
-		// The DeploymentConfiguration also has listeners, so clear them as well
-		DeploymentConfiguration thisConfig = getDeploymentConfigurations().getDefault();
-		thisConfig.clearConfigListeners();
 	}
 }

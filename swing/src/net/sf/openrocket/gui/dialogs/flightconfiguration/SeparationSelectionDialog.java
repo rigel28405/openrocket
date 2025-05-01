@@ -4,7 +4,6 @@ import java.awt.Dialog;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -22,33 +21,26 @@ import net.sf.openrocket.gui.adaptors.DoubleModel;
 import net.sf.openrocket.gui.adaptors.EnumModel;
 import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.rocketcomponent.AxialStage;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
 import net.sf.openrocket.rocketcomponent.Rocket;
+import net.sf.openrocket.rocketcomponent.Stage;
 import net.sf.openrocket.rocketcomponent.StageSeparationConfiguration;
 import net.sf.openrocket.rocketcomponent.StageSeparationConfiguration.SeparationEvent;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
-@SuppressWarnings("serial")
 public class SeparationSelectionDialog extends JDialog {
-
+	
 	private static final Translator trans = Application.getTranslator();
 	
 	private RocketDescriptor descriptor = Application.getInjector().getInstance(RocketDescriptor.class);
 	
 	private StageSeparationConfiguration newConfiguration;
-
-	private boolean isOverrideDefault;
 	
-	public SeparationSelectionDialog(Window parent, final Rocket rocket, final AxialStage stage, FlightConfigurationId id) {
+	public SeparationSelectionDialog(Window parent, final Rocket rocket, final Stage component) {
 		super(parent, trans.get("edtmotorconfdlg.title.Selectseparationconf"), Dialog.ModalityType.APPLICATION_MODAL);
-
-		newConfiguration = stage.getSeparationConfigurations().get(id);
-		if( stage.getSeparationConfigurations().isDefault( newConfiguration )){
-			newConfiguration = newConfiguration.clone();
-		}
+		final String id = rocket.getDefaultConfiguration().getFlightConfigurationID();
+		
+		newConfiguration = component.getStageSeparationConfiguration().get(id).clone();
 		
 		JPanel panel = new JPanel(new MigLayout("fill"));
 		
@@ -56,14 +48,12 @@ public class SeparationSelectionDialog extends JDialog {
 		// Select separation event
 		panel.add(new JLabel(trans.get("SeparationSelectionDialog.opt.title")), "span, wrap rel");
 		
-		boolean isDefault = stage.getSeparationConfigurations().isDefault(id);
+		boolean isDefault = component.getStageSeparationConfiguration().isDefault(id);
 		final JRadioButton defaultButton = new JRadioButton(trans.get("SeparationSelectionDialog.opt.default"), isDefault);
 		panel.add(defaultButton, "span, gapleft para, wrap rel");
 		String str = trans.get("SeparationSelectionDialog.opt.override");
 		str = str.replace("{0}", descriptor.format(rocket, id));
-		final JRadioButton overrideButton = new JRadioButton(str);
-		overrideButton.addItemListener(e -> isOverrideDefault = e.getStateChange() == ItemEvent.SELECTED);
-		overrideButton.setSelected(false);
+		final JRadioButton overrideButton = new JRadioButton(str, false);
 		panel.add(overrideButton, "span, gapleft para, wrap para");
 		
 		ButtonGroup buttonGroup = new ButtonGroup();
@@ -72,12 +62,12 @@ public class SeparationSelectionDialog extends JDialog {
 		
 		// Select the button based on current configuration.  If the configuration is overridden
 		// The the overrideButton is selected.
-		boolean isOverridden = !stage.getSeparationConfigurations().isDefault(id);
+		boolean isOverridden = !component.getStageSeparationConfiguration().isDefault(id);
 		if (isOverridden) {
 			overrideButton.setSelected(true);
 		}
 		
-		final JComboBox<SeparationEvent> event = new JComboBox<SeparationEvent>(new EnumModel<SeparationEvent>(newConfiguration, "SeparationEvent"));
+		final JComboBox event = new JComboBox(new EnumModel<SeparationEvent>(newConfiguration, "SeparationEvent"));
 		event.setSelectedItem(newConfiguration.getSeparationEvent());
 		panel.add(event, "wrap rel");
 		
@@ -95,18 +85,14 @@ public class SeparationSelectionDialog extends JDialog {
 		
 		panel.add(new JPanel(), "span, split, growx");
 		
-		JButton okButton = new SelectColorButton(trans.get("button.ok"));
+		JButton okButton = new JButton(trans.get("button.ok"));
 		okButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				if( newConfiguration.getSeparationEvent() == StageSeparationConfiguration.SeparationEvent.NEVER ){
-					newConfiguration.setSeparationDelay(0);
-				}
 				if (defaultButton.isSelected()) {
-					stage.getSeparationConfigurations().reset();
-					stage.getSeparationConfigurations().setDefault( newConfiguration);
+					component.getStageSeparationConfiguration().setDefault(newConfiguration);
 				} else {
-					stage.getSeparationConfigurations().set(id, newConfiguration);
+					component.getStageSeparationConfiguration().set(id, newConfiguration);
 				}
 				SeparationSelectionDialog.this.setVisible(false);
 			}
@@ -114,7 +100,7 @@ public class SeparationSelectionDialog extends JDialog {
 		
 		panel.add(okButton, "sizegroup btn");
 		
-		JButton cancel = new SelectColorButton(trans.get("button.cancel"));
+		JButton cancel = new JButton(trans.get("button.cancel"));
 		cancel.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -127,14 +113,5 @@ public class SeparationSelectionDialog extends JDialog {
 		this.setContentPane(panel);
 		
 		GUIUtil.setDisposableDialogOptions(this, okButton);
-		GUIUtil.installEscapeCloseButtonOperation(this, okButton);
-	}
-
-	/**
-	 * Returns true if this dialog was used to override the default configuration.
-	 * @return true if this dialog was used to override the default configuration.
-	 */
-	public boolean isOverrideDefault() {
-		return isOverrideDefault;
 	}
 }

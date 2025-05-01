@@ -2,7 +2,6 @@ package net.sf.openrocket.gui.simulation;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.EventObject;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -27,8 +26,6 @@ import net.sf.openrocket.simulation.SimulationOptions;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.Chars;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
-import net.sf.openrocket.util.StateChangeListener;
 
 public class SimulationConditionsPanel extends JPanel {
 	private static final Translator trans = Application.getTranslator();
@@ -45,8 +42,6 @@ public class SimulationConditionsPanel extends JPanel {
 		BasicSlider slider;
 		DoubleModel m;
 		JSpinner spin;
-		DoubleModel temperatureModel;
-		DoubleModel pressureModel;
 		
 		//// Wind settings:  Average wind speed, turbulence intensity, std. deviation, and direction
 		sub = new JPanel(new MigLayout("fill, gap rel unrel",
@@ -173,7 +168,7 @@ public class SimulationConditionsPanel extends JPanel {
 		
 		//// Temperature and pressure
 		sub = new JPanel(new MigLayout("fill, gap rel unrel",
-				"[grow][75lp!][35lp!][75lp!]", ""));
+				"[grow][65lp!][30lp!][75lp!]", ""));
 		//// Atmospheric conditions
 		sub.setBorder(BorderFactory.createTitledBorder(trans.get("simedtdlg.border.Atmoscond")));
 		this.add(sub, "growx, aligny 0, gapright para");
@@ -201,20 +196,20 @@ public class SimulationConditionsPanel extends JPanel {
 		label.setToolTipText(tip);
 		isa.addEnableComponent(label, false);
 		sub.add(label);
-
-		temperatureModel = new DoubleModel(conditions, "LaunchTemperature", UnitGroup.UNITS_TEMPERATURE, 0);
 		
-		spin = new JSpinner(temperatureModel.getSpinnerModel());
+		m = new DoubleModel(conditions, "LaunchTemperature", UnitGroup.UNITS_TEMPERATURE, 0);
+		
+		spin = new JSpinner(m.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin));
 		spin.setToolTipText(tip);
 		isa.addEnableComponent(spin, false);
-		sub.add(spin, "growx");
+		sub.add(spin, "w 65lp!");
 		
-		unit = new UnitSelector(temperatureModel);
+		unit = new UnitSelector(m);
 		unit.setToolTipText(tip);
 		isa.addEnableComponent(unit, false);
 		sub.add(unit, "growx");
-		slider = new BasicSlider(temperatureModel.getSliderModel(253.15, 308.15)); // -20 ... 35
+		slider = new BasicSlider(m.getSliderModel(253.15, 308.15)); // -20 ... 35
 		slider.setToolTipText(tip);
 		isa.addEnableComponent(slider, false);
 		sub.add(slider, "w 75lp, wrap");
@@ -228,35 +223,28 @@ public class SimulationConditionsPanel extends JPanel {
 		label.setToolTipText(tip);
 		isa.addEnableComponent(label, false);
 		sub.add(label);
-
-		pressureModel = new DoubleModel(conditions, "LaunchPressure", UnitGroup.UNITS_PRESSURE, 0);
 		
-		spin = new JSpinner(pressureModel.getSpinnerModel());
+		m = new DoubleModel(conditions, "LaunchPressure", UnitGroup.UNITS_PRESSURE, 0);
+		
+		spin = new JSpinner(m.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin));
 		spin.setToolTipText(tip);
 		isa.addEnableComponent(spin, false);
-		sub.add(spin, "growx");
+		sub.add(spin, "w 65lp!");
 		
-		unit = new UnitSelector(pressureModel);
+		unit = new UnitSelector(m);
 		unit.setToolTipText(tip);
 		isa.addEnableComponent(unit, false);
 		sub.add(unit, "growx");
-		slider = new BasicSlider(pressureModel.getSliderModel(0.950e5, 1.050e5));
+		slider = new BasicSlider(m.getSliderModel(0.950e5, 1.050e5));
 		slider.setToolTipText(tip);
 		isa.addEnableComponent(slider, false);
 		sub.add(slider, "w 75lp, wrap");
-
-
-		isa.addChangeListener(new StateChangeListener() {
-			@Override
-			public void stateChanged(EventObject e) {
-				temperatureModel.stateChanged(e);
-				pressureModel.stateChanged(e);
-			}
-		});
 		
-
-
+		
+		
+		
+		
 		//// Launch site conditions
 		sub = new JPanel(new MigLayout("fill, gap rel unrel",
 				"[grow][65lp!][30lp!][75lp!]", ""));
@@ -437,7 +425,7 @@ public class SimulationConditionsPanel extends JPanel {
 	
 		
 		
-		JButton restoreDefaults = new SelectColorButton(trans.get("simedtdlg.but.resettodefault"));
+		JButton restoreDefaults = new JButton(trans.get("simedtdlg.but.resettodefault"));
 		restoreDefaults.addActionListener(new ActionListener() {
 			
 			@Override
@@ -452,7 +440,7 @@ public class SimulationConditionsPanel extends JPanel {
 		});
 		this.add(restoreDefaults, "span, split 3, skip, gapbottom para, gapright para, right");
 		
-		JButton saveDefaults = new SelectColorButton(trans.get("simedtdlg.but.savedefault"));
+		JButton saveDefaults = new JButton(trans.get("simedtdlg.but.savedefault"));
 		saveDefaults.addActionListener(new ActionListener() {
 			
 			@Override

@@ -5,9 +5,9 @@ import java.io.IOException;
 import java.net.URL;
 
 import javax.imageio.ImageIO;
-import com.jogamp.opengl.GL;
-import com.jogamp.opengl.GL2;
-import com.jogamp.opengl.GLProfile;
+import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
+import javax.media.opengl.GLProfile;
 
 import net.sf.openrocket.gui.figure3d.TextureCache;
 
@@ -17,7 +17,6 @@ import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 public class SkyBoxCross extends Sky {
 	
 	private final URL imageURL;
-	private GL2 previousGL = null;	// GL that the textures were previously bound to
 	Texture north, east, south, west, up, down;
 	
 	public SkyBoxCross(final URL imageURL) {
@@ -41,7 +40,6 @@ public class SkyBoxCross extends Sky {
 			south = AWTTextureIO.newTexture(GLProfile.getDefault(), fixBug(i.getSubimage(dx * 3, dy, dx, dy)), true);
 			up = AWTTextureIO.newTexture(GLProfile.getDefault(), fixBug(i.getSubimage(dx, 0, dx, dy)), true);
 			down = AWTTextureIO.newTexture(GLProfile.getDefault(), fixBug(i.getSubimage(dx, 2 * dy, dx, dy)), true);
-			previousGL = gl;
 		} catch (IOException e) {
 			throw new Error(e);
 		}
@@ -49,7 +47,7 @@ public class SkyBoxCross extends Sky {
 	
 	@Override
 	public void draw(GL2 gl, final TextureCache cache) {
-		if (north == null || gl != previousGL) {
+		if (north == null) {
 			loadTextures(gl);
 		}
 		

@@ -1,170 +1,96 @@
 package net.sf.openrocket.masscalc;
 
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 import net.sf.openrocket.motor.Motor;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
+import net.sf.openrocket.motor.MotorInstanceConfiguration;
+import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
-import net.sf.openrocket.simulation.MotorClusterState;
-import net.sf.openrocket.simulation.SimulationStatus;
-import net.sf.openrocket.util.*;
+import net.sf.openrocket.util.Coordinate;
+import net.sf.openrocket.util.Monitorable;
 
-public class MassCalculator implements Monitorable {
+public interface MassCalculator extends Monitorable {
 	
-	public static final double MIN_MASS = MathUtil.EPSILON;
-
-	/*
-	 * Cached data.  All CG data is in absolute coordinates.  All moments of inertia
-	 * are relative to their respective CG.
-	 */
-	//	private HashMap< Integer, MassData> stageMassCache = new HashMap<Integer, MassData >();
-	//	private MassData rocketSpentMassCache;
-	//	private MassData motorMassCache;
-
-	private final int modId = 0;
-	
-	//////////////////  Constructors ///////////////////
-	public MassCalculator() {
-	}
-	
-	////////////////// Public Accessors ///////////////////
-	
-	
-	/**
-	 * Calculates mass data of the rocket's structure
-	 * - includes structure 
-	 * - excludes motors
-	 * - excludes propellant
-	 *  
-	 * @param config		the rocket configuration to calculate for
-	 * @return				the MassData struct of the rocket
-	 */
-	public static RigidBody calculateStructure( final FlightConfiguration config) {
-		return calculate( MassCalculation.Type.STRUCTURE, config, Motor.PSEUDO_TIME_EMPTY );
-	}	
-	
-	/**
-	 * Calculates mass data of the rocket's burnout mass
-	 * - includes structure 
-	 * - includes motors
-	 * - for Black Powder & Composite motors, this generally *excludes* propellant
-	 *  
-	 * @param config		the rocket configuration to calculate for
-	 * @return				the MassData struct of the rocket at burnout
-	 */
-	public static RigidBody calculateBurnout( final FlightConfiguration config) {
-		return calculate( MassCalculation.Type.BURNOUT, config, Motor.PSEUDO_TIME_BURNOUT );
-	}	
-
-	/**
-	 * Calculates mass data of the rocket's motor(s) at launch
-	 * - excludes structure
-	 * - includes motors
-	 * - includes propellant
-	 *  
-	 * @param config		the rocket configuration to calculate for
-	 * @return				the MassData struct of the motors at launch
-	 */
-	public static RigidBody calculateMotor( final FlightConfiguration config) {
-		return calculate( MassCalculation.Type.MOTOR, config, Motor.PSEUDO_TIME_LAUNCH );
-	}	
-	
-	/**
-	 * Compute the rocket's launch mass properties, given a configuration
-	 * - includes structure
-	 * - includes motors
-	 * - includes propellant
-	 *  
-	 * @param config             the rocket configuration
-	 * @return					 the MassData struct of the rocket at launch
-	 */
-	public static RigidBody calculateLaunch( final FlightConfiguration config ){
-		return calculate( MassCalculation.Type.LAUNCH, config, Motor.PSEUDO_TIME_LAUNCH );
-	}
-	
-	/** calculates the massdata for all motors in the rocket given the simulation status.
-	 * - excludes structure
-	 * - includes motors
-	 * - includes propellant
-	 * 
-	 * @param status  CurrentSimulation status to calculate data with
-	 * @return  combined mass data for all propellant
-	 */
-	public static RigidBody calculateMotor( final SimulationStatus status ){
-		return calculate( MassCalculation.Type.MOTOR, status ); 
-	}
-
-	////////////////// Mass property Wrappers  ///////////////////
-	// all mass calculation calls should probably call through one of these two wrappers. 
-	
-	// convenience wrapper -- use this to implicitly create a plain MassCalculation object with common parameters,
-	// for calculations in the course of a simulation
-	public static RigidBody calculate( final MassCalculation.Type _type, final SimulationStatus status ){
-		final FlightConfiguration config = status.getConfiguration();
-		final double time = status.getSimulationTime();
-		final Collection<MotorClusterState> activeMotorList = status.getActiveMotors();
-		MassCalculation calculation= new MassCalculation( _type, config, time, activeMotorList, config.getRocket(), Transformation.IDENTITY, null);
+	public static enum MassCalcType {
+		NO_MOTORS {
+			@Override
+			public Coordinate getCG(Motor motor) {
+				return Coordinate.NUL;
+			}
+		},
+		LAUNCH_MASS {
+			@Override
+			public Coordinate getCG(Motor motor) {
+				return motor.getLaunchCG();
+			}
+		},
+		BURNOUT_MASS {
+			@Override
+			public Coordinate getCG(Motor motor) {
+				return motor.getEmptyCG();
+			}
+		};
 		
-		calculation.calculateAssembly();
-		RigidBody result = calculation.calculateMomentOfInertia();
-		return result;
+		public abstract Coordinate getCG(Motor motor);
 	}
 	
-	// convenience wrapper -- use this to implicitly create a plain MassCalculation object with common parameters,
-	// for static mass calculations
-	public static RigidBody calculate( final MassCalculation.Type _type, final FlightConfiguration _config,  double _time){
-		MassCalculation calculation = new MassCalculation( _type, _config, _time, null, _config.getRocket(), Transformation.IDENTITY, null);
-		calculation.calculateAssembly();
-		return calculation.calculateMomentOfInertia();
-	}
-
+	/**
+	 * Compute the CG of the provided configuration.
+	 * 
+	 * @param configuration		the rocket configuration
+	 * @param type				the state of the motors (none, launch mass, burnout mass)
+	 * @return					the CG of the configuration
+	 */
+	public Coordinate getCG(Configuration configuration, MassCalcType type);
+	
+	/**
+	 * Compute the CG of the provided configuration with specified motors.
+	 * 
+	 * @param configuration		the rocket configuration
+	 * @param motors			the motor configuration
+	 * @return					the CG of the configuration
+	 */
+	public Coordinate getCG(Configuration configuration, MotorInstanceConfiguration motors);
+	
+	/**
+	 * Compute the longitudinal inertia of the provided configuration with specified motors.
+	 * 
+	 * @param configuration		the rocket configuration
+	 * @param motors			the motor configuration
+	 * @return					the longitudinal inertia of the configuration
+	 */
+	public double getLongitudinalInertia(Configuration configuration, MotorInstanceConfiguration motors);
+	
+	/**
+	 * Compute the rotational inertia of the provided configuration with specified motors.
+	 * 
+	 * @param configuration		the rocket configuration
+	 * @param motors			the motor configuration
+	 * @return					the rotational inertia of the configuration
+	 */
+	public double getRotationalInertia(Configuration configuration, MotorInstanceConfiguration motors);
+	
+	/**
+	 * Return the total mass of the motors
+	 * 
+	 * @param motors			the motor configuration
+	 * @param configuration		the current motor instance configuration
+	 * @return					the total mass of all motors
+	 */
+	public double getPropellantMass(Configuration configuration, MotorInstanceConfiguration motors);	
+	
 	/**
 	 * Compute an analysis of the per-component CG's of the provided configuration.
 	 * The returned map will contain an entry for each physical rocket component (not stages)
 	 * with its corresponding (best-effort) CG.  Overriding of subcomponents is ignored.
 	 * The CG of the entire configuration with motors is stored in the entry with the corresponding
 	 * Rocket as the key.
-	 *
-	 * Deprecated:
-	 * This function is fundamentally broken, because it asks for a calculation which ignores instancing.
-	 * This function will work with simple rockets, but will be misleading or downright wrong for others.
-	 *
-	 * This is a problem with using a single-typed map:
-	 * [1] multiple instances of components are not allowed, and must be merged.
-	 * [2] propellant / motor data does not have a corresponding RocketComponent.
-	 *     ( or mount-data collides with motor-data )
-	 *
-	 * @return a list of CG coordinates for every instance of this component
+	 * 
+	 * @param configuration		the rocket configuration
+	 * @param type				the state of the motors (none, launch mass, burnout mass)
+	 * @return					a map from each rocket component to its corresponding CG.
 	 */
-	public static Map<Integer,CMAnalysisEntry> getCMAnalysis(FlightConfiguration config) {
-
-		Map<Integer,CMAnalysisEntry> analysisMap = new HashMap<>();
-
-		MassCalculation calculation = new MassCalculation(
-				MassCalculation.Type.LAUNCH,
-				config,
-				Motor.PSEUDO_TIME_LAUNCH,
-				null,
-				config.getRocket(),
-				Transformation.IDENTITY,
-				analysisMap);
-
-		calculation.calculateAssembly();
-
-		CMAnalysisEntry totals = new CMAnalysisEntry(config.getRocket());
-		totals.totalCM = calculation.centerOfMass;
-		totals.eachMass = calculation.centerOfMass.weight;
-		analysisMap.put(config.getRocket().hashCode(), totals);
-
-		return analysisMap;
-	}
+	public Map<RocketComponent, Coordinate> getCGAnalysis(Configuration configuration, MassCalcType type);
 	
-	////////////////// Mass property calculations  ///////////////////
-	@Override
-	public int getModID() {
-		return this.modId;
-	}
-	
+
 }

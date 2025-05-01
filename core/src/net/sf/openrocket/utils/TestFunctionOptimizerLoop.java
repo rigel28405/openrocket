@@ -47,8 +47,9 @@ public class TestFunctionOptimizerLoop {
 				return distance >= PRECISION;
 			}
 		};
-
-        ParallelExecutorCache cache = new ParallelExecutorCache(executor);
+		;
+		
+		ParallelExecutorCache cache = new ParallelExecutorCache(executor);
 		cache.setFunction(function);
 		optimizer.setFunctionCache(cache);
 		optimizer.optimize(new Point(optimum.dim(), 0.5), control);

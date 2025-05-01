@@ -1,21 +1,24 @@
 package net.sf.openrocket.document;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.EventListener;
 import java.util.EventObject;
+import java.util.Iterator;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.sf.openrocket.aerodynamics.AerodynamicCalculator;
 import net.sf.openrocket.aerodynamics.BarrowmanCalculator;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.formatting.RocketDescriptor;
+import net.sf.openrocket.masscalc.BasicMassCalculator;
 import net.sf.openrocket.masscalc.MassCalculator;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
+import net.sf.openrocket.motor.Motor;
+import net.sf.openrocket.motor.MotorInstanceConfiguration;
+import net.sf.openrocket.rocketcomponent.Configuration;
+import net.sf.openrocket.rocketcomponent.IgnitionConfiguration;
+import net.sf.openrocket.rocketcomponent.MotorConfiguration;
+import net.sf.openrocket.rocketcomponent.MotorMount;
 import net.sf.openrocket.rocketcomponent.Rocket;
+import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.simulation.BasicEventSimulationEngine;
 import net.sf.openrocket.simulation.DefaultSimulationOptionFactory;
 import net.sf.openrocket.simulation.FlightData;
@@ -33,6 +36,9 @@ import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.ChangeSource;
 import net.sf.openrocket.util.SafetyMutex;
 import net.sf.openrocket.util.StateChangeListener;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class defining a simulation, its conditions and simulated data.
@@ -65,22 +71,20 @@ public class Simulation implements ChangeSource, Cloneable {
 		CANT_RUN
 	}
 	
-	private final RocketDescriptor descriptor = Application.getInjector().getInstance(RocketDescriptor.class);
+	private RocketDescriptor descriptor = Application.getInjector().getInstance(RocketDescriptor.class);
 	
 	
 	private SafetyMutex mutex = SafetyMutex.newInstance();
-
-	private final OpenRocketDocument document;
+	
 	private final Rocket rocket;
-	FlightConfigurationId configId = FlightConfigurationId.ERROR_FCID;
 	
 	private String name = "";
 	
-	private Status status;
+	private Status status = Status.NOT_SIMULATED;
 	
 	/** The conditions to use */
 	// TODO: HIGH: Change to use actual conditions class??
-	private SimulationOptions options = new SimulationOptions();
+	private SimulationOptions options;
 	
 	private ArrayList<SimulationExtension> simulationExtensions = new ArrayList<SimulationExtension>();
 	
@@ -89,7 +93,7 @@ public class Simulation implements ChangeSource, Cloneable {
 	private Class<? extends SimulationStepper> simulationStepperClass = RK4SimulationStepper.class;
 	private Class<? extends AerodynamicCalculator> aerodynamicCalculatorClass = BarrowmanCalculator.class;
 	@SuppressWarnings("unused")
-	private final Class<? extends MassCalculator> massCalculatorClass = MassCalculator.class;
+	private Class<? extends MassCalculator> massCalculatorClass = BasicMassCalculator.class;
 	
 	/** Listeners for this object */
 	private List<EventListener> listeners = new ArrayList<EventListener>();
@@ -97,32 +101,11 @@ public class Simulation implements ChangeSource, Cloneable {
 	
 	/** The conditions actually used in the previous simulation, or null */
 	private SimulationOptions simulatedConditions = null;
-	private String simulatedConfigurationDescription = null;
+	private String simulatedConfiguration = null;
 	private FlightData simulatedData = null;
-	private int simulatedConfigurationID = -1;
+	private int simulatedRocketID = -1;
 	
 	
-	/**
-	 * Create a new simulation for the rocket. Parent document should also be provided.
-	 * The initial motor configuration is taken from the default rocket configuration.
-	 *
-	 * @param rocket	the rocket associated with the simulation.
-	 */
-	public Simulation(OpenRocketDocument document, Rocket rocket) {
-		this.document = document;
-		this.rocket = rocket;
-		this.status = Status.NOT_SIMULATED;
-
-		DefaultSimulationOptionFactory f = Application.getInjector().getInstance(DefaultSimulationOptionFactory.class);
-		options.copyConditionsFrom(f.getDefault());
-
-		FlightConfigurationId fcid = rocket.getSelectedConfiguration().getFlightConfigurationID();
-		setFlightConfigurationId(fcid);
-
-		options.addChangeListener(new ConditionListener());
-		addChangeListener(document);
-	}
-
 	/**
 	 * Create a new simulation for the rocket. Parent document should also be provided.
 	 * The initial motor configuration is taken from the default rocket configuration.
@@ -130,11 +113,20 @@ public class Simulation implements ChangeSource, Cloneable {
 	 * @param rocket	the rocket associated with the simulation.
 	 */
 	public Simulation(Rocket rocket) {
-		this(null, rocket);
+		this.rocket = rocket;
+		this.status = Status.NOT_SIMULATED;
+		
+		options = new SimulationOptions(rocket);
+		
+		DefaultSimulationOptionFactory f = Application.getInjector().getInstance(DefaultSimulationOptionFactory.class);
+		options.copyConditionsFrom(f.getDefault());
+		
+		options.setMotorConfigurationID(rocket.getDefaultConfiguration().getFlightConfigurationID());
+		options.addChangeListener(new ConditionListener());
 	}
 	
 	
-	public Simulation(OpenRocketDocument document, Rocket rocket, Status status, String name, SimulationOptions options,
+	public Simulation(Rocket rocket, Status status, String name, SimulationOptions options,
 			List<SimulationExtension> extensions, FlightData data) {
 		
 		if (rocket == null)
@@ -145,30 +137,37 @@ public class Simulation implements ChangeSource, Cloneable {
 			throw new IllegalArgumentException("name cannot be null");
 		if (options == null)
 			throw new IllegalArgumentException("options cannot be null");
-
-		this.rocket = rocket;
-		this.name = name;
-		this.status = status;
-		this.simulatedConditions = options.clone();
-		this.simulatedData = data;
-		this.document = document;
-		addChangeListener(this.document);
-			
-		this.options = options;
-		this.options.addChangeListener(new ConditionListener());
 		
-		final FlightConfiguration config = rocket.getSelectedConfiguration();
-		this.setFlightConfigurationId(config.getFlightConfigurationID());
-		this.simulatedConfigurationID = config.getModID();
-
-		this.simulationExtensions.addAll(extensions);
+		this.rocket = rocket;
+		
+		if (status == Status.UPTODATE) {
+			this.status = Status.LOADED;
+		} else if (data == null) {
+			this.status = Status.NOT_SIMULATED;
+		} else {
+			this.status = status;
+		}
+		
+		this.name = name;
+		
+		this.options = options;
+		options.addChangeListener(new ConditionListener());
+		
+		if (extensions != null) {
+			this.simulationExtensions.addAll(extensions);
+		}
+		
+		
+		if (data != null && this.status != Status.NOT_SIMULATED) {
+			simulatedData = data;
+			if (this.status == Status.LOADED) {
+				simulatedConditions = options.clone();
+				simulatedRocketID = rocket.getModID();
+			}
+		}
+		
 	}
-
-	public FlightConfiguration getActiveConfiguration() {
-		mutex.verify();
-		return rocket.getFlightConfiguration(this.configId);
-	}
-
+	
 	/**
 	 * Return the rocket associated with this simulation.
 	 *
@@ -178,72 +177,21 @@ public class Simulation implements ChangeSource, Cloneable {
 		mutex.verify();
 		return rocket;
 	}
-
-	public FlightConfigurationId getFlightConfigurationId(){
-		return this.configId;
-	}
-	public FlightConfigurationId getId(){
-		return this.getFlightConfigurationId();
-	}
+	
 	
 	/**
-	 * Set the motor configuration ID.  If this id does not yet exist, it will be created.
-	 * 
-	 * @param fcid	the configuration to set.
+	 * Return a newly created Configuration for this simulation.  The configuration
+	 * has the motor ID set and all stages active.
+	 *
+	 * @return	a newly created Configuration of the launch conditions.
 	 */
-	public void setFlightConfigurationId(FlightConfigurationId fcid) {
-		if ( null == fcid ){
-			throw new NullPointerException("Attempted to set a null Config id in simulation options. Not allowed!");
-		}else if ( fcid.hasError() ){
-			throw new IllegalArgumentException("Attempted to set the configuration to an error id. Not Allowed!");
-		}else if (!rocket.containsFlightConfigurationID(fcid)){
-			rocket.createFlightConfiguration(fcid);
-		}
-		
-		if( fcid.equals(this.configId)){
-			return;
-		}
-		
-		this.configId = fcid;
-		fireChangeEvent();
+	public Configuration getConfiguration() {
+		mutex.verify();
+		Configuration c = new Configuration(rocket);
+		c.setFlightConfigurationID(options.getMotorConfigurationID());
+		c.setAllStages();
+		return c;
 	}
-
-	/**
-	 * Applies the simulation options to the simulation.
-	 * @param options the simulation options to apply.
-	 */
-	public void copySimulationOptionsFrom(SimulationOptions options) {
-		this.options.copyConditionsFrom(options);
-	}
-	
-//	/**
-//	 * Return a newly created Configuration for this simulation.  The configuration
-//	 * has the motor ID set and all stages active.
-//	 *
-//	 * @return	a newly created Configuration of the launch conditions.
-//	 */
-//	public FlightConfiguration getConfiguration() {
-//		mutex.verify();
-//		FlightConfiguration c = rocket.getDefaultConfiguration().clone();
-//		c.setFlightConfigurationID(options.getConfigID());
-//		c.setAllStages();
-//		return c;
-//	}
-//	
-//	
-//	/**
-//	 * Return a newly created Configuration for this simulation.  The configuration
-//	 * has the motor ID set and all stages active.
-//	 *
-//	 * @return	a newly created Configuration of the launch conditions.
-//	 */
-//	public FlightConfiguration setConfiguration( final FlightConfiguration fc ) {
-//		mutex.verify();
-//		//FlightConfiguration c = rocket.getDefaultConfiguration().clone();
-//		//c.setFlightConfigurationID(options.getConfigID());
-//		//c.setAllStages();
-//		//return c;
-//	}
 	
 	/**
 	 * Returns the simulation options attached to this simulation.  The options
@@ -267,18 +215,6 @@ public class Simulation implements ChangeSource, Cloneable {
 	public List<SimulationExtension> getSimulationExtensions() {
 		mutex.verify();
 		return simulationExtensions;
-	}
-
-	/**
-	 * Applies the simulation extensions to the simulation.
-	 * @param extensions the simulation extensions to apply.
-	 */
-	public void copyExtensionsFrom(List<SimulationExtension> extensions) {
-		if (extensions == null) {
-			return;
-		}
-		this.simulationExtensions.clear();
-		this.simulationExtensions.addAll(extensions);
 	}
 	
 	
@@ -325,44 +261,38 @@ public class Simulation implements ChangeSource, Cloneable {
 	 */
 	public Status getStatus() {
 		mutex.verify();
-		final FlightConfiguration config = rocket.getFlightConfiguration(this.getId()).clone();
-
-		if (isStatusUpToDate(status)) {
-			if (config.getModID() != simulatedConfigurationID || !options.equals(simulatedConditions)) {
+		if (status == Status.UPTODATE || status == Status.LOADED) {
+			if (rocket.getFunctionalModID() != simulatedRocketID || !options.equals(simulatedConditions)) {
 				status = Status.OUTDATED;
 			}
 		}
-
-		// if the id hasn't been set yet, skip.
-		if ( getId().hasError() ){
-			log.warn(" simulationOptions lacks a valid id. Skipping.");
-			status = Status.CANT_RUN;
-			return status;
-		}
-				
+		
+		
 		//Make sure this simulation has motors.
-		if ( ! config.hasMotors() ){
-			status = Status.CANT_RUN;
+		Configuration c = new Configuration(this.getRocket());
+		MotorInstanceConfiguration motors = new MotorInstanceConfiguration();
+		c.setFlightConfigurationID(options.getMotorConfigurationID());
+		final String flightConfigId = c.getFlightConfigurationID();
+		
+		Iterator<MotorMount> iterator = c.motorIterator();
+		boolean no_motors = true;
+		
+		while (iterator.hasNext()) {
+			MotorMount mount = iterator.next();
+			RocketComponent component = (RocketComponent) mount;
+			MotorConfiguration motorConfig = mount.getMotorConfiguration().get(flightConfigId);
+			IgnitionConfiguration ignitionConfig = mount.getIgnitionConfiguration().get(flightConfigId);
+			Motor motor = motorConfig.getMotor();
+			if (motor != null)
+				no_motors = false;
 		}
+		
+		if (no_motors)
+			status = Status.CANT_RUN;
 		
 		return status;
 	}
-
-	/**
-	 * Returns true is the status indicates that the simulation data is up-to-date.
-	 * @param status status of the simulation to check for if its data is up-to-date
-	 */
-	public static boolean isStatusUpToDate(Status status) {
-		return status == Status.UPTODATE || status == Status.LOADED || status == Status.EXTERNAL;
-	}
-
-	/**
-	 * Syncs the modID with its flight configuration.
-	 */
-	public void syncModID() {
-		this.simulatedConfigurationID = getActiveConfiguration().getModID();
-		fireChangeEvent();
-	}
+	
 	
 	
 	/**
@@ -383,15 +313,13 @@ public class Simulation implements ChangeSource, Cloneable {
 			SimulationEngine simulator;
 			
 			try {
-				simulator = simulationEngineClass.getConstructor().newInstance();
+				simulator = simulationEngineClass.newInstance();
 			} catch (InstantiationException e) {
 				throw new IllegalStateException("Cannot instantiate simulator.", e);
 			} catch (IllegalAccessException e) {
 				throw new IllegalStateException("Cannot access simulator instance?! BUG!", e);
-			} catch (InvocationTargetException | NoSuchMethodException e) {
-				throw new RuntimeException(e);
 			}
-
+			
 			SimulationConditions simulationConditions = options.toSimulationConditions();
 			simulationConditions.setSimulation(this);
 			for (SimulationListener l : additionalListeners) {
@@ -408,19 +336,18 @@ public class Simulation implements ChangeSource, Cloneable {
 			simulatedData = simulator.simulate(simulationConditions);
 			t2 = System.currentTimeMillis();
 			log.debug("Simulation: returning from simulator, simulation took " + (t2 - t1) + "ms");
-
-		} catch (SimulationException e) {
-			simulatedData = e.getFlightData();
-			throw e;
-		} finally {
-			// Set simulated info after simulation
+			
+			// Set simulated info after simulation, will not be set in case of exception
 			simulatedConditions = options.clone();
-			simulatedConfigurationDescription = descriptor.format( this.rocket, getId());
-			simulatedConfigurationID = getActiveConfiguration().getModID();
+			final Configuration configuration = getConfiguration();
+			
+			simulatedConfiguration = descriptor.format(configuration.getRocket(), configuration.getFlightConfigurationID());
+			simulatedRocketID = rocket.getFunctionalModID();
 			
 			status = Status.UPTODATE;
 			fireChangeEvent();
-
+			configuration.release();
+		} finally {
 			mutex.unlock("simulate");
 		}
 	}
@@ -462,7 +389,7 @@ public class Simulation implements ChangeSource, Cloneable {
 	 */
 	public String getSimulatedConfigurationDescription() {
 		mutex.verify();
-		return simulatedConfigurationDescription;
+		return simulatedConfiguration;
 	}
 	
 	/**
@@ -477,9 +404,9 @@ public class Simulation implements ChangeSource, Cloneable {
 	}
 	
 	/**
-	 * Return true if this simulation contains plottable flight data.
+	 * Return true if this simulation contains plotable flight data.
 	 * 
-	 * @return true if this simulation contains plottable flight data.
+	 * @return
 	 */
 	public boolean hasSimulationData() {
 		FlightData data = getSimulatedData();
@@ -490,15 +417,6 @@ public class Simulation implements ChangeSource, Cloneable {
 			return false;
 		}
 		return true;
-	}
-
-	/**
-	 * Return true if this simulation contains summary flight data.
-	 * @return true if this simulation contains summary flight data.
-	 */
-	public boolean hasSummaryData() {
-		FlightData data = getSimulatedData();
-		return data != null;
 	}
 	
 	/**
@@ -523,9 +441,9 @@ public class Simulation implements ChangeSource, Cloneable {
 			}
 			copy.listeners = new ArrayList<EventListener>();
 			copy.simulatedConditions = null;
-			copy.simulatedConfigurationDescription = null;
+			copy.simulatedConfiguration = null;
 			copy.simulatedData = null;
-			copy.simulatedConfigurationID = -1;
+			copy.simulatedRocketID = -1;
 			
 			return copy;
 			
@@ -535,95 +453,30 @@ public class Simulation implements ChangeSource, Cloneable {
 			mutex.unlock("copy");
 		}
 	}
-
-	public Simulation clone() {
-		mutex.lock("clone");
-		try {
-			Simulation clone = (Simulation) super.clone();
-
-			clone.mutex = SafetyMutex.newInstance();
-			clone.name = this.name;
-			clone.configId = this.configId;
-			clone.simulatedConfigurationDescription = this.simulatedConfigurationDescription;
-			clone.simulatedConfigurationID = this.simulatedConfigurationID;
-			clone.options = this.options.clone();
-			clone.listeners = new ArrayList<>();
-			if (this.simulatedConditions != null) {
-				clone.simulatedConditions = this.simulatedConditions.clone();
-			} else {
-				clone.simulatedConditions = null;
-			}
-			clone.simulationExtensions = new ArrayList<>();
-			for (SimulationExtension c : this.simulationExtensions) {
-				clone.simulationExtensions.add(c.clone());
-			}
-			clone.status = this.status;
-			clone.simulatedData = this.simulatedData != null ? this.simulatedData.clone() : this.simulatedData;
-			clone.simulationStepperClass = this.simulationStepperClass;
-			clone.aerodynamicCalculatorClass = this.aerodynamicCalculatorClass;
-
-			return clone;
-		} catch (CloneNotSupportedException e) {
-			throw new BugException("Clone not supported, BUG", e);
-		} finally {
-			mutex.unlock("clone");
-		}
-	}
-
-	/**
-	 * Load the data from the specified simulation into this simulation.
-	 * @param simulation the simulation to load from.
-	 */
-	public void loadFrom(Simulation simulation) {
-		mutex.lock("loadFrom");
-		try {
-			this.name = simulation.name;
-			this.configId = simulation.configId;
-			this.simulatedConfigurationDescription = simulation.simulatedConfigurationDescription;
-			this.simulatedConfigurationID = simulation.simulatedConfigurationID;
-			this.options.copyConditionsFrom(simulation.options);
-			if (simulation.simulatedConditions == null) {
-				this.simulatedConditions = null;
-			} else {
-				this.simulatedConditions.copyConditionsFrom(simulation.simulatedConditions);
-			}
-			copyExtensionsFrom(simulation.getSimulationExtensions());
-			this.status = simulation.status;
-			this.simulatedData = simulation.simulatedData;
-			this.simulationStepperClass = simulation.simulationStepperClass;
-			this.aerodynamicCalculatorClass = simulation.aerodynamicCalculatorClass;
-		} finally {
-			mutex.unlock("loadFrom");
-		}
-	}
 	
 	
 	/**
 	 * Create a duplicate of this simulation with the specified rocket.  The new
 	 * simulation is in non-simulated state.
-	 * This methods performs
-	 * synchronization on the simulation for thread protection.
-	 * <p>
-	 * Note:  This method is package-private for unit testing purposes.
 	 *
 	 * @param newRocket		the rocket for the new simulation.
-	 * @return	a new deep copy of the simulation and rocket with the same conditions and properties.
+	 * @return				a new simulation with the same conditions and properties.
 	 */
 	public Simulation duplicateSimulation(Rocket newRocket) {
 		mutex.lock("duplicateSimulation");
 		try {
-			final Simulation newSim = new Simulation(this.document, newRocket);
-			newSim.name = this.name;
-			newSim.configId = this.configId;
-			newSim.options.copyConditionsFrom(this.options);
-			newSim.simulatedConfigurationDescription = this.simulatedConfigurationDescription;
-			for (SimulationExtension c : this.simulationExtensions) {
-				newSim.simulationExtensions.add(c.clone());
-			}
-			newSim.simulationStepperClass = this.simulationStepperClass;
-			newSim.aerodynamicCalculatorClass = this.aerodynamicCalculatorClass;
+			Simulation copy = new Simulation(newRocket);
 			
-			return newSim;
+			copy.name = this.name;
+			copy.options.copyFrom(this.options);
+			copy.simulatedConfiguration = this.simulatedConfiguration;
+			for (SimulationExtension c : this.simulationExtensions) {
+				copy.simulationExtensions.add(c.clone());
+			}
+			copy.simulationStepperClass = this.simulationStepperClass;
+			copy.aerodynamicCalculatorClass = this.aerodynamicCalculatorClass;
+			
+			return copy;
 		} finally {
 			mutex.unlock("duplicateSimulation");
 		}
@@ -658,10 +511,15 @@ public class Simulation implements ChangeSource, Cloneable {
 	
 	
 	private class ConditionListener implements StateChangeListener {
+		
+		private Status oldStatus = null;
+		
 		@Override
 		public void stateChanged(EventObject e) {
-			fireChangeEvent();
+			if (getStatus() != oldStatus) {
+				oldStatus = getStatus();
+				fireChangeEvent();
+			}
 		}
 	}
-	
 }

@@ -5,21 +5,26 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
 
-import net.sf.openrocket.file.openrocket.savers.PhotoStudioSaver;
-import net.sf.openrocket.logging.ErrorSet;
-import net.sf.openrocket.logging.WarningSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import net.sf.openrocket.logging.Warning;
+import net.sf.openrocket.aerodynamics.Warning;
 import net.sf.openrocket.document.OpenRocketDocument;
 import net.sf.openrocket.document.Simulation;
 import net.sf.openrocket.document.StorageOptions;
 import net.sf.openrocket.file.RocketSaver;
+import net.sf.openrocket.rocketcomponent.DeploymentConfiguration.DeployEvent;
+import net.sf.openrocket.rocketcomponent.FinSet;
+import net.sf.openrocket.rocketcomponent.FlightConfigurableComponent;
+import net.sf.openrocket.rocketcomponent.MotorMount;
+import net.sf.openrocket.rocketcomponent.RecoveryDevice;
 import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
+import net.sf.openrocket.rocketcomponent.Stage;
+import net.sf.openrocket.rocketcomponent.TubeCoupler;
+import net.sf.openrocket.rocketcomponent.TubeFinSet;
 import net.sf.openrocket.simulation.FlightData;
 import net.sf.openrocket.simulation.FlightDataBranch;
 import net.sf.openrocket.simulation.FlightDataType;
@@ -30,8 +35,12 @@ import net.sf.openrocket.simulation.extension.SimulationExtension;
 import net.sf.openrocket.util.BugException;
 import net.sf.openrocket.util.BuildProperties;
 import net.sf.openrocket.util.Config;
+import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.Reflection;
 import net.sf.openrocket.util.TextUtil;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OpenRocketSaver extends RocketSaver {
 	private static final Logger log = LoggerFactory.getLogger(OpenRocketSaver.class);
@@ -48,7 +57,6 @@ public class OpenRocketSaver extends RocketSaver {
 	
 	private static final String METHOD_PACKAGE = "net.sf.openrocket.file.openrocket.savers";
 	private static final String METHOD_SUFFIX = "Saver";
-	public static final String INDENT = "  ";
 	
 	
 	// Estimated storage used by different portions
@@ -62,7 +70,7 @@ public class OpenRocketSaver extends RocketSaver {
 	private Writer dest;
 	
 	@Override
-	public void save(OutputStream output, OpenRocketDocument document, StorageOptions options, WarningSet warnings, ErrorSet errors) throws IOException {
+	public void save(OutputStream output, OpenRocketDocument document, StorageOptions options) throws IOException {
 		
 		log.info("Saving .ork file");
 		
@@ -99,13 +107,10 @@ public class OpenRocketSaver extends RocketSaver {
 			if (!first)
 				writeln("");
 			first = false;
-			saveSimulation(s, options.getSaveSimulationData());
+			saveSimulation(s, options.getSimulationTimeSkip());
 		}
 		indent--;
 		writeln("</simulations>");
-
-		// Save PhotoSettings
-		savePhotoSettings(document.getPhotoSettings());
 		
 		indent--;
 		writeln("</openrocket>");
@@ -175,12 +180,13 @@ public class OpenRocketSaver extends RocketSaver {
 		
 		// Size per flight data point
 		int pointCount = 0;
-		if (options.getSaveSimulationData()) {
+		double timeSkip = options.getSimulationTimeSkip();
+		if (timeSkip != StorageOptions.SIMULATION_DATA_NONE) {
 			for (Simulation s : doc.getSimulations()) {
 				FlightData data = s.getSimulatedData();
 				if (data != null) {
 					for (int i = 0; i < data.getBranchCount(); i++) {
-						pointCount += countFlightDataBranchPoints(data.getBranch(i));
+						pointCount += countFlightDataBranchPoints(data.getBranch(i), timeSkip);
 					}
 				}
 			}
@@ -216,66 +222,180 @@ public class OpenRocketSaver extends RocketSaver {
 		/*
 		 * NOTE:  Remember to update the supported versions in DocumentConfig as well!
 		 * 
-		 * File version 1.9 is required for:
-		 *  - new-style positioning
-		 *  - external/parallel booster stages
-		 *  - external pods
-		 *  - Rail Buttons
-		 *  - Flight event source saving
+		 * File version 1.7 is required for:
+		 *  - simulation extensions
+		 *  - saving tube fins.
+		 * 
+		 * File version 1.6 is required for:
+		 *  - saving files using appearances and textures, flight configurations.
 		 *  
-		 * Otherwise use version 1.9.
+		 * File version 1.5 is requires for:
+		 *  - saving designs using ComponentPrests
+		 *  - recovery device deployment on lower stage separation
+		 *  - custom expressions
+		 *  
+		 * File version 1.4 is required for:
+		 *  - saving simulation data
+		 *  - saving motor data
+		 * 
+		 * File version 1.1 is required for:
+		 *  - fin tabs
+		 *  - components attached to tube coupler
+		 * 
+		 * Otherwise use version 1.0.
 		 */
 		
 		/////////////////
-		// Version 1.9 //
+		// Version 1.7 // 
 		/////////////////
-		// for any new-style positioning:  'axialoffset', 'angleoffset', 'radiusoffset' tags
-		// these tags are used for any RocketComponent child classes positioning... so... ALL the classes.
-		return FILE_VERSION_DIVISOR + 9;
-		
-	}
-	
-	
-	/**
-	 * Finds a getElements method somewhere in the *saver class hierarchy corresponding to the given component.
-	 */
-	private static Reflection.Method findGetElementsMethod(RocketComponent component) {
-		String currentclassname;
-		Class<?> currentclass;
-		String saverclassname;
-		Class<?> saverClass;
-		
-		Reflection.Method mtr = null; // method-to-return
-		
-		currentclass = component.getClass();
-		while ((currentclass != null) && (currentclass != Object.class)) {
-			currentclassname = currentclass.getSimpleName();
-			saverclassname = METHOD_PACKAGE + "." + currentclassname + METHOD_SUFFIX;
-			
-			try {
-				saverClass = Class.forName(saverclassname);
-				
-				// if class exists
-				java.lang.reflect.Method m = saverClass.getMethod("getElements", RocketComponent.class);
-				mtr = new Reflection.Method(m);
-				
-				return mtr;
-			} catch (Exception ignore) {
+		for (Simulation sim : document.getSimulations()) {
+			if (!sim.getSimulationExtensions().isEmpty()) {
+				return FILE_VERSION_DIVISOR + 7;
 			}
-			
-			currentclass = currentclass.getSuperclass();
 		}
 		
-		// if( null == mtr ){
-		throw new BugException("Unable to find saving class for component " +
-				METHOD_PACKAGE + "." + component.getClass().getSimpleName() + " ... " + METHOD_SUFFIX);
+		// Search the rocket for any TubeFinSet objects (version 1.7)
+		for (RocketComponent c : document.getRocket()) {
+			if (c instanceof TubeFinSet) {
+				return FILE_VERSION_DIVISOR + 7;
+			}
+		}
+		
+		
+		/////////////////
+		// Version 1.6 // 
+		/////////////////
+		
+		// Search the rocket for any Appearances or non-motor flight configurations (version 1.6)
+		for (RocketComponent c : document.getRocket()) {
+			if (c.getAppearance() != null) {
+				return FILE_VERSION_DIVISOR + 6;
+			}
+			if (c instanceof FlightConfigurableComponent) {
+				if (c instanceof MotorMount) {
+					MotorMount mmt = (MotorMount) c;
+					if (mmt.getIgnitionConfiguration().size() > 0) {
+						return FILE_VERSION_DIVISOR + 6;
+					}
+				}
+				if (c instanceof RecoveryDevice) {
+					RecoveryDevice recovery = (RecoveryDevice) c;
+					if (recovery.getDeploymentConfiguration().size() > 0) {
+						return FILE_VERSION_DIVISOR + 6;
+					}
+				}
+				if (c instanceof Stage) {
+					Stage stage = (Stage) c;
+					if (stage.getStageSeparationConfiguration().size() > 0) {
+						return FILE_VERSION_DIVISOR + 6;
+					}
+				}
+			}
+		}
+		
+		/////////////////
+		// Version 1.5 // 
+		/////////////////
+		
+		// Search the rocket for any ComponentPresets (version 1.5)
+		for (RocketComponent c : document.getRocket()) {
+			if (c.getPresetComponent() != null) {
+				return FILE_VERSION_DIVISOR + 5;
+			}
+		}
+		
+		// Search for recovery device deployment type LOWER_STAGE_SEPARATION (version 1.5)
+		for (RocketComponent c : document.getRocket()) {
+			if (c instanceof RecoveryDevice) {
+				if (((RecoveryDevice) c).getDeploymentConfiguration().getDefault().getDeployEvent() == DeployEvent.LOWER_STAGE_SEPARATION) {
+					return FILE_VERSION_DIVISOR + 5;
+				}
+			}
+		}
+		
+		// Check for custom expressions (version 1.5)
+		if (!document.getCustomExpressions().isEmpty()) {
+			return FILE_VERSION_DIVISOR + 5;
+		}
+		
+		/////////////////
+		// Version 1.4 // 
+		/////////////////
+		
+		// Check if design has simulations defined (version 1.4)
+		if (document.getSimulationCount() > 0) {
+			return FILE_VERSION_DIVISOR + 4;
+		}
+		
+		// Check for motor definitions (version 1.4)
+		for (RocketComponent c : document.getRocket()) {
+			if (!(c instanceof MotorMount))
+				continue;
+			
+			MotorMount mount = (MotorMount) c;
+			for (String id : document.getRocket().getFlightConfigurationIDs()) {
+				if (mount.getMotor(id) != null) {
+					return FILE_VERSION_DIVISOR + 4;
+				}
+			}
+		}
+		
+		/////////////////
+		// Version 1.3 // 
+		/////////////////
+		
+		// no version 1.3 file type exists
+		
+		/////////////////
+		// Version 1.2 // 
+		/////////////////
+		
+		// no version 1.2 file type exists
+		
+		/////////////////
+		// Version 1.1 // 
+		/////////////////
+		
+		// Check for fin tabs or tube coupler children (version 1.1)
+		for (RocketComponent c : document.getRocket()) {
+			// Check for fin tabs
+			if (c instanceof FinSet) {
+				FinSet fin = (FinSet) c;
+				if (!MathUtil.equals(fin.getTabHeight(), 0) &&
+						!MathUtil.equals(fin.getTabLength(), 0)) {
+					return FILE_VERSION_DIVISOR + 1;
+				}
+			}
+			
+			// Check for components attached to tube coupler
+			if (c instanceof TubeCoupler) {
+				if (c.getChildCount() > 0) {
+					return FILE_VERSION_DIVISOR + 1;
+				}
+			}
+		}
+		
+		/////////////////
+		// Version 1.0 // 
+		/////////////////
+		
+		// Default (version 1.0)
+		return FILE_VERSION_DIVISOR + 0;
 	}
+	
+	
 	
 	@SuppressWarnings("unchecked")
 	private void saveComponent(RocketComponent component) throws IOException {
+		
 		log.debug("Saving component " + component.getComponentName());
 		
-		Reflection.Method m = findGetElementsMethod(component);
+		Reflection.Method m = Reflection.findMethod(METHOD_PACKAGE, component, METHOD_SUFFIX,
+				"getElements", RocketComponent.class);
+		if (m == null) {
+			throw new BugException("Unable to find saving class for component " +
+					component.getComponentName());
+		}
 		
 		// Get the strings to save
 		List<String> list = (List<String>) m.invokeStatic(component);
@@ -319,13 +439,10 @@ public class OpenRocketSaver extends RocketSaver {
 	}
 	
 	
-	private void saveSimulation(Simulation simulation, boolean saveSimulationData) throws IOException {
+	private void saveSimulation(Simulation simulation, double timeSkip) throws IOException {
 		SimulationOptions cond = simulation.getOptions();
-
-		Simulation.Status simStatus;
-		simStatus = saveSimulationData ? simulation.getStatus() : Simulation.Status.NOT_SIMULATED;
-
-		writeln("<simulation status=\"" + enumToXMLName(simStatus) + "\">");
+		
+		writeln("<simulation status=\"" + enumToXMLName(simulation.getStatus()) + "\">");
 		indent++;
 		
 		writeln("<name>" + TextUtil.escapeXML(simulation.getName()) + "</name>");
@@ -337,7 +454,7 @@ public class OpenRocketSaver extends RocketSaver {
 		writeln("<conditions>");
 		indent++;
 		
-		writeElement("configid", simulation.getId().key);
+		writeElement("configid", cond.getMotorConfigurationID());
 		writeElement("launchrodlength", cond.getLaunchRodLength());
 		writeElement("launchrodangle", cond.getLaunchRodAngle() * 180.0 / Math.PI);
 		writeElement("launchroddirection", cond.getLaunchRodDirection() * 360.0 / (2.0 * Math.PI));
@@ -401,8 +518,6 @@ public class OpenRocketSaver extends RocketSaver {
 				str += " launchrodvelocity=\"" + TextUtil.doubleToString(data.getLaunchRodVelocity()) + "\"";
 			if (!Double.isNaN(data.getDeploymentVelocity()))
 				str += " deploymentvelocity=\"" + TextUtil.doubleToString(data.getDeploymentVelocity()) + "\"";
-			if (!Double.isNaN(data.getOptimumDelay()))
-				str += " optimumdelay=\"" + TextUtil.doubleToString(data.getOptimumDelay()) + "\"";
 			str += ">";
 			writeln(str);
 			indent++;
@@ -412,11 +527,13 @@ public class OpenRocketSaver extends RocketSaver {
 			}
 			
 			// Check whether to store data
-			if ((simulation.getStatus() == Simulation.Status.EXTERNAL) || // Always store external data
-				saveSimulationData) {
+			if (simulation.getStatus() == Simulation.Status.EXTERNAL) // Always store external data
+				timeSkip = 0;
+			
+			if (timeSkip != StorageOptions.SIMULATION_DATA_NONE) {
 				for (int i = 0; i < data.getBranchCount(); i++) {
 					FlightDataBranch branch = data.getBranch(i);
-					saveFlightDataBranch(branch);
+					saveFlightDataBranch(branch, timeSkip);
 				}
 			}
 			
@@ -427,19 +544,6 @@ public class OpenRocketSaver extends RocketSaver {
 		indent--;
 		writeln("</simulation>");
 		
-	}
-
-	private void savePhotoSettings(Map<String, String> p) throws IOException {
-		log.debug("Saving Photo Settings");
-
-		writeln("<photostudio>");
-		indent++;
-
-		for (String s : PhotoStudioSaver.getElements(p))
-			writeln(s);
-
-		indent--;
-		writeln("</photostudio>");
 	}
 	
 	
@@ -476,8 +580,9 @@ public class OpenRocketSaver extends RocketSaver {
 		}
 	}
 	
-	private void saveFlightDataBranch(FlightDataBranch branch)
+	private void saveFlightDataBranch(FlightDataBranch branch, double timeSkip)
 			throws IOException {
+		double previousTime = -100000;
 		
 		if (branch == null)
 			return;
@@ -493,6 +598,7 @@ public class OpenRocketSaver extends RocketSaver {
 		for (int i = 0; i < types.length; i++) {
 			data.add(branch.get(types[i]));
 		}
+		List<Double> timeData = branch.get(FlightDataType.TYPE_TIME);
 		
 		// Build the <databranch> tag
 		StringBuilder sb = new StringBuilder();
@@ -534,19 +640,31 @@ public class OpenRocketSaver extends RocketSaver {
 		
 		// Write events
 		for (FlightEvent event : branch.getEvents()) {
-			String eventStr = "<event time=\"" + TextUtil.doubleToString(event.getTime())
-					+ "\" type=\"" + enumToXMLName(event.getType());
-			if (event.getSource() != null) {
-				eventStr += "\" source=\"" + TextUtil.escapeXML(event.getSource().getID());
-			}
-			eventStr += "\"/>";
-			writeln(eventStr);
+			writeln("<event time=\"" + TextUtil.doubleToString(event.getTime())
+					+ "\" type=\"" + enumToXMLName(event.getType()) + "\"/>");
 		}
 		
 		// Write the data
 		int length = branch.getLength();
-		for (int i = 0; i < length; i++) {
-			writeDataPointString(data, i, sb);
+		if (length > 0) {
+			writeDataPointString(data, 0, sb);
+			previousTime = timeData.get(0);
+		}
+		
+		for (int i = 1; i < length - 1; i++) {
+			if (timeData != null) {
+				if (Math.abs(timeData.get(i) - previousTime - timeSkip) < Math.abs(timeData.get(i + 1) - previousTime - timeSkip)) {
+					writeDataPointString(data, i, sb);
+					previousTime = timeData.get(i);
+				}
+			} else {
+				// If time data is not available, write all points
+				writeDataPointString(data, i, sb);
+			}
+		}
+		
+		if (length > 1) {
+			writeDataPointString(data, length - 1, sb);
 		}
 		
 		indent--;
@@ -554,8 +672,10 @@ public class OpenRocketSaver extends RocketSaver {
 	}
 	
 	/* TODO: LOW: This is largely duplicated from above! */
-	private int countFlightDataBranchPoints(FlightDataBranch branch) {
+	private int countFlightDataBranchPoints(FlightDataBranch branch, double timeSkip) {
 		int count = 0;
+		
+		double previousTime = -100000;
 		
 		if (branch == null)
 			return 0;
@@ -572,8 +692,23 @@ public class OpenRocketSaver extends RocketSaver {
 			return branch.getLength();
 		}
 		
-		// Count the data
-		count += branch.getLength();
+		// Write the data
+		int length = branch.getLength();
+		if (length > 0) {
+			count++;
+			previousTime = timeData.get(0);
+		}
+		
+		for (int i = 1; i < length - 1; i++) {
+			if (Math.abs(timeData.get(i) - previousTime - timeSkip) < Math.abs(timeData.get(i + 1) - previousTime - timeSkip)) {
+				count++;
+				previousTime = timeData.get(i);
+			}
+		}
+		
+		if (length > 1) {
+			count++;
+		}
 		
 		return count;
 	}
@@ -598,7 +733,7 @@ public class OpenRocketSaver extends RocketSaver {
 	private void writeElement(String element, Object content) throws IOException {
 		if (content == null)
 			content = "";
-		writeln("<" + element + ">" + TextUtil.escapeXML(content) + "</" + element + ">");
+		writeln("<" + element + ">" + content + "</" + element + ">");
 	}
 	
 	
@@ -608,7 +743,10 @@ public class OpenRocketSaver extends RocketSaver {
 			dest.write("\n");
 			return;
 		}
-		String s = INDENT.repeat(Math.max(0, indent)) + str + "\n";
+		String s = "";
+		for (int i = 0; i < indent; i++)
+			s = s + "  ";
+		s = s + str + "\n";
 		dest.write(s);
 	}
 	

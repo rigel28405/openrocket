@@ -2,35 +2,24 @@ package net.sf.openrocket.aerodynamics;
 
 import static net.sf.openrocket.util.MathUtil.pow2;
 
-import java.util.*;
-
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
-import net.sf.openrocket.rocketcomponent.AxialStage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import net.sf.openrocket.aerodynamics.barrowman.FinSetCalc;
 import net.sf.openrocket.aerodynamics.barrowman.RocketComponentCalc;
-import net.sf.openrocket.rocketcomponent.position.AxialMethod;
-import net.sf.openrocket.rocketcomponent.ComponentAssembly;
+import net.sf.openrocket.rocketcomponent.Configuration;
 import net.sf.openrocket.rocketcomponent.ExternalComponent;
 import net.sf.openrocket.rocketcomponent.ExternalComponent.Finish;
 import net.sf.openrocket.rocketcomponent.FinSet;
-import net.sf.openrocket.rocketcomponent.FlightConfiguration;
-import net.sf.openrocket.rocketcomponent.InstanceContext;
-import net.sf.openrocket.rocketcomponent.InstanceMap;
-import net.sf.openrocket.rocketcomponent.ParallelStage;
-import net.sf.openrocket.rocketcomponent.PodSet;
-import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.rocketcomponent.SymmetricComponent;
-import net.sf.openrocket.unit.UnitGroup;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.PolyInterpolator;
 import net.sf.openrocket.util.Reflection;
-
 
 /**
  * An aerodynamic calculator that uses the extended Barrowman method to 
@@ -39,15 +28,17 @@ import net.sf.openrocket.util.Reflection;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
-	private static final Logger log = LoggerFactory.getLogger(BarrowmanCalculator.class);
 	
 	private static final String BARROWMAN_PACKAGE = "net.sf.openrocket.aerodynamics.barrowman";
 	private static final String BARROWMAN_SUFFIX = "Calc";
 	
+
 	private Map<RocketComponent, RocketComponentCalc> calcMap = null;
 	
 	private double cacheDiameter = -1;
 	private double cacheLength = -1;
+	
+	
 
 	public BarrowmanCalculator() {
 		
@@ -64,124 +55,68 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	 * Calculate the CP according to the extended Barrowman method.
 	 */
 	@Override
-	public Coordinate getCP(FlightConfiguration configuration, FlightConditions conditions,
+	public Coordinate getCP(Configuration configuration, FlightConditions conditions,
 			WarningSet warnings) {
 		checkCache(configuration);
-		AerodynamicForces forces = calculateNonAxialForces(configuration, conditions, warnings);
+		AerodynamicForces forces = calculateNonAxialForces(configuration, conditions, null, warnings);
 		return forces.getCP();
 	}
 	
 	
-	
-	@Override
-	public Map<RocketComponent, AerodynamicForces> getForceAnalysis(FlightConfiguration configuration,
-																	FlightConditions conditions,
-																	WarningSet warnings) {
-		if (calcMap == null){
-			buildCalcMap(configuration);
-		}
 
-		InstanceMap instMap = configuration.getActiveInstances();
-		Map<RocketComponent, AerodynamicForces> eachMap = new LinkedHashMap<>();
-		Map<RocketComponent, AerodynamicForces> assemblyMap = new LinkedHashMap<>();
+	@Override
+	public Map<RocketComponent, AerodynamicForces> getForceAnalysis(Configuration configuration,
+			FlightConditions conditions, WarningSet warnings) {
+		checkCache(configuration);
+		
+		AerodynamicForces f;
+		Map<RocketComponent, AerodynamicForces> map =
+				new LinkedHashMap<RocketComponent, AerodynamicForces>();
+		
+		// Add all components to the map
+		for (RocketComponent c : configuration) {
+			f = new AerodynamicForces();
+			f.setComponent(c);
+			
+			map.put(c, f);
+		}
+		
 
 		// Calculate non-axial force data
-		calculateForceAnalysis(configuration, conditions, configuration.getRocket(), instMap, eachMap, assemblyMap, warnings);
+		AerodynamicForces total = calculateNonAxialForces(configuration, conditions, map, warnings);
+		
 
-		// Calculate drag coefficient data
-		AerodynamicForces rocketForces = assemblyMap.get(configuration.getRocket());
-		rocketForces.setFrictionCD(calculateFrictionCD(configuration, conditions, eachMap, warnings));
-		rocketForces.setPressureCD(calculatePressureCD(configuration, conditions, eachMap, warnings));
-		rocketForces.setBaseCD(calculateBaseCD(configuration, conditions, eachMap, warnings));
-		rocketForces.setOverrideCD(calculateOverrideCD(configuration, conditions, eachMap, assemblyMap, warnings));
+		// Calculate friction data
+		total.setFrictionCD(calculateFrictionDrag(configuration, conditions, map, warnings));
+		total.setPressureCD(calculatePressureDrag(configuration, conditions, map, warnings));
+		total.setBaseCD(calculateBaseDrag(configuration, conditions, map, warnings));
+		
+		total.setComponent(configuration.getRocket());
+		map.put(total.getComponent(), total);
+		
 
-		Map<RocketComponent, AerodynamicForces> finalMap = new LinkedHashMap<>();
-		for(final RocketComponent comp : instMap.keySet()){
-
-			AerodynamicForces f;
-			if(comp instanceof ComponentAssembly) {
-				f = assemblyMap.get(comp);
-			} else if(comp.isAerodynamic()){
-				f = eachMap.get(comp);
-			}else{
+		for (RocketComponent c : map.keySet()) {
+			f = map.get(c);
+			if (Double.isNaN(f.getBaseCD()) && Double.isNaN(f.getPressureCD()) &&
+					Double.isNaN(f.getFrictionCD()))
 				continue;
-			}
-
-			if (Double.isNaN(f.getCNa())){
-				f.setCNa(0.0);
-			}
-			if (f.getCP().isNaN()) {
-				f.setCP(Coordinate.ZERO);
-			}
-
 			if (Double.isNaN(f.getBaseCD()))
 				f.setBaseCD(0);
-
 			if (Double.isNaN(f.getPressureCD()))
 				f.setPressureCD(0);
-
 			if (Double.isNaN(f.getFrictionCD()))
 				f.setFrictionCD(0);
-
-			if (Double.isNaN(f.getOverrideCD()))
-				f.setOverrideCD(0);
-
-			f.setCD(f.getBaseCD() + f.getPressureCD() + f.getFrictionCD() + f.getOverrideCD());
-			f.setCDaxial(calculateAxialCD(conditions, f.getCD()));
-
-			finalMap.put(comp, f);
+			f.setCD(f.getBaseCD() + f.getPressureCD() + f.getFrictionCD());
+			f.setCaxial(calculateAxialDrag(conditions, f.getCD()));
 		}
-
-		return finalMap;
+		
+		return map;
 	}
-
-	private AerodynamicForces calculateForceAnalysis(   FlightConfiguration configuration,
-														FlightConditions conds,
-														RocketComponent comp,
-														InstanceMap instances,
-														Map<RocketComponent, AerodynamicForces> eachForces,
-														Map<RocketComponent, AerodynamicForces> assemblyForces,
-														WarningSet warnings)
-	{
-		// forces for this component, and all forces below it, in the rocket-tree
-		AerodynamicForces aggregateForces = new AerodynamicForces().zero();
-		aggregateForces.setComponent(comp);
-
-		// forces for this component, _only_
-		if(comp.isAerodynamic() || comp instanceof ComponentAssembly) {
-			RocketComponentCalc calcObj = calcMap.get(comp);
-			if (null == calcObj) {
-				throw new NullPointerException("Could not find a CalculationObject for aerodynamic Component!: " + comp.getComponentName());
-			} else {
-				List<InstanceContext> contextList = instances.get(comp);
-				// across every instance of this component:
-				AerodynamicForces compForces = calculateComponentNonAxialForces(conds, comp, calcObj, contextList, warnings);
-				eachForces.put(comp, compForces);
-				aggregateForces.merge(compForces);
-			}
-		}
-
-		for( RocketComponent child : comp.getChildren()) {
-			// Ignore inactive stages
-			if (child instanceof AxialStage && !configuration.isStageActive(child.getStageNumber())) {
-				continue;
-			}
-			
-			// forces particular to each component
-			AerodynamicForces childForces = calculateForceAnalysis(configuration, conds, child, instances, eachForces, assemblyForces, warnings);
-
-			if(null != childForces) {
-				aggregateForces.merge(childForces);
-			}
-		}
-
-		assemblyForces.put(comp, aggregateForces);
-
-		return assemblyForces.get(comp);
-	}
+	
+	
 
 	@Override
-	public AerodynamicForces getAerodynamicForces(FlightConfiguration configuration,
+	public AerodynamicForces getAerodynamicForces(Configuration configuration,
 			FlightConditions conditions, WarningSet warnings) {
 		checkCache(configuration);
 		
@@ -189,367 +124,136 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 			warnings = ignoreWarningSet;
 		
 		// Calculate non-axial force data
-		AerodynamicForces total = calculateNonAxialForces(configuration, conditions, warnings);
+		AerodynamicForces total = calculateNonAxialForces(configuration, conditions, null, warnings);
 		
 		// Calculate friction data
-		total.setFrictionCD(calculateFrictionCD(configuration, conditions, null, warnings));
-		total.setPressureCD(calculatePressureCD(configuration, conditions, null, warnings));
-		total.setBaseCD(calculateBaseCD(configuration, conditions, null, warnings));
-		total.setOverrideCD(calculateOverrideCD(configuration, conditions, null, null, warnings));
+		total.setFrictionCD(calculateFrictionDrag(configuration, conditions, null, warnings));
+		total.setPressureCD(calculatePressureDrag(configuration, conditions, null, warnings));
+		total.setBaseCD(calculateBaseDrag(configuration, conditions, null, warnings));
 		
-		total.setCD(total.getFrictionCD() + total.getPressureCD() + total.getBaseCD() + total.getOverrideCD());
+		total.setCD(total.getFrictionCD() + total.getPressureCD() + total.getBaseCD());
 		
-		total.setCDaxial(calculateAxialCD(conditions, total.getCD()));
+		total.setCaxial(calculateAxialDrag(conditions, total.getCD()));
 		
 		// Calculate pitch and yaw damping moments
 		calculateDampingMoments(configuration, conditions, total);
 		total.setCm(total.getCm() - total.getPitchDampingMoment());
 		total.setCyaw(total.getCyaw() - total.getYawDampingMoment());
+		
 
 		return total;
 	}
+	
+	
 
 
-	private AerodynamicForces calculateComponentNonAxialForces( FlightConditions conditions,
-																RocketComponent comp,
-																RocketComponentCalc calcObj,
-																List<InstanceContext> contextList,
-																WarningSet warnings)
-	{
-		// across every instance of this component:
-		final AerodynamicForces componentForces = new AerodynamicForces().zero();
-
-		// iterate across component instances
-		for(InstanceContext context: contextList ) {
-			// specific to this _instance_ of this component:
-			AerodynamicForces instanceForces = new AerodynamicForces().zero();
-			calcObj.calculateNonaxialForces(conditions, context.transform, instanceForces, warnings);
-
-			Coordinate cp_inst = instanceForces.getCP();
-			Coordinate cp_abs = context.transform.transform(cp_inst);
-			cp_abs = cp_abs.setY(0.0).setZ(0.0);
-
-			instanceForces.setCP(cp_abs);
-			double CN_instanced = instanceForces.getCN();
-			instanceForces.setCm(CN_instanced * instanceForces.getCP().x / conditions.getRefLength());
-
-			componentForces.merge(instanceForces);
-		}
-		componentForces.setComponent(comp);
-
-		return componentForces;
-	}
-
-	/**
+	/*
 	 * Perform the actual CP calculation.
 	 */
-	private AerodynamicForces calculateNonAxialForces(FlightConfiguration configuration, FlightConditions conditions, WarningSet warnings) {
-
+	private AerodynamicForces calculateNonAxialForces(Configuration configuration, FlightConditions conditions,
+			Map<RocketComponent, AerodynamicForces> map, WarningSet warnings) {
+		
 		checkCache(configuration);
-
+		
+		AerodynamicForces total = new AerodynamicForces();
+		total.zero();
+		
+		double radius = 0; // aft radius of previous component
+		double componentX = 0; // aft coordinate of previous component
+		AerodynamicForces forces = new AerodynamicForces();
+		
 		if (warnings == null)
 			warnings = ignoreWarningSet;
-
+		
 		if (conditions.getAOA() > 17.5 * Math.PI / 180)
 			warnings.add(new Warning.LargeAOA(conditions.getAOA()));
+		
 
 		if (calcMap == null)
 			buildCalcMap(configuration);
-
-		checkGeometry(configuration, configuration.getRocket(), warnings);
 		
-		final InstanceMap imap = configuration.getActiveInstances();
-
-		// across the _entire_ assembly -- like a rocket, or a stage
-		final AerodynamicForces assemblyForces= new AerodynamicForces().zero();
-
-		for(Map.Entry<RocketComponent, ArrayList<InstanceContext>> mapEntry: imap.entrySet() ) {
-			final RocketComponent comp = mapEntry.getKey();
-			final List<InstanceContext> contextList = mapEntry.getValue();
-
-			RocketComponentCalc calcObj = calcMap.get(comp);
-			if (null != calcObj) {
-				// calculated across all component instances
-				final AerodynamicForces componentForces = calculateComponentNonAxialForces(conditions, comp, calcObj, contextList, warnings);
-
-				assemblyForces.merge(componentForces);
-			}
-		}
-
-		return assemblyForces;
-	}
-
-	@Override
-	public void checkGeometry(FlightConfiguration configuration, final RocketComponent treeRoot, WarningSet warnings ){
-		Queue<RocketComponent> queue = new LinkedList<>();
-
-		for (RocketComponent child : treeRoot.getChildren()) {
-			// Ignore inactive stages
-			if (child instanceof AxialStage && !configuration.isStageActive(child.getStageNumber())) {
+		for (RocketComponent component : configuration) {
+			
+			// Skip non-aerodynamic components
+			if (!component.isAerodynamic())
 				continue;
+			
+			// Check for discontinuities
+			if (component instanceof SymmetricComponent) {
+				SymmetricComponent sym = (SymmetricComponent) component;
+				// TODO:LOW: Ignores other cluster components (not clusterable)
+				double x = component.toAbsolute(Coordinate.NUL)[0].x;
+				
+				// Check for lengthwise discontinuity
+				if (x > componentX + 0.0001) {
+					if (!MathUtil.equals(radius, 0)) {
+						warnings.add(Warning.DISCONTINUITY);
+						radius = 0;
+					}
+				}
+				componentX = component.toAbsolute(new Coordinate(component.getLength()))[0].x;
+				
+				// Check for radius discontinuity
+				if (!MathUtil.equals(sym.getForeRadius(), radius)) {
+					warnings.add(Warning.DISCONTINUITY);
+					// TODO: MEDIUM: Apply correction to values to cp and to map
+				}
+				radius = sym.getAftRadius();
 			}
-			queue.add(child);
-		}
-
-		SymmetricComponent prevComp = null;		
-		if ((treeRoot instanceof ComponentAssembly) &&
-			(!(treeRoot instanceof Rocket)) &&
-			(treeRoot.getChildCount() > 0)) {
-			prevComp = ((SymmetricComponent) (treeRoot.getChild(0))).getPreviousSymmetricComponent();
+			
+			// Call calculation method
+			forces.zero();
+			calcMap.get(component).calculateNonaxialForces(conditions, forces, warnings);
+			forces.setCP(component.toAbsolute(forces.getCP())[0]);
+			forces.setCm(forces.getCN() * forces.getCP().x / conditions.getRefLength());
+			
+			if (map != null) {
+				AerodynamicForces f = map.get(component);
+				
+				f.setCP(forces.getCP());
+				f.setCNa(forces.getCNa());
+				f.setCN(forces.getCN());
+				f.setCm(forces.getCm());
+				f.setCside(forces.getCside());
+				f.setCyaw(forces.getCyaw());
+				f.setCroll(forces.getCroll());
+				f.setCrollDamp(forces.getCrollDamp());
+				f.setCrollForce(forces.getCrollForce());
+			}
+			
+			total.setCP(total.getCP().average(forces.getCP()));
+			total.setCNa(total.getCNa() + forces.getCNa());
+			total.setCN(total.getCN() + forces.getCN());
+			total.setCm(total.getCm() + forces.getCm());
+			total.setCside(total.getCside() + forces.getCside());
+			total.setCyaw(total.getCyaw() + forces.getCyaw());
+			total.setCroll(total.getCroll() + forces.getCroll());
+			total.setCrollDamp(total.getCrollDamp() + forces.getCrollDamp());
+			total.setCrollForce(total.getCrollForce() + forces.getCrollForce());
 		}
 		
-		while(null != queue.peek()) {
-			RocketComponent comp = queue.poll();
-			if(( comp instanceof SymmetricComponent ) ||
-			   ((comp instanceof AxialStage) &&
-				!(comp instanceof ParallelStage))) {
-				for (RocketComponent child : comp.getChildren()) {
-					// Ignore inactive stages
-					if (child instanceof AxialStage && !configuration.isStageActive(child.getStageNumber())) {
-						continue;
-					}
-					queue.add(child);
-				}
-
-				if (comp instanceof SymmetricComponent) {
-					SymmetricComponent sym = (SymmetricComponent) comp;
-					if( null == prevComp){
-						if (sym.getForeRadius() - sym.getThickness() > MathUtil.EPSILON) {
-							warnings.add(Warning.OPEN_AIRFRAME_FORWARD, sym.toString());
-						}
-					} else {
-						// Check for radius discontinuity
-						// We're going to say it's discontinuous if it is presented to the user as having two different
-						// string representations.  Hopefully there are enough digits in the string that it will
-						// present as different if the discontinuity is big enough to matter.
-						if (!UnitGroup.UNITS_LENGTH.getDefaultUnit().toStringUnit(2.0*sym.getForeRadius())
-							.equals(UnitGroup.UNITS_LENGTH.getDefaultUnit().toStringUnit(2.0*prevComp.getAftRadius()))) {
-							warnings.add( Warning.DIAMETER_DISCONTINUITY, prevComp + ", " + sym);
-						}
-
-						// Check for phantom tube
-						if ((sym.getLength() < MathUtil.EPSILON) ||
-							(sym.getAftRadius() < MathUtil.EPSILON && sym.getForeRadius() < MathUtil.EPSILON)) {
-							warnings.add(Warning.ZERO_VOLUME_BODY, sym.getName());
-						}
-						
-						// check for gap or overlap in airframe.  We'll use a textual comparison to see if there is a
-						// gap or overlap, then use arithmetic comparison to see which it is.  This won't be quite as reliable
-						// as the case for radius, since we never actually display the absolute X position
-						
-						double symXfore = sym.toAbsolute(Coordinate.NUL)[0].x;
-						double prevXfore = prevComp.toAbsolute(Coordinate.NUL)[0].x;
-						
-						double symXaft = sym.toAbsolute(new Coordinate(comp.getLength(), 0, 0, 0))[0].x;
-						double prevXaft = prevComp.toAbsolute(new Coordinate(prevComp.getLength(), 0, 0, 0))[0].x;
-						
-						if (!UnitGroup.UNITS_LENGTH.getDefaultUnit().toStringUnit(symXfore)
-							.equals(UnitGroup.UNITS_LENGTH.getDefaultUnit().toStringUnit(prevXaft))) {
-							if (symXfore > prevXaft) {
-								warnings.add(Warning.AIRFRAME_GAP,  prevComp + ", " + sym);
-							} else {
-								// If we only have the component with a single forward compartment bring up
-								// a body component overlap message								
-								if ((symXfore >= prevXfore) &&
-									((symXaft >= prevXaft) || (null == sym.getNextSymmetricComponent()))) {
-									warnings.add(Warning.AIRFRAME_OVERLAP, prevComp + ", " + sym);
-								} else {
-									// We have a PodSet that is either overlapping or completely forward of its parent component.
-									// We'll find the forward-most and aft-most components and figure out which
-									SymmetricComponent firstComp = prevComp;
-									SymmetricComponent scout = prevComp;
-									while (null != scout) {
-										firstComp = scout;
-										scout = scout.getPreviousSymmetricComponent();
-									}
-									double firstCompXfore = firstComp.toAbsolute(Coordinate.NUL)[0].x;
-									
-									SymmetricComponent lastComp = sym;
-									scout = sym;
-									while (null != scout) {
-										lastComp = scout;
-										scout = scout.getNextSymmetricComponent();
-									}
-									double lastCompXaft = lastComp.toAbsolute(new Coordinate(lastComp.getLength(), 0, 0, 0))[0].x;
-									
-									// completely forward vs. overlap
-									if (lastCompXaft <= firstCompXfore) {
-										warnings.add(Warning.PODSET_FORWARD, comp.getParent().toString());
-									} else {
-										warnings.add(Warning.PODSET_OVERLAP, comp.getParent().toString());
-									}
-								}
-								
-							}
-						} else {
-							/*
-							It could be that the component is a child of a PodSet or ParallelStage, and it is flush with
-							the previous component.  In this case, the component is overlapping.
-							 */
-							RocketComponent prevCompParent = prevComp.getParent();
-							RocketComponent compParent = comp.getParent();
-							int prevCompPos = prevCompParent.getChildPosition(prevComp);
-							RocketComponent nextComp = prevCompPos + 1 >= prevCompParent.getChildCount() ?
-									null : prevCompParent.getChild(prevCompPos + 1);
-							if ((compParent instanceof PodSet || compParent instanceof ParallelStage) &&
-									MathUtil.equals(symXfore, prevXaft) && (compParent.getParent() == nextComp)) {
-								warnings.add(Warning.PODSET_OVERLAP, comp.getParent().toString());
-							}
-						}
-					}
-					prevComp = sym;
-				}
-			} else if ((comp instanceof PodSet) ||
-					   (comp instanceof ParallelStage)) {
-				checkGeometry(configuration, comp, warnings);
-			}
-		}
+		return total;
 	}
-		
 	
 	
+
+
 	////////////////  DRAG CALCULATIONS  ////////////////
-	/**
-	 * Calculation of drag coefficient due to air friction
-	 * 
-	 * @param configuration		Rocket configuration
-	 * @param conditions		Flight conditions taken into account
-	 * @param map				?
-	 * @param warningSet		Set to handle warnings
-	 * @return friction drag for entire rocket
-	 */
-	private double calculateFrictionCD(FlightConfiguration configuration, FlightConditions conditions,
-			Map<RocketComponent, AerodynamicForces> forceMap, WarningSet warningSet) {
+	
+
+	private double calculateFrictionDrag(Configuration configuration, FlightConditions conditions,
+			Map<RocketComponent, AerodynamicForces> map, WarningSet set) {
+		double c1 = 1.0, c2 = 1.0;
 		
 		double mach = conditions.getMach();
-		double Re = calculateReynoldsNumber(configuration, conditions);
-		double Cf = calculateFrictionCoefficient(configuration, mach, Re);
-		double roughnessCorrection = calculateRoughnessCorrection(mach);
+		double Re;
+		double Cf;
 		
 		if (calcMap == null)
 			buildCalcMap(configuration);
 		
-		/*
-		 * Calculate the friction drag coefficient.
-		 * 
-		 * The body wetted area is summed up and finally corrected with the rocket
-		 * fineness ratio (calculated in the same iteration).  The fins are corrected
-		 * for thickness as we go on.
-		 */
-		
-		double otherFrictionCD = 0;
-		double bodyFrictionCD = 0;
-		double maxR = 0, minX = Double.MAX_VALUE, maxX = 0;
-		
-		double[] roughnessLimited = new double[Finish.values().length];
-		Arrays.fill(roughnessLimited, Double.NaN);
-
-		final InstanceMap imap = configuration.getActiveInstances();
-	    for(Map.Entry<RocketComponent, ArrayList<InstanceContext>> entry: imap.entrySet() ) {
-			final RocketComponent c = entry.getKey();
-
-			if (!c.isAerodynamic()) {
-				continue;
-			}
-			
-			if (c.isCDOverridden() ||
-				c.isCDOverriddenByAncestor()) {
-				continue;
-			}
-
-			// Calculate the roughness-limited friction coefficient
-			Finish finish = ((ExternalComponent) c).getFinish();
-			if (Double.isNaN(roughnessLimited[finish.ordinal()])) {
-				roughnessLimited[finish.ordinal()] =
-					0.032 * Math.pow(finish.getRoughnessSize() / configuration.getLengthAerodynamic(), 0.2) *
-					roughnessCorrection;
-			}
-			
-			/*
-			 * Actual Cf is maximum of Cf and the roughness-limited value.
-			 * For perfect finish require additionally that Re > 1e6
-			 */
-			double componentCf;
-			if (configuration.getRocket().isPerfectFinish()) {
-				
-				// For perfect finish require Re > 1e6
-				if ((Re > 1.0e6) && (roughnessLimited[finish.ordinal()] > Cf)) {
-					componentCf = roughnessLimited[finish.ordinal()];
-				} else {
-					componentCf = Cf;
-				}
-				
-			} else {
-				
-				// For fully turbulent use simple max
-				componentCf = Math.max(Cf, roughnessLimited[finish.ordinal()]);
-				
-			}
-
-			double componentFrictionCD = calcMap.get(c).calculateFrictionCD(conditions, componentCf, warningSet);
-			int instanceCount = entry.getValue().size();
-			
-			if (c instanceof SymmetricComponent) {
-				SymmetricComponent s = (SymmetricComponent) c;
-
-				bodyFrictionCD += instanceCount * componentFrictionCD;
-				
-				final double componentMinX = c.getAxialOffset(AxialMethod.ABSOLUTE);
-				minX = Math.min(minX, componentMinX);
-
-				final double componentMaxX = componentMinX + c.getLength();
-				maxX = Math.max(maxX, componentMaxX);
-
-				final double componentMaxR = Math.max(s.getForeRadius(), s.getAftRadius());
-				maxR = Math.max(maxR, componentMaxR);
-
-			} else {
-				otherFrictionCD += instanceCount * componentFrictionCD;
-			}
-
-			if (forceMap != null) {
-				forceMap.get(c).setFrictionCD(componentFrictionCD);
-			}
-		}
-		
-		// fB may be POSITIVE_INFINITY, but that's ok for us
-		double fB = (maxX - minX + 0.0001) / maxR;
-		double correction = (1 + 1.0 / (2 * fB));
-		
-		// Correct body data in map
-		if (forceMap != null) {
-			for (RocketComponent c : forceMap.keySet()) {
-				if (c instanceof SymmetricComponent) {
-					forceMap.get(c).setFrictionCD(forceMap.get(c).getFrictionCD() * correction);
-				}
-			}
-		}
-
-		return otherFrictionCD + correction * bodyFrictionCD;
-	}
-
-
-	/**
-	 * Calculation of Reynolds Number
-	 * 
-	 * @param configuration		Rocket configuration
-	 * @param conditions		Flight conditions taken into account
-	 * @return                  Reynolds Number
-	 */
-	private double calculateReynoldsNumber(FlightConfiguration configuration, FlightConditions conditions) {
-		return conditions.getVelocity() * configuration.getLengthAerodynamic() /
-			conditions.getAtmosphericConditions().getKinematicViscosity();
-	}
-	
-	/**
-	 * Calculation of skin friction coefficient
-	 *
-	 *
-	 * return skin friction coefficient
-	 */
-	private double calculateFrictionCoefficient(FlightConfiguration configuration, double mach, double Re) {
-		double Cf;
-		double c1 = 1.0, c2 = 1.0;
+		Re = conditions.getVelocity() * configuration.getLength() /
+				conditions.getAtmosphericConditions().getKinematicViscosity();
 		
 		// Calculate the skin friction coefficient (assume non-roughness limited)
 		if (configuration.getRocket().isPerfectFinish()) {
@@ -597,7 +301,7 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 				Cf *= c2;
 			}
 			
-			
+
 		} else {
 			
 			// Assume fully turbulent.  Roughness-limitation is checked later.
@@ -627,19 +331,6 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 			}
 			
 		}
-
-		return Cf;
-	}
-
-	/**
-	 * Calculation of correction for roughness
-	 *
-	 * @param  mach
-	 * @return roughness correction
-	 **/
-
-	private double calculateRoughnessCorrection(double mach) {
-		double c1, c2;
 		
 		// Roughness-limited value correction term
 		double roughnessCorrection;
@@ -652,100 +343,167 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 			c2 = 1.0 / (1 + 0.18 * pow2(1.1));
 			roughnessCorrection = c2 * (mach - 0.9) / 0.2 + c1 * (1.1 - mach) / 0.2;
 		}
+		
 
-		return roughnessCorrection;
+
+		/*
+		 * Calculate the friction drag coefficient.
+		 * 
+		 * The body wetted area is summed up and finally corrected with the rocket
+		 * fineness ratio (calculated in the same iteration).  The fins are corrected
+		 * for thickness as we go on.
+		 */
+
+		double finFriction = 0;
+		double bodyFriction = 0;
+		double maxR = 0, len = 0;
+		
+		double[] roughnessLimited = new double[Finish.values().length];
+		Arrays.fill(roughnessLimited, Double.NaN);
+		
+		for (RocketComponent c : configuration) {
+			
+			// Consider only SymmetricComponents and FinSets:
+			if (!(c instanceof SymmetricComponent) &&
+					!(c instanceof FinSet))
+				continue;
+			
+			// Calculate the roughness-limited friction coefficient
+			Finish finish = ((ExternalComponent) c).getFinish();
+			if (Double.isNaN(roughnessLimited[finish.ordinal()])) {
+				roughnessLimited[finish.ordinal()] =
+						0.032 * Math.pow(finish.getRoughnessSize() / configuration.getLength(), 0.2) *
+								roughnessCorrection;
+			}
+			
+			/*
+			 * Actual Cf is maximum of Cf and the roughness-limited value.
+			 * For perfect finish require additionally that Re > 1e6
+			 */
+			double componentCf;
+			if (configuration.getRocket().isPerfectFinish()) {
+				
+				// For perfect finish require Re > 1e6
+				if ((Re > 1.0e6) && (roughnessLimited[finish.ordinal()] > Cf)) {
+					componentCf = roughnessLimited[finish.ordinal()];
+				} else {
+					componentCf = Cf;
+				}
+				
+			} else {
+				
+				// For fully turbulent use simple max
+				componentCf = Math.max(Cf, roughnessLimited[finish.ordinal()]);
+				
+			}
+			
+
+
+			// Calculate the friction drag:
+			if (c instanceof SymmetricComponent) {
+				
+				SymmetricComponent s = (SymmetricComponent) c;
+				
+				bodyFriction += componentCf * s.getComponentWetArea();
+				
+				if (map != null) {
+					// Corrected later
+					map.get(c).setFrictionCD(componentCf * s.getComponentWetArea()
+							/ conditions.getRefArea());
+				}
+				
+				double r = Math.max(s.getForeRadius(), s.getAftRadius());
+				if (r > maxR)
+					maxR = r;
+				len += c.getLength();
+				
+			} else if (c instanceof FinSet) {
+				
+				FinSet f = (FinSet) c;
+				double mac = ((FinSetCalc) calcMap.get(c)).getMACLength();
+				double cd = componentCf * (1 + 2 * f.getThickness() / mac) *
+						2 * f.getFinCount() * f.getFinArea();
+				finFriction += cd;
+				
+				if (map != null) {
+					map.get(c).setFrictionCD(cd / conditions.getRefArea());
+				}
+				
+			}
+			
+		}
+		// fB may be POSITIVE_INFINITY, but that's ok for us
+		double fB = (len + 0.0001) / maxR;
+		double correction = (1 + 1.0 / (2 * fB));
+		
+		// Correct body data in map
+		if (map != null) {
+			for (RocketComponent c : map.keySet()) {
+				if (c instanceof SymmetricComponent) {
+					map.get(c).setFrictionCD(map.get(c).getFrictionCD() * correction);
+				}
+			}
+		}
+		
+		return (finFriction + correction * bodyFriction) / conditions.getRefArea();
 	}
 	
-	/**
-	 * Calculation of drag coefficient due to pressure
-	 * 
-	 * @param configuration		Rocket configuration
-	 * @param conditions		Flight conditions taken into account
-	 * @param forceMap
-	 * @param warningSet			all current warnings
-	 * @return
-	 */
-	private double calculatePressureCD(FlightConfiguration configuration, FlightConditions conditions,
-			Map<RocketComponent, AerodynamicForces> forceMap, WarningSet warningSet) {
+	
 
-		double total, stagnation, base;
+	private double calculatePressureDrag(Configuration configuration, FlightConditions conditions,
+			Map<RocketComponent, AerodynamicForces> map, WarningSet warnings) {
+		
+		double stagnation, base, total;
+		double radius = 0;
+		
 		if (calcMap == null)
 			buildCalcMap(configuration);
 		
 		stagnation = calculateStagnationCD(conditions.getMach());
 		base = calculateBaseCD(conditions.getMach());
-
+		
 		total = 0;
-		final InstanceMap imap = configuration.getActiveInstances();
-	    for(Map.Entry<RocketComponent, ArrayList<InstanceContext>> entry: imap.entrySet() ) {
-			final RocketComponent c = entry.getKey();
-
-			if (!c.isAerodynamic()) {
+		for (RocketComponent c : configuration) {
+			if (!c.isAerodynamic())
 				continue;
-			}
-				
-			if (c.isCDOverridden() ||
-				c.isCDOverriddenByAncestor()) {
-				continue;
+			
+			// Pressure fore drag
+			double cd = calcMap.get(c).calculatePressureDragForce(conditions, stagnation, base,
+					warnings);
+			total += cd;
+			
+			if (map != null) {
+				map.get(c).setPressureCD(cd);
 			}
 			
-			int instanceCount = entry.getValue().size();
 
-			// Pressure drag of this component
-			double cd = calcMap.get(c).calculatePressureCD(conditions, stagnation, base,
-															   warningSet);
-
-			if (forceMap != null) {
-				forceMap.get(c).setPressureCD(cd);
-			}
-				
-			total += cd * instanceCount;
-			
-			// Stagnation drag caused by difference in radius between this component
-			// and previous component (increasing radii.  Decreasing radii handled in
-			// base drag calculation
+			// Stagnation drag
 			if (c instanceof SymmetricComponent) {
 				SymmetricComponent s = (SymmetricComponent) c;
-				double foreRadius = s.getForeRadius();
-				double aftRadius = s.getAftRadius();
-				// If length is zero, the component is a disk, i.e. a zero-length tube, so match the fore and aft diameter
-				if (s.getLength() == 0) {
-					foreRadius = Math.max(foreRadius, aftRadius);
-				}
-				double radius = 0;
-				final SymmetricComponent prevComponent = s.getPreviousSymmetricComponent();
-				if (prevComponent != null && configuration.isComponentActive(prevComponent))
-					radius = prevComponent.getAftRadius();
-					
-				if (radius < foreRadius) {
-					double area = Math.PI * (pow2(foreRadius) - pow2(radius));
+				
+				if (radius < s.getForeRadius()) {
+					double area = Math.PI * (pow2(s.getForeRadius()) - pow2(radius));
 					cd = stagnation * area / conditions.getRefArea();
-					total += instanceCount * cd;
-						
-					if (forceMap != null) {
-						forceMap.get(c).setPressureCD(forceMap.get(c).getPressureCD() + cd);
+					total += cd;
+					if (map != null) {
+						map.get(c).setPressureCD(map.get(c).getPressureCD() + cd);
 					}
 				}
+				
+				radius = s.getAftRadius();
 			}
 		}
-
+		
 		return total;
 	}
 	
-
-	/**
-	 * Calculation of drag coefficient due to base
-	 * 
-	 * @param configuration		Rocket configuration
-	 * @param conditions		Flight conditions taken into account
-	 * @param map				?
-	 * @param warnings				all current warnings
-	 * @return
-	 */
-	private double calculateBaseCD(FlightConfiguration configuration, FlightConditions conditions,
-								   Map<RocketComponent, AerodynamicForces> forceMap, WarningSet warnings) {
+	
+	private double calculateBaseDrag(Configuration configuration, FlightConditions conditions,
+			Map<RocketComponent, AerodynamicForces> map, WarningSet warnings) {
 		
 		double base, total;
+		double radius = 0;
+		RocketComponent prevComponent = null;
 		
 		if (calcMap == null)
 			buildCalcMap(configuration);
@@ -753,60 +511,39 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 		base = calculateBaseCD(conditions.getMach());
 		total = 0;
 		
-		final InstanceMap imap = configuration.getActiveInstances();
-	    for(Map.Entry<RocketComponent, ArrayList<InstanceContext>> entry: imap.entrySet() ) {
-			final RocketComponent c = entry.getKey();
-
-			if (!(c instanceof SymmetricComponent)) {
+		for (RocketComponent c : configuration) {
+			if (!(c instanceof SymmetricComponent))
 				continue;
-			}
-
-			
-			if (c.isCDOverridden() ||
-				c.isCDOverriddenByAncestor()) {
-				continue;
-			}
 			
 			SymmetricComponent s = (SymmetricComponent) c;
-			double foreRadius = s.getForeRadius();
-			double aftRadius = s.getAftRadius();
-			// If length is zero, the component is a disk, i.e. a zero-length tube, so match the fore and aft diameter
-			if (s.getLength() == 0) {
-				final double componentMaxR = Math.max(foreRadius, aftRadius);
-				foreRadius = aftRadius = componentMaxR;
-			}
-
-			int instanceCount = entry.getValue().size();
-
-			// get forward radius of next component
-			final SymmetricComponent nextComponent = s.getNextSymmetricComponent();
-			double nextRadius;
-			if ((nextComponent != null) && configuration.isComponentActive(nextComponent)) {
-				nextRadius = nextComponent.getForeRadius();
-			} else {
-				nextRadius = 0.0;
-			}
-
-			// if fore radius of next component is less than my aft radius, set my
-			// base CD
-			if (nextRadius < aftRadius) {
-				double area = Math.PI * (pow2(aftRadius) - pow2(nextRadius));
+			
+			if (radius > s.getForeRadius()) {
+				double area = Math.PI * (pow2(radius) - pow2(s.getForeRadius()));
 				double cd = base * area / conditions.getRefArea();
-				total += instanceCount * cd;
-				if (forceMap != null) {
-					forceMap.get(s).setBaseCD(cd);
+				total += cd;
+				if (map != null) {
+					map.get(prevComponent).setBaseCD(cd);
 				}
+			}
+			
+			radius = s.getAftRadius();
+			prevComponent = c;
+		}
+		
+		if (radius > 0) {
+			double area = Math.PI * pow2(radius);
+			double cd = base * area / conditions.getRefArea();
+			total += cd;
+			if (map != null) {
+				map.get(prevComponent).setBaseCD(cd);
 			}
 		}
 		
 		return total;
 	}
 	
-	/**
-	 * gets CD by the speed
-	 * @param m		Mach number for calculation
-	 * @return		Stagnation CD
-	 */
+	
+
 	public static double calculateStagnationCD(double m) {
 		double pressure;
 		if (m <= 1) {
@@ -818,11 +555,6 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	}
 	
 	
-	/**
-	 * Calculates base CD
-	 * @param m		Mach number for calculation
-	 * @return		Base CD
-	 */
 	public static double calculateBaseCD(double m) {
 		if (m <= 1) {
 			return 0.12 + 0.13 * m * m;
@@ -832,7 +564,7 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	}
 	
 	
-	
+
 	private static final double[] axialDragPoly1, axialDragPoly2;
 	static {
 		PolyInterpolator interpolator;
@@ -852,20 +584,20 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	
 	
 	/**
-	 * Calculate the axial drag coefficient from the total drag coefficient.
+	 * Calculate the axial drag from the total drag coefficient.
 	 * 
 	 * @param conditions
 	 * @param cd
 	 * @return
 	 */
-	private double calculateAxialCD(FlightConditions conditions, double cd) {
+	private double calculateAxialDrag(FlightConditions conditions, double cd) {
 		double aoa = MathUtil.clamp(conditions.getAOA(), 0, Math.PI);
 		double mul;
 		
 		//		double sinaoa = conditions.getSinAOA();
 		//		return cd * (1 + Math.min(sinaoa, 0.25));
 		
-		
+
 		if (aoa > Math.PI / 2)
 			aoa = Math.PI - aoa;
 		if (aoa < 17 * Math.PI / 180)
@@ -878,85 +610,37 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 		else
 			return -mul * cd;
 	}
-
-	/**
-	 * add together CD overrides for active components
-	 * 
-	 * @param configuration		Rocket configuration
-	 * @param conditions		Flight conditions taken into account
-	 * @param forceMap
-	 * @param warningSet			all current warnings
-	 * @return
-	 */
-	private double calculateOverrideCD(FlightConfiguration configuration, FlightConditions conditions,
-									   Map<RocketComponent, AerodynamicForces> eachMap,
-									   Map<RocketComponent, AerodynamicForces> assemblyMap,				   
-									   WarningSet warningSet) {
-		
-		if (calcMap == null)
-			buildCalcMap(configuration);
-
-		double total = 0;
-		final InstanceMap imap = configuration.getActiveInstances();
-	    for(Map.Entry<RocketComponent, ArrayList<InstanceContext>> entry: imap.entrySet() ) {
-			final RocketComponent c = entry.getKey();
-			int instanceCount = entry.getValue().size();
-
-			if (!c.isAerodynamic() &&
-				!(c instanceof ComponentAssembly)) {
-				continue;
-			}
-
-			if (c.isCDOverridden() &&
-				!c.isCDOverriddenByAncestor()) {
-				double cd = instanceCount * c.getOverrideCD();
-				Map<RocketComponent, AerodynamicForces> forceMap = (c instanceof ComponentAssembly) ? assemblyMap : eachMap;
-				if (forceMap != null) {
-					forceMap.get(c).setOverrideCD(cd);
-				}
-				total += cd;
-			}
-		}
-
-		return total;
-	}
 	
-    /**
-	 * get damping moments from a rocket in a flight
-	 * @param configuration		Rocket configuration
-	 * @param conditions		flight conditions in consideration
-	 * @param total				acting aerodynamic forces
-	 */
-	private void calculateDampingMoments(FlightConfiguration configuration, FlightConditions conditions,
+	
+	private void calculateDampingMoments(Configuration configuration, FlightConditions conditions,
 			AerodynamicForces total) {
 		
 		// Calculate pitch and yaw damping moments
 		double mul = getDampingMultiplier(configuration, conditions,
-										  conditions.getPitchCenter().x);
-		double pitchRate = conditions.getPitchRate();
-		double yawRate = conditions.getYawRate();
-		double velocity = conditions.getVelocity();
+				conditions.getPitchCenter().x);
+		double pitch = conditions.getPitchRate();
+		double yaw = conditions.getYawRate();
+		double vel = conditions.getVelocity();
+		
+		vel = MathUtil.max(vel, 1);
 		
 		mul *= 3; // TODO: Higher damping yields much more realistic apogee turn
 		
-		// find magnitude of damping moments, and clamp so they can't
-		// exceed magnitude of pitch and yaw moments
-		double pitchDampingMomentMagnitude = MathUtil.min(mul * pow2(pitchRate / velocity), total.getCm());
-		double yawDampingMomentMagnitude = MathUtil.min(mul * pow2(yawRate / velocity), total.getCyaw());
-
-		// multiply by sign of pitch and yaw rates
-		total.setPitchDampingMoment(MathUtil.sign(pitchRate) * pitchDampingMomentMagnitude);
-		total.setYawDampingMoment(MathUtil.sign(yawRate) * yawDampingMomentMagnitude);
+		total.setPitchDampingMoment(mul * MathUtil.sign(pitch) * pow2(pitch / vel));
+		total.setYawDampingMoment(mul * MathUtil.sign(yaw) * pow2(yaw / vel));
 	}
+	
+	// TODO: MEDIUM: Are the rotation etc. being added correctly?  sin/cos theta?
+	
 
-	private double getDampingMultiplier(FlightConfiguration configuration, FlightConditions conditions,
+	private double getDampingMultiplier(Configuration configuration, FlightConditions conditions,
 			double cgx) {
 		if (cacheDiameter < 0) {
 			double area = 0;
 			cacheLength = 0;
 			cacheDiameter = 0;
 			
-			for (RocketComponent c : configuration.getActiveComponents()) {
+			for (RocketComponent c : configuration) {
 				if (c instanceof SymmetricComponent) {
 					SymmetricComponent s = (SymmetricComponent) c;
 					area += s.getComponentPlanformArea();
@@ -975,14 +659,14 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 		
 		// Fins
 		// TODO: LOW: This could be optimized a lot...
-		for (RocketComponent c : configuration.getActiveComponents()) {
+		for (RocketComponent c : configuration) {
 			if (c instanceof FinSet) {
 				FinSet f = (FinSet) c;
-				mul += 0.6 * Math.min(f.getFinCount(), 4) * f.getPlanformArea() *
+				mul += 0.6 * Math.min(f.getFinCount(), 4) * f.getFinArea() *
 						MathUtil.pow3(Math.abs(f.toAbsolute(new Coordinate(
-								((FinSetCalc) calcMap.get(f)).getMidchordPos()))[0].x
-								- cgx)) /
-						(conditions.getRefArea() * conditions.getRefLength());
+										((FinSetCalc) calcMap.get(f)).getMidchordPos()))[0].x
+										- cgx)) /
+										(conditions.getRefArea() * conditions.getRefLength());
 			}
 		}
 		
@@ -990,7 +674,7 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	}
 	
 	
-	
+
 	////////  The calculator map
 	
 	@Override
@@ -1003,19 +687,23 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 	}
 	
 	
-	private void buildCalcMap(FlightConfiguration configuration) {
-		calcMap = new HashMap<>();
-
-		for (RocketComponent comp: configuration.getAllComponents()) {
-			if (!comp.isAerodynamic() && !(comp instanceof ComponentAssembly)) {
+	private void buildCalcMap(Configuration configuration) {
+		Iterator<RocketComponent> iterator;
+		
+		calcMap = new HashMap<RocketComponent, RocketComponentCalc>();
+		
+		iterator = configuration.getRocket().iterator();
+		while (iterator.hasNext()) {
+			RocketComponent c = iterator.next();
+			
+			if (!c.isAerodynamic())
 				continue;
-			}
-
-			RocketComponentCalc calcObj = (RocketComponentCalc) Reflection.construct(BARROWMAN_PACKAGE, comp, BARROWMAN_SUFFIX, comp);
-
-			calcMap.put(comp, calcObj ); 
+			
+			calcMap.put(c, (RocketComponentCalc) Reflection.construct(BARROWMAN_PACKAGE,
+					c, BARROWMAN_SUFFIX, c));
 		}
 	}
+	
 	
 	@Override
 	public int getModID() {
@@ -1023,4 +711,5 @@ public class BarrowmanCalculator extends AbstractAerodynamicCalculator {
 		return 0;
 	}
 	
+
 }

@@ -32,7 +32,6 @@ import net.sf.openrocket.gui.util.FileHelper;
 import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.gui.util.SaveCSVWorker;
 import net.sf.openrocket.gui.util.SwingPreferences;
-import net.sf.openrocket.gui.widgets.SaveFileChooser;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.simulation.FlightData;
 import net.sf.openrocket.simulation.FlightDataBranch;
@@ -40,11 +39,9 @@ import net.sf.openrocket.simulation.FlightDataType;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.unit.Unit;
 import net.sf.openrocket.unit.UnitGroup;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 public class SimulationExportPanel extends JPanel {
 	
-	private static final long serialVersionUID = 3423905472892675964L;
 	private static final String SPACE = "SPACE";
 	private static final String TAB = "TAB";
 	private static final Translator trans = Application.getTranslator();
@@ -112,8 +109,6 @@ public class SimulationExportPanel extends JPanel {
 		table.setColumnSelectionAllowed(false);
 		
 		table.setDefaultEditor(Unit.class, new UnitCellEditor() {
-			private static final long serialVersionUID = 1088570433902420935L;
-
 			@Override
 			protected UnitGroup getUnitGroup(Unit value, int row, int column) {
 				return types[row].getUnitGroup();
@@ -143,7 +138,7 @@ public class SimulationExportPanel extends JPanel {
 		panel.add(new JScrollPane(table), "wmin 300lp, width 300lp, height 1, grow 100, wrap");
 		
 		// Select all/none buttons
-		button = new SelectColorButton(trans.get("SimExpPan.but.Selectall"));
+		button = new JButton(trans.get("SimExpPan.but.Selectall"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -152,7 +147,7 @@ public class SimulationExportPanel extends JPanel {
 		});
 		panel.add(button, "split 2, growx 1, sizegroup selectbutton");
 		
-		button = new SelectColorButton(trans.get("SimExpPan.but.Selectnone"));
+		button = new JButton(trans.get("SimExpPan.but.Selectnone"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -184,7 +179,7 @@ public class SimulationExportPanel extends JPanel {
 		ArrayList<String> stages = new ArrayList<String>();
 		stages.addAll(Util.generateSeriesLabels(simulation));
 		
-		final JComboBox<String> stageSelection = new JComboBox<String>(stages.toArray(new String[0]));
+		final JComboBox stageSelection = new JComboBox(stages.toArray(new String[0]));
 		stageSelection.addItemListener(new ItemListener() {
 			
 			@Override
@@ -208,7 +203,7 @@ public class SimulationExportPanel extends JPanel {
 		
 		/*
 		// Export button
-		button = new SelectColorButton(trans.get("SimExpPan.but.Exporttofile"));
+		button = new JButton(trans.get("SimExpPan.but.Exporttofile"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -220,8 +215,8 @@ public class SimulationExportPanel extends JPanel {
 	}
 	
 	public boolean doExport() {
-		JFileChooser chooser = new SaveFileChooser();
-		chooser.setFileFilter(FileHelper.CSV_FILTER);
+		JFileChooser chooser = new JFileChooser();
+		chooser.setFileFilter(FileHelper.CSV_FILE_FILTER);
 		chooser.setCurrentDirectory(((SwingPreferences) Application.getPreferences()).getDefaultDirectory());
 		
 		if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION)
@@ -231,7 +226,7 @@ public class SimulationExportPanel extends JPanel {
 		if (file == null)
 			return false;
 		
-		file = FileHelper.forceExtension(file, "csv");
+		file = FileHelper.ensureExtension(file, "csv");
 		if (!FileHelper.confirmWrite(file, this)) {
 			return false;
 		}
@@ -239,8 +234,6 @@ public class SimulationExportPanel extends JPanel {
 		
 		String commentChar = csvOptions.getCommentCharacter();
 		String fieldSep = csvOptions.getFieldSeparator();
-		int decimalPlaces = csvOptions.getDecimalPlaces();
-		boolean isExponentialNotation = csvOptions.isExponentialNotation();
 		boolean simulationComment = csvOptions.getSelectionOption(OPTION_SIMULATION_COMMENTS);
 		boolean fieldComment = csvOptions.getSelectionOption(OPTION_FIELD_DESCRIPTIONS);
 		boolean eventComment = csvOptions.getSelectionOption(OPTION_FLIGHT_EVENTS);
@@ -272,10 +265,10 @@ public class SimulationExportPanel extends JPanel {
 		} else if (fieldSep.equals(TAB)) {
 			fieldSep = "\t";
 		}
-
-
-		SaveCSVWorker.export(file, simulation, branch, fieldTypes, fieldUnits, fieldSep, decimalPlaces,
-				isExponentialNotation, commentChar, simulationComment, fieldComment, eventComment,
+		
+		
+		SaveCSVWorker.export(file, simulation, branch, fieldTypes, fieldUnits, fieldSep,
+				commentChar, simulationComment, fieldComment, eventComment,
 				SwingUtilities.getWindowAncestor(this));
 		
 		return true;
@@ -344,7 +337,6 @@ public class SimulationExportPanel extends JPanel {
 	 * The table model for the variable selection.
 	 */
 	private class SelectionTableModel extends AbstractTableModel {
-		private static final long serialVersionUID = 493067422917621072L;
 		private static final int SELECTED = 0;
 		private static final int NAME = 1;
 		private static final int UNIT = 2;

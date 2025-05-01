@@ -9,7 +9,6 @@ import net.sf.openrocket.masscalc.MassCalculator;
 import net.sf.openrocket.models.atmosphere.AtmosphericModel;
 import net.sf.openrocket.models.gravity.GravityModel;
 import net.sf.openrocket.models.wind.WindModel;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
 import net.sf.openrocket.rocketcomponent.Rocket;
 import net.sf.openrocket.simulation.listeners.SimulationListener;
 import net.sf.openrocket.util.BugException;
@@ -26,6 +25,9 @@ import net.sf.openrocket.util.WorldCoordinate;
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
 public class SimulationConditions implements Monitorable, Cloneable {
+	
+	private Rocket rocket;
+	private String motorID = null;
 	
 	private Simulation simulation; // The parent simulation 
 	
@@ -58,6 +60,10 @@ public class SimulationConditions implements Monitorable, Cloneable {
 	
 	private double timeStep = RK4SimulationStepper.RECOMMENDED_TIME_STEP;
 	private double maximumAngleStep = RK4SimulationStepper.RECOMMENDED_ANGLE_STEP;
+	
+	/* Whether to calculate additional data or only primary simulation figures */
+	private boolean calculateExtras = true;
+	
 	
 	private List<SimulationListener> simulationListeners = new ArrayList<SimulationListener>();
 	
@@ -96,16 +102,26 @@ public class SimulationConditions implements Monitorable, Cloneable {
 	
 	
 	public Rocket getRocket() {
-		return simulation.getRocket();
+		return rocket;
 	}
-
-
-	public FlightConfigurationId getMotorConfigurationID() {
-		return simulation.getId();
+	
+	
+	public void setRocket(Rocket rocket) {
+		if (this.rocket != null)
+			this.modIDadd += this.rocket.getModID();
+		this.modID++;
+		this.rocket = rocket;
 	}
-
-	public FlightConfigurationId getFlightConfigurationID() {
-		return simulation.getId();
+	
+	
+	public String getMotorConfigurationID() {
+		return motorID;
+	}
+	
+	
+	public void setMotorConfigurationID(String motorID) {
+		this.motorID = motorID;
+		this.modID++;
 	}
 	
 	
@@ -253,6 +269,18 @@ public class SimulationConditions implements Monitorable, Cloneable {
 	}
 	
 	
+	public boolean isCalculateExtras() {
+		return calculateExtras;
+	}
+	
+	
+	public void setCalculateExtras(boolean calculateExtras) {
+		this.calculateExtras = calculateExtras;
+		this.modID++;
+	}
+	
+	
+	
 	public int getRandomSeed() {
 		return randomSeed;
 	}
@@ -281,7 +309,7 @@ public class SimulationConditions implements Monitorable, Cloneable {
 	public int getModID() {
 		//return (modID + modIDadd + rocket.getModID() + windModel.getModID() + atmosphericModel.getModID() +
 		//		gravityModel.getModID() + aerodynamicCalculator.getModID() + massCalculator.getModID());
-		return (modID + modIDadd + simulation.getRocket().getModID() + windModel.getModID() + atmosphericModel.getModID() +
+		return (modID + modIDadd + rocket.getModID() + windModel.getModID() + atmosphericModel.getModID() +
 				aerodynamicCalculator.getModID() + massCalculator.getModID());
 	}
 	
@@ -295,7 +323,6 @@ public class SimulationConditions implements Monitorable, Cloneable {
 			for (SimulationListener listener : this.simulationListeners) {
 				clone.simulationListeners.add(listener.clone());
 			}
-			
 			return clone;
 		} catch (CloneNotSupportedException e) {
 			throw new BugException(e);

@@ -1,10 +1,11 @@
 package net.sf.openrocket.gui.configdialog;
 
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
-import java.util.List;
 
+import javax.swing.BorderFactory;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -22,8 +23,7 @@ import net.sf.openrocket.gui.components.BasicSlider;
 import net.sf.openrocket.gui.components.StyledLabel;
 import net.sf.openrocket.gui.components.UnitSelector;
 import net.sf.openrocket.l10n.Translator;
-import net.sf.openrocket.motor.IgnitionEvent;
-import net.sf.openrocket.motor.MotorConfiguration;
+import net.sf.openrocket.rocketcomponent.IgnitionConfiguration;
 import net.sf.openrocket.rocketcomponent.MotorMount;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.startup.Application;
@@ -31,12 +31,11 @@ import net.sf.openrocket.unit.UnitGroup;
 
 public class MotorConfig extends JPanel {
 	
-	private static final long serialVersionUID = -4974509134239867067L;
 	private final MotorMount mount;
 	private static final Translator trans = Application.getTranslator();
 	
-	public MotorConfig(MotorMount motorMount, List<Component> order) {
-		super(new MigLayout("fillx"));
+	public MotorConfig(MotorMount motorMount) {
+		super(new MigLayout("fill"));
 		
 		this.mount = motorMount;
 		
@@ -47,7 +46,6 @@ public class MotorConfig extends JPanel {
 		////This component is a motor mount
 		check.setText(trans.get("MotorCfg.checkbox.compmotormount"));
 		this.add(check, "wrap");
-		order.add(check);
 		
 		final JPanel panel = new JPanel(new MigLayout("fill"));
 		this.add(panel, "grow, wrap");
@@ -62,32 +60,28 @@ public class MotorConfig extends JPanel {
 		JSpinner spin = new JSpinner(dm.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin));
 		panel.add(spin, "span, split, width :65lp:");
-		order.add(((SpinnerEditor) spin.getEditor()).getTextField());
 		
 		panel.add(new UnitSelector(dm), "width :30lp:");
 		panel.add(new BasicSlider(dm.getSliderModel(-0.02, 0.06)), "w 100lp, wrap unrel");
+		
 		
 		
 		// Select ignition event
 		//// Ignition at:
 		panel.add(new JLabel(trans.get("MotorCfg.lbl.Ignitionat") + " " + CommonStrings.dagger), "");
 		
-		MotorConfiguration motorInstance = mount.getDefaultMotorConfig();
-		
-		final EnumModel<IgnitionEvent> igEvModel = new EnumModel<IgnitionEvent>(motorInstance, "IgnitionEvent", IgnitionEvent.values());
-		final JComboBox<IgnitionEvent> eventBox = new JComboBox<IgnitionEvent>( igEvModel);
-		panel.add(eventBox , "wrap");
-		order.add(eventBox);
+		IgnitionConfiguration ignitionConfig = mount.getIgnitionConfiguration().getDefault();
+		JComboBox combo = new JComboBox(new EnumModel<IgnitionConfiguration.IgnitionEvent>(ignitionConfig, "IgnitionEvent"));
+		panel.add(combo, "growx, wrap");
 		
 		// ... and delay
 		//// plus
 		panel.add(new JLabel(trans.get("MotorCfg.lbl.plus")), "gap indent, skip 1, span, split");
 		
-		dm = new DoubleModel(motorInstance, "IgnitionDelay", 0);
+		dm = new DoubleModel(ignitionConfig, "IgnitionDelay", 0);
 		spin = new JSpinner(dm.getSpinnerModel());
 		spin.setEditor(new SpinnerEditor(spin, 3));
 		panel.add(spin, "gap rel rel");
-		order.add(((SpinnerEditor) spin.getEditor()).getTextField());
 		
 		//// seconds
 		panel.add(new JLabel(trans.get("MotorCfg.lbl.seconds")), "wrap unrel");

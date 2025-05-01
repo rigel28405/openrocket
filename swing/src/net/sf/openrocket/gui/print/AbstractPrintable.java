@@ -8,7 +8,6 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
-@SuppressWarnings("serial")
 public abstract class AbstractPrintable<T> extends PrintableComponent {
     /**
      * A thin stroke.

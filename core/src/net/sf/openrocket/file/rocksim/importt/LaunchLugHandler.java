@@ -5,17 +5,17 @@ package net.sf.openrocket.file.rocksim.importt;
 
 import java.util.HashMap;
 
-import org.xml.sax.SAXException;
-
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.file.DocumentLoadingContext;
-import net.sf.openrocket.file.rocksim.RockSimCommonConstants;
-import net.sf.openrocket.file.rocksim.RockSimFinishCode;
+import net.sf.openrocket.file.rocksim.RocksimCommonConstants;
+import net.sf.openrocket.file.rocksim.RocksimFinishCode;
 import net.sf.openrocket.file.simplesax.ElementHandler;
 import net.sf.openrocket.file.simplesax.PlainTextHandler;
 import net.sf.openrocket.material.Material;
 import net.sf.openrocket.rocketcomponent.LaunchLug;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
+
+import org.xml.sax.SAXException;
 
 /**
  * The SAX handler for Rocksim Launch Lugs.
@@ -57,23 +57,23 @@ class LaunchLugHandler extends PositionDependentHandler<LaunchLug> {
 		super.closeElement(element, attributes, content, warnings);
 		
 		try {
-			if (RockSimCommonConstants.OD.equals(element)) {
-				lug.setOuterRadius(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
+			if (RocksimCommonConstants.OD.equals(element)) {
+				lug.setOuterRadius(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
 			}
-			if (RockSimCommonConstants.ID.equals(element)) {
-				lug.setInnerRadius(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
+			if (RocksimCommonConstants.ID.equals(element)) {
+				lug.setInnerRadius(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_RADIUS));
 			}
-			if (RockSimCommonConstants.LEN.equals(element)) {
-				lug.setLength(Math.max(0, Double.parseDouble(content) / RockSimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH));
+			if (RocksimCommonConstants.LEN.equals(element)) {
+				lug.setLength(Math.max(0, Double.parseDouble(content) / RocksimCommonConstants.ROCKSIM_TO_OPENROCKET_LENGTH));
 			}
-			if (RockSimCommonConstants.MATERIAL.equals(element)) {
+			if (RocksimCommonConstants.MATERIAL.equals(element)) {
 				setMaterialName(content);
 			}
-			if (RockSimCommonConstants.RADIAL_ANGLE.equals(element)) {
-				lug.setAngleOffset(Double.parseDouble(content));
+			if (RocksimCommonConstants.RADIAL_ANGLE.equals(element)) {
+				lug.setRadialDirection(Double.parseDouble(content));
 			}
-			if (RockSimCommonConstants.FINISH_CODE.equals(element)) {
-				lug.setFinish(RockSimFinishCode.fromCode(Integer.parseInt(content)).asOpenRocket());
+			if (RocksimCommonConstants.FINISH_CODE.equals(element)) {
+				lug.setFinish(RocksimFinishCode.fromCode(Integer.parseInt(content)).asOpenRocket());
 			}
 		} catch (NumberFormatException nfe) {
 			warnings.add("Could not convert " + element + " value of " + content + ".  It is expected to be a number.");
@@ -88,6 +88,17 @@ class LaunchLugHandler extends PositionDependentHandler<LaunchLug> {
 	@Override
 	public LaunchLug getComponent() {
 		return lug;
+	}
+	
+	/**
+	 * Set the relative position onto the component.  This cannot be done directly because setRelativePosition is not 
+	 * public in all components.
+	 * 
+	 * @param position  the OpenRocket position
+	 */
+	@Override
+	public void setRelativePosition(RocketComponent.Position position) {
+		lug.setRelativePosition(position);
 	}
 	
 	/**

@@ -31,8 +31,8 @@ public class ParachuteLoader extends BaseComponentLoader {
 
 
 	@Override
-	protected RockSimComponentFileType getFileType() {
-		return RockSimComponentFileType.PARACHUTE;
+	protected RocksimComponentFileType getFileType() {
+		return RocksimComponentFileType.PARACHUTE;
 	}
 
 

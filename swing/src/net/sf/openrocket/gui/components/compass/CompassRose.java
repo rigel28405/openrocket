@@ -20,7 +20,6 @@ import net.sf.openrocket.startup.Application;
  * 
  * @author Sampo Niskanen <sampo.niskanen@iki.fi>
  */
-@SuppressWarnings("serial")
 public class CompassRose extends JComponent {
 	private static final Translator trans = Application.getTranslator();
 	

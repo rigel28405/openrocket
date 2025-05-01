@@ -7,9 +7,9 @@ import net.sf.openrocket.rocketcomponent.FinSet;
 public final class TipShapeCode {
 
     /**
-     * Convert a RockSim tip shape to an OpenRocket CrossSection.
+     * Convert a Rocksim tip shape to an OpenRocket CrossSection.
      *
-     * @param tipShape the tip shape code from RockSim
+     * @param tipShape the tip shape code from Rocksim
      *
      * @return a CrossSection instance
      */

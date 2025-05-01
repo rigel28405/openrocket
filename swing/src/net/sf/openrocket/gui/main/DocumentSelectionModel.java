@@ -2,8 +2,6 @@ package net.sf.openrocket.gui.main;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 
 import javax.swing.ListSelectionModel;
@@ -31,7 +29,7 @@ public class DocumentSelectionModel {
 	
 	private final OpenRocketDocument document;
 	
-	private final List<RocketComponent> componentSelection = new LinkedList<>();
+	private RocketComponent componentSelection = null;
 	private Simulation[] simulationSelection = NO_SIMULATION;
 
 	private TreeSelectionModel componentTreeSelectionModel = null; 
@@ -74,44 +72,23 @@ public class DocumentSelectionModel {
 
 	/**
 	 * Return the currently selected rocket component.  Returns <code>null</code>
-	 * if no rocket component is selected. If there is more than one component selected,
-	 * the first selected component is returned.
+	 * if no rocket component is selected.
 	 * 
 	 * @return	the currently selected rocket component, or <code>null</code>.
 	 */
 	public RocketComponent getSelectedComponent() {
-		if (componentSelection.size() == 0) return null;
-		return componentSelection.get(0);
-	}
-
-	/**
-	 * Return the currently selected rocket components.  Returns <code>null</code>
-	 * if no rocket component is selected.
-	 *
-	 * @return	the currently selected rocket components, or <code>null</code>.
-	 */
-	public List<RocketComponent> getSelectedComponents() {
-		if (componentSelection.size() == 0) return Collections.emptyList();
 		return componentSelection;
 	}
 	
 	public void setSelectedComponent(RocketComponent component) {
-		componentSelection.clear();
-		componentSelection.add(component);
+		componentSelection = component;
 		clearSimulationSelection();
 	
 		TreePath path = ComponentTreeModel.makeTreePath(component);
 		componentTreeSelectionModel.setSelectionPath(path);
 	}
 
-	public void setSelectedComponents(List<RocketComponent> components) {
-		componentSelection.clear();
-		componentSelection.addAll(components);
-		clearSimulationSelection();
 
-		List<TreePath> paths = ComponentTreeModel.makeTreePaths(components);
-		componentTreeSelectionModel.setSelectionPaths(paths.toArray(new TreePath[0]));
-	}
 
 	
 
@@ -154,10 +131,10 @@ public class DocumentSelectionModel {
 	
 	
 	public void clearComponentSelection() {
-		if (componentSelection.size() == 0)
+		if (componentSelection == null)
 			return;
 		
-		componentSelection.clear();
+		componentSelection = null;
 		if (componentTreeSelectionModel != null)
 			componentTreeSelectionModel.clearSelection();
 		
@@ -189,17 +166,14 @@ public class DocumentSelectionModel {
 
 		@Override
 		public void valueChanged(TreeSelectionEvent e) {
-			TreePath[] paths = componentTreeSelectionModel.getSelectionPaths();
-			if (paths == null || paths.length == 0) {
-				componentSelection.clear();
+			TreePath path = componentTreeSelectionModel.getSelectionPath();
+			if (path == null) {
+				componentSelection = null;
 				fireDocumentSelection(DocumentSelectionListener.COMPONENT_SELECTION_CHANGE);
 				return;
 			}
-
-			componentSelection.clear();
-			for (TreePath path : paths) {
-				componentSelection.add((RocketComponent)path.getLastPathComponent());
-			}
+			
+			componentSelection = (RocketComponent)path.getLastPathComponent();
 			
 			clearSimulationSelection();
 			fireDocumentSelection(DocumentSelectionListener.COMPONENT_SELECTION_CHANGE);

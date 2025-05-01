@@ -1,12 +1,12 @@
 package net.sf.openrocket.rocketcomponent;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.startup.Application;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A set of trapezoidal fins.  The root and tip chords are perpendicular to the rocket
@@ -41,7 +41,8 @@ public class TrapezoidFinSet extends FinSet {
 	public TrapezoidFinSet() {
 		this(3, 0.05, 0.05, 0.025, 0.03);
 	}
-
+	
+	// TODO: HIGH:  height=0 -> CP = NaN
 	public TrapezoidFinSet(int fins, double rootChord, double tipChord, double sweep,
 			double height) {
 		super();
@@ -56,12 +57,6 @@ public class TrapezoidFinSet extends FinSet {
 	
 	public void setFinShape(double rootChord, double tipChord, double sweep, double height,
 			double thickness) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setFinShape(rootChord, tipChord, sweep, height, thickness);
-			}
-		}
-
 		if (this.length == rootChord && this.tipChord == tipChord && this.sweep == sweep &&
 				this.height == height && this.thickness == thickness)
 			return;
@@ -70,7 +65,6 @@ public class TrapezoidFinSet extends FinSet {
 		this.sweep = sweep;
 		this.height = height;
 		this.thickness = thickness;
-		
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
@@ -79,18 +73,10 @@ public class TrapezoidFinSet extends FinSet {
 	}
 	
 	public void setRootChord(double r) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setRootChord(r);
-			}
-		}
-
 		if (length == r)
 			return;
 		length = Math.max(r, 0);
-		updateTabPosition();
-		
-		fireComponentChangeEvent(ComponentChangeEvent.AEROMASS_CHANGE);
+		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
 	public double getTipChord() {
@@ -98,12 +84,6 @@ public class TrapezoidFinSet extends FinSet {
 	}
 	
 	public void setTipChord(double r) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setTipChord(r);
-			}
-		}
-
 		if (tipChord == r)
 			return;
 		tipChord = Math.max(r, 0);
@@ -121,12 +101,6 @@ public class TrapezoidFinSet extends FinSet {
 	 * Set the sweep length.
 	 */
 	public void setSweep(double r) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setSweep(r);
-			}
-		}
-
 		if (sweep == r)
 			return;
 		sweep = r;
@@ -153,12 +127,6 @@ public class TrapezoidFinSet extends FinSet {
 	 * and the angle itself is not stored.
 	 */
 	public void setSweepAngle(double r) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setSweepAngle(r);
-			}
-		}
-
 		if (r > MAX_SWEEP_ANGLE)
 			r = MAX_SWEEP_ANGLE;
 		if (r < -MAX_SWEEP_ANGLE)
@@ -174,12 +142,6 @@ public class TrapezoidFinSet extends FinSet {
 	}
 	
 	public void setHeight(double r) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof TrapezoidFinSet) {
-				((TrapezoidFinSet) listener).setHeight(r);
-			}
-		}
-
 		if (height == r)
 			return;
 		height = Math.max(r, 0);
@@ -193,25 +155,16 @@ public class TrapezoidFinSet extends FinSet {
 	 */
 	@Override
 	public Coordinate[] getFinPoints() {
-		List<Coordinate> points = new ArrayList<>(4);
-
-		points.add(Coordinate.NUL);
-		points.add(new Coordinate(sweep, height));
-		if (tipChord > 0.0001) {
-			points.add(new Coordinate(sweep + tipChord, height));
-		}
-		points.add(new Coordinate(MathUtil.max(length, 0.0001), 0));
-
-		Coordinate[] finPoints = points.toArray(new Coordinate[0]);
-
-		// Set the start and end fin points the same as the root points (necessary for canted fins)
-		final Coordinate[] rootPoints = getRootPoints();
-		if (rootPoints.length > 1) {
-			finPoints[0] = finPoints[0].setX(rootPoints[0].x).setY(rootPoints[0].y);
-			finPoints[finPoints.length - 1] = finPoints[finPoints.length - 1].setX(rootPoints[rootPoints.length - 1].x).setY(rootPoints[rootPoints.length - 1].y);
-		}
+		List<Coordinate> list = new ArrayList<Coordinate>(4);
 		
-		return finPoints;
+		list.add(Coordinate.NUL);
+		list.add(new Coordinate(sweep, height));
+		if (tipChord > 0.0001) {
+			list.add(new Coordinate(sweep + tipChord, height));
+		}
+		list.add(new Coordinate(MathUtil.max(length, 0.0001), 0));
+		
+		return list.toArray(new Coordinate[list.size()]);
 	}
 	
 	/**

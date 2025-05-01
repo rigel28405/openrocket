@@ -22,8 +22,7 @@ public class Example {
 		
 		// A function which calculates the mean of an array and scales it
 		CustomFunction meanFn = new CustomFunction("mean",2) {
-		    @Override
-			public Variable applyFunction(List<Variable> vars) {
+		    public Variable applyFunction(List<Variable> vars) {
 		        
 		    	double[] vals;
 		    	double scale;

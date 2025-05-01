@@ -5,7 +5,7 @@ import net.sf.openrocket.preset.TypedPropertyMap;
 
 public class IntegerColumnParser extends BaseColumnParser {
 
-	private final TypedKey<Integer> propKey;
+	private TypedKey<Integer> propKey;
 	
 	public IntegerColumnParser(String columnHeader, TypedKey<Integer> propKey) {
 		super(columnHeader);

@@ -3,7 +3,6 @@ package net.sf.openrocket.formatting;
 import java.util.Map;
 
 import net.sf.openrocket.plugin.Plugin;
-import net.sf.openrocket.rocketcomponent.FlightConfigurationId;
 import net.sf.openrocket.rocketcomponent.Rocket;
 
 /**
@@ -14,7 +13,7 @@ public interface RocketSubstitutor {
 	
 	public boolean containsSubstitution(String str);
 	
-	public String substitute(String str, Rocket rocket, FlightConfigurationId configId);
+	public String substitute(String str, Rocket rocket, String configId);
 	
 	public Map<String, String> getDescriptions();
 	

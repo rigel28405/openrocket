@@ -3,8 +3,8 @@ package net.sf.openrocket.file.openrocket.importt;
 import java.util.HashMap;
 import java.util.List;
 
-import net.sf.openrocket.logging.Warning;
-import net.sf.openrocket.logging.WarningSet;
+import net.sf.openrocket.aerodynamics.Warning;
+import net.sf.openrocket.aerodynamics.WarningSet;
 import net.sf.openrocket.preset.ComponentPreset;
 import net.sf.openrocket.rocketcomponent.RocketComponent;
 import net.sf.openrocket.startup.Application;
@@ -44,6 +44,7 @@ class ComponentPresetSetter implements Setter {
 		}
 		
 		List<ComponentPreset> presets = Application.getComponentPresetDao().find(manufacturerName, productNo);
+		
 		ComponentPreset matchingPreset = null;
 		
 		for (ComponentPreset preset : presets) {
@@ -52,7 +53,6 @@ class ComponentPresetSetter implements Setter {
 				matchingPreset = preset;
 				break;
 			}
-
 			if (type != null && preset.getType().name().equals(type) && matchingPreset != null) {
 				// Found the first one with matching type.
 				matchingPreset = preset;
@@ -68,10 +68,7 @@ class ComponentPresetSetter implements Setter {
 		if (digest != null && !matchingPreset.getDigest().equals(digest)) {
 			warnings.add(Warning.fromString("ComponentPreset for component " + c.getName() + " has wrong digest"));
 		}
-
-		// The preset loader can override the component name, so first store it and then apply it again
-		String componentName = c.getName();
+		
 		setMethod.invoke(c, matchingPreset);
-		c.setName(componentName);
 	}
 }

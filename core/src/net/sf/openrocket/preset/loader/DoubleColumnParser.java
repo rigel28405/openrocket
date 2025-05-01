@@ -5,7 +5,7 @@ import net.sf.openrocket.preset.TypedPropertyMap;
 
 public class DoubleColumnParser extends BaseColumnParser {
 
-	private final TypedKey<Double> propKey;
+	private TypedKey<Double> propKey;
 	
 	public DoubleColumnParser(String columnHeader, TypedKey<Double> propKey) {
 		super(columnHeader);

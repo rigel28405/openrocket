@@ -35,7 +35,6 @@ public class DirectoryIterator extends FileIterator {
 	 * 
 	 * @param directory		the directory to read.
 	 * @param filter		the filter for selecting files.
-	 * @param recursive		true for recursive search
 	 * @throws IOException	if the directory cannot be read.
 	 */
 	public DirectoryIterator(File directory, FileFilter filter, boolean recursive)
@@ -56,7 +55,7 @@ public class DirectoryIterator extends FileIterator {
 
 
 	@Override
-	protected Pair<File, InputStream> findNext() {
+	protected Pair<String, InputStream> findNext() {
 		
 		// Check if we're recursing
 		if (subIterator != null) {
@@ -86,7 +85,7 @@ public class DirectoryIterator extends FileIterator {
 				}
 				
 				InputStream is = new BufferedInputStream(new FileInputStream(file));
-				return new Pair<>(file, is);
+				return new Pair<String, InputStream>(file.getName(), is);
 			} catch (IOException e) {
 				logger.warn("Error opening file/directory " + file, e);
 			}

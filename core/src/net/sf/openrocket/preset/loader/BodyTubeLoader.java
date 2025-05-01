@@ -23,8 +23,8 @@ public class BodyTubeLoader extends BaseComponentLoader {
 
 
 	@Override
-	protected RockSimComponentFileType getFileType() {
-		return RockSimComponentFileType.BODY_TUBE;
+	protected RocksimComponentFileType getFileType() {
+		return RocksimComponentFileType.BODY_TUBE;
 	}
 
 }

@@ -2,9 +2,6 @@ package net.sf.openrocket.gui.scalefigure;
 
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Rectangle2D;
-import java.awt.Point;
 import java.util.EventListener;
 import java.util.EventObject;
 import java.util.LinkedList;
@@ -12,222 +9,123 @@ import java.util.List;
 
 import javax.swing.JPanel;
 
-import net.sf.openrocket.gui.util.UITheme;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.sf.openrocket.gui.util.GUIUtil;
-import net.sf.openrocket.util.MathUtil;
 import net.sf.openrocket.util.StateChangeListener;
 
-@SuppressWarnings("serial")
-public abstract class AbstractScaleFigure extends JPanel {
-    
-    private final static Logger log = LoggerFactory.getLogger(AbstractScaleFigure.class);
-    
-    public static final double INCHES_PER_METER = 39.3701;
-    public static final double METERS_PER_INCH = 0.0254;
-    
+
+public abstract class AbstractScaleFigure extends JPanel implements ScaleFigure {
+	
 	// Number of pixels to leave at edges when fitting figure
 	private static final int DEFAULT_BORDER_PIXELS_WIDTH = 30;
 	private static final int DEFAULT_BORDER_PIXELS_HEIGHT = 20;
-	protected static final Dimension borderThickness_px = new Dimension(DEFAULT_BORDER_PIXELS_WIDTH, DEFAULT_BORDER_PIXELS_HEIGHT);
-
-	// constant factor that scales screen real-estate to rocket-space
-	protected final double baseScale;
-	protected double userScale = 1.0;
-	protected double scale = -1;
-
-	// pixel offset from the subject's origin to the canvas's upper-left-corner.
-	protected Point originLocation_px = new Point(0,0);
 	
-	// size of the visible region
-	protected Dimension visibleBounds_px = new Dimension(0,0);
 	
-	// ======= whatever this figure is drawing, in real-space coordinates:  meters
-	//     all drawable content
-	protected Rectangle2D contentBounds_m = new Rectangle2D.Double(0,0,0,0);
-	//     the content we should focus on (this is the auto-zoom subject)
-	protected Rectangle2D subjectBounds_m = new Rectangle2D.Double(0,0,0,0);
-
-	// combines the translation and scale in one place:
-	// which frames does this transform between ?
-	protected AffineTransform projection = null;
-
+	protected final double dpi;
+	
+	protected double scale = 1.0;
+	protected double scaling = 1.0;
+	
+	protected int borderPixelsWidth = DEFAULT_BORDER_PIXELS_WIDTH;
+	protected int borderPixelsHeight = DEFAULT_BORDER_PIXELS_HEIGHT;
+	
 	protected final List<EventListener> listeners = new LinkedList<EventListener>();
-
-	private static Color backgroundColor;
-
-	static {
-		initColors();
-	}
 	
 	
 	public AbstractScaleFigure() {
-		// produces a pixels-per-meter scale factor
-		//
-		// dots     dots     inch
-		// ----  = ------ * -----
-		// meter    inch    meter
-		//
-		this.baseScale = GUIUtil.getDPI() * INCHES_PER_METER;
-		this.userScale = 1.0;
-		this.scale = baseScale * userScale;
-
-		this.setPreferredSize(new Dimension(100,100));
-		setSize(100,100);
-
-		setBackground(backgroundColor);
+		this.dpi = GUIUtil.getDPI();
+		this.scaling = 1.0;
+		this.scale = dpi / 0.0254 * scaling;
+		
+		setBackground(Color.WHITE);
 		setOpaque(true);
 	}
-
-	private static void initColors() {
-		updateColors();
-		UITheme.Theme.addUIThemeChangeListener(AbstractScaleFigure::updateColors);
-	}
-
-	private static void updateColors() {
-		backgroundColor = GUIUtil.getUITheme().getBackgroundColor();
-	}
-
-	public int getBorderHeight(){ return borderThickness_px.height; }
-	public int getBorderWidth(){ return borderThickness_px.width; }
-
-	public double getUserScale(){
-		return userScale;
+	
+	
+	
+	public abstract void updateFigure();
+	
+	public abstract double getFigureWidth();
+	
+	public abstract double getFigureHeight();
+	
+	
+	@Override
+	public double getScaling() {
+		return scaling;
 	}
 	
+	@Override
 	public double getAbsoluteScale() {
 		return scale;
 	}
-
-	public Point getSubjectOrigin() {
-		return originLocation_px;
-	}
-
-	/**
-	 * Calculate a point for auto-zooming from a scale-to-fit request.
-	 *
-	 * The return point is intended for a $ScaleScrollPane call to "viewport.scrollRectToVisible(...)"
-	 *
-	 * @return the offset, in pixels, from the (top left) corner of the figure's canvas
-	 */
-	public abstract Point getAutoZoomPoint();
-
-	/**
-	 * Set the scale level of the figure.  A scale value of 1.0 is equivalent to 100 % scale.
-	 * Smaller scales display the subject smaller.
-	 *
-	 *  If the figure would be smaller than the 'visibleBounds', then the figure is grown to match,
-	 *  and the figures internal contents are centered according to the figure's origin.
-	 *
-	 * @param newScaleRequest the scale level
-	 * @param newVisibleBounds the visible bounds upon the Figure
-	 * @return true if the scale changed, false if it was already at the requested scale or something went wrong.
-	 */
-	public boolean scaleTo(final double newScaleRequest, final Dimension newVisibleBounds) {
-		if (MathUtil.equals(this.userScale, newScaleRequest, newScaleRequest * 0.01) &&
-			(visibleBounds_px.width == newVisibleBounds.width) &&
-			(visibleBounds_px.height == newVisibleBounds.height) ) {
-			return false;
-		}
-		if (Double.isInfinite(newScaleRequest) || Double.isNaN(newScaleRequest) || 0 > newScaleRequest) {
-			return false;
-		}
-
-		this.userScale = newScaleRequest;
-		
-		this.scale = baseScale * userScale;
-		updateCanvasOrigin();
-
-		this.visibleBounds_px = newVisibleBounds;
-		updateCanvasSize();
-
-		this.fireChangeEvent();
-		return true;
+	
+	@Override
+	public void setScaling(double scaling) {
+		if (Double.isInfinite(scaling) || Double.isNaN(scaling))
+			scaling = 1.0;
+		if (scaling < 0.001)
+			scaling = 0.001;
+		if (scaling > 1000)
+			scaling = 1000;
+		if (Math.abs(this.scaling - scaling) < 0.01)
+			return;
+		this.scaling = scaling;
+		this.scale = dpi / 0.0254 * scaling;
+		updateFigure();
 	}
 	
-	/**
-     * Set the scale level to display newBounds
-     * 
-     * @param visibleBounds the visible bounds to scale this figure to.
-	 * @return true if the scale changed, false if it was already at the requested scale or something went wrong.
-     */
-	public boolean scaleTo(Dimension visibleBounds) {
-		if( 0 >= visibleBounds.getWidth() || 0 >= visibleBounds.getHeight())
-			return false;
-
-		updateSubjectDimensions();
-
-		final double width_scale = (visibleBounds.width - 2 * borderThickness_px.width) / (subjectBounds_m.getWidth() * baseScale);
-		final double height_scale = (visibleBounds.height - 2 * borderThickness_px.height) / (subjectBounds_m.getHeight() * baseScale);
-		final double newScale = Math.min(height_scale, width_scale);
-
-		return scaleTo(newScale, visibleBounds);
+	@Override
+	public void setScaling(Dimension bounds) {
+		double zh = 1, zv = 1;
+		int w = bounds.width - 2 * borderPixelsWidth - 20;
+		int h = bounds.height - 2 * borderPixelsHeight - 20;
+		
+		if (w < 10)
+			w = 10;
+		if (h < 10)
+			h = 10;
+		
+		zh = (w) / getFigureWidth();
+		zv = (h) / getFigureHeight();
+		
+		double s = Math.min(zh, zv) / dpi * 0.0254 - 0.001;
+		
+		// Restrict to 100%
+		if (s > 1.0) {
+			s = 1.0;
+		}
+		
+		setScaling(s);
 	}
 	
-    /**
-     * Return the pixel coordinates of the subject's origin.
-     * 
-     * @return      the pixel coordinates of the figure origin.
-     */
-    protected abstract void updateSubjectDimensions();
-		
-    protected abstract void updateCanvasOrigin();
-    
-    /**
-     *  update preferred figure Size
-     
-     */
-    protected void updateCanvasSize() {
-         final int desiredWidth = Math.max((int)this.visibleBounds_px.getWidth(),
-                                          (int)(contentBounds_m.getWidth()*scale) + 2*borderThickness_px.width);
-        final int desiredHeight = Math.max((int)this.visibleBounds_px.getHeight(),
-                                          (int)(contentBounds_m.getHeight()*scale) + 2*borderThickness_px.height);
-
-        Dimension preferredFigureSize_px = new Dimension(desiredWidth, desiredHeight);
-
-		if( (getWidth() != preferredFigureSize_px.width) || (getHeight() != preferredFigureSize_px.height)) {
-			setPreferredSize(preferredFigureSize_px);
-			setMinimumSize(preferredFigureSize_px);
-		}
+	
+	@Override
+	public Dimension getBorderPixels() {
+		return new Dimension(borderPixelsWidth, borderPixelsHeight);
 	}
-
-    protected void updateTransform(){
-        // Calculate and store the transformation used
-        // (inverse is used in detecting clicks on objects)
-        projection = new AffineTransform();
-        projection.translate(this.originLocation_px.x, originLocation_px.y);
-        // Mirror position Y-axis upwards
-        projection.scale(scale, -scale);
-    }
-    
-    /**
-     * Updates the figure shapes and figure size.
-     */
-    public void updateFigure() {
-        log.trace(String.format("____ Updating %s to: %g user scale, %g overall scale", this.getClass().getSimpleName(), this.userScale, this.scale));
-        
-        updateSubjectDimensions();
-        updateCanvasSize();
-        updateCanvasOrigin();
-        updateTransform();
-        
-        revalidate();
-        repaint();
-    }
-
+	
+	@Override
+	public void setBorderPixels(int width, int height) {
+		this.borderPixelsWidth = width;
+		this.borderPixelsHeight = height;
+	}
+	
+	
+	@Override
 	public void addChangeListener(StateChangeListener listener) {
 		listeners.add(0, listener);
 	}
 	
+	@Override
 	public void removeChangeListener(StateChangeListener listener) {
 		listeners.remove(listener);
 	}
 	
+	private EventObject changeEvent = null;
+	
 	protected void fireChangeEvent() {
-	    final EventObject changeEvent = new EventObject(this);
-	    
+		if (changeEvent == null)
+			changeEvent = new EventObject(this);
 		// Copy the list before iterating to prevent concurrent modification exceptions.
 		EventListener[] list = listeners.toArray(new EventListener[0]);
 		for (EventListener l : list) {
@@ -236,5 +134,5 @@ public abstract class AbstractScaleFigure extends JPanel {
 			}
 		}
 	}
-
+	
 }

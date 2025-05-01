@@ -19,7 +19,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -47,7 +46,7 @@ public class OpenRocketComponentSaver {
     public boolean save(File file, List<Material> theMaterialList, List<ComponentPreset> thePresetList) throws
                                                                                                      JAXBException,
                                                                                                      IOException {
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
         writer.write(marshalToOpenRocketComponent(theMaterialList, thePresetList));
         writer.flush();
         writer.close();
@@ -59,13 +58,12 @@ public class OpenRocketComponentSaver {
      *
      * @param theMaterialList the list of materials to be included
      * @param thePresetList   the list of presets to be included
-     * @param isLegacy       true if the legacy format should be used
      *
      * @return ORC-compliant XML
      *
      * @throws JAXBException
      */
-    public String marshalToOpenRocketComponent(List<Material> theMaterialList, List<ComponentPreset> thePresetList, boolean isLegacy) throws
+    public String marshalToOpenRocketComponent(List<Material> theMaterialList, List<ComponentPreset> thePresetList) throws
                                                                                                                     JAXBException {
         /** The context is thread-safe, but marshallers are not.  Create a local one. */
         Marshaller marshaller = context.createMarshaller();
@@ -98,23 +96,9 @@ public class OpenRocketComponentSaver {
 
         });
 
-        marshaller.marshal(toOpenRocketComponentDTO(theMaterialList, thePresetList, isLegacy), sw);
+        marshaller.marshal(toOpenRocketComponentDTO(theMaterialList, thePresetList), sw);
         return sw.toString();
-    }
 
-    /**
-     * This method marshals a list of materials and ComponentPresets into an .orc formatted XML string.
-     *
-     * @param theMaterialList the list of materials to be included
-     * @param thePresetList   the list of presets to be included
-     *
-     * @return ORC-compliant XML
-     *
-     * @throws JAXBException
-     */
-    public String marshalToOpenRocketComponent(List<Material> theMaterialList, List<ComponentPreset> thePresetList) throws
-            JAXBException {
-        return marshalToOpenRocketComponent(theMaterialList, thePresetList, false);
     }
 
     /**
@@ -146,7 +130,7 @@ public class OpenRocketComponentSaver {
     public void save(OutputStream dest, List<Material> theMaterialList, List<ComponentPreset> thePresetList) throws
                                                                                                              IOException,
                                                                                                              JAXBException {
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(dest, StandardCharsets.UTF_8));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(dest, "UTF-8"));
         writer.write(marshalToOpenRocketComponent(theMaterialList, thePresetList));
         writer.flush();
         writer.close();
@@ -171,9 +155,8 @@ public class OpenRocketComponentSaver {
      *
      * @return a corresponding ORC representation
      */
-    private OpenRocketComponentDTO toOpenRocketComponentDTO(List<Material> theMaterialList, List<ComponentPreset> thePresetList, boolean isLegacy) {
+    private OpenRocketComponentDTO toOpenRocketComponentDTO(List<Material> theMaterialList, List<ComponentPreset> thePresetList) {
         OpenRocketComponentDTO rsd = new OpenRocketComponentDTO();
-        rsd.setLegacy(isLegacy);
 
         if (theMaterialList != null) {
             for (Material material : theMaterialList) {
@@ -215,8 +198,6 @@ public class OpenRocketComponentSaver {
                 return new EngineBlockDTO(thePreset);
             case LAUNCH_LUG:
                 return new LaunchLugDTO(thePreset);
-            case RAIL_BUTTON:
-            	return new RailButtonDTO(thePreset);
             case STREAMER:
                 return new StreamerDTO(thePreset);
             case PARACHUTE:

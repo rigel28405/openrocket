@@ -59,15 +59,10 @@ public final class Coordinate implements Cloneable, Serializable {
 	////////  End debug section
 	
 	
-	public static final Coordinate ZERO = new Coordinate(0, 0, 0, 0);
+	
 	public static final Coordinate NUL = new Coordinate(0, 0, 0, 0);
-	public static final Coordinate NaN = new Coordinate(Double.NaN, Double.NaN,Double.NaN, Double.NaN);
-	public static final Coordinate MAX = new Coordinate( Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE,Double.MAX_VALUE);
-	public static final Coordinate MIN = new Coordinate(-Double.MAX_VALUE,-Double.MAX_VALUE,-Double.MAX_VALUE,0.0);
-
-	public static final Coordinate X_UNIT = new Coordinate(1, 0, 0);
-	public static final Coordinate Y_UNIT = new Coordinate(0, 1, 0);
-	public static final Coordinate Z_UNIT = new Coordinate(0, 0, 1);
+	public static final Coordinate NaN = new Coordinate(Double.NaN, Double.NaN,
+			Double.NaN, Double.NaN);
 	
 	public final double x, y, z;
 	public final double weight;
@@ -156,7 +151,7 @@ public final class Coordinate implements Cloneable, Serializable {
 	
 	/**
 	 * Subtract a Coordinate from this Coordinate.  The weight of the resulting Coordinate
-	 * is the same as of this Coordinate; i.e. the weight of the argument is ignored.
+	 * is the same as of this Coordinate, the weight of the argument is ignored.
 	 * 
 	 * @param other  Coordinate to subtract from this.
 	 * @return  The result
@@ -331,14 +326,9 @@ public final class Coordinate implements Cloneable, Serializable {
 	@Override
 	public String toString() {
 		if (isWeighted())
-			return String.format("(%.5f,%.5f,%.5f,w=%.5f)", x, y, z, weight);
+			return String.format("(%.3f,%.3f,%.3f,w=%.3f)", x, y, z, weight);
 		else
-			return String.format("(%.5f,%.5f,%.5f)", x, y, z);
-	}
-	
-	// high-precision output, for use with verifying calculations
-	public String toPreciseString() {
-		return String.format("cm= %.8fg @[%.8f,%.8f,%.8f]", weight, x, y, z);
+			return String.format("(%.3f,%.3f,%.3f)", x, y, z);
 	}
 	
 	@Override

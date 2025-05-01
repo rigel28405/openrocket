@@ -6,36 +6,31 @@ import java.util.Collection;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.preset.ComponentPreset;
 import net.sf.openrocket.preset.ComponentPreset.Type;
-import net.sf.openrocket.rocketcomponent.position.*;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.util.BoundingBox;
 import net.sf.openrocket.util.Coordinate;
 import net.sf.openrocket.util.MathUtil;
 
 
-public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, LineInstanceable, InsideColorComponent {
+
+public class LaunchLug extends ExternalComponent implements Coaxial {
 	
 	private static final Translator trans = Application.getTranslator();
 	
 	private double radius;
 	private double thickness;
 	
-	private double angleOffsetRad = Math.PI;
-	private double radialOffset = 0;
+	private double radialDirection = 0;
 	
-	private int instanceCount = 1;
-	private double instanceSeparation = 0; // front-front along the positive rocket axis. i.e. [1,0,0];
+	/* These are calculated when the component is first attached to any Rocket */
+	private double shiftY, shiftZ;
+	
+	
 
-	private InsideColorComponentHandler insideColorComponentHandler = new InsideColorComponentHandler(this);
-	
 	public LaunchLug() {
-		super(AxialMethod.MIDDLE);
+		super(Position.MIDDLE);
 		radius = 0.01 / 2;
 		thickness = 0.001;
 		length = 0.03;
-		this.setInstanceSeparation(this.length * 2);
-		super.displayOrder_side = 15;		// Order for displaying the component in the 2D side view
-		super.displayOrder_back = 12;		// Order for displaying the component in the 2D back view
 	}
 	
 	
@@ -46,12 +41,6 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 	
 	@Override
 	public void setOuterRadius(double radius) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setOuterRadius(radius);
-			}
-		}
-
 		if (MathUtil.equals(this.radius, radius))
 			return;
 		this.radius = radius;
@@ -67,12 +56,6 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 	
 	@Override
 	public void setInnerRadius(double innerRadius) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setInnerRadius(innerRadius);
-			}
-		}
-
 		setOuterRadius(innerRadius + thickness);
 	}
 	
@@ -82,12 +65,6 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 	}
 	
 	public void setThickness(double thickness) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setThickness(thickness);
-			}
-		}
-
 		if (MathUtil.equals(this.thickness, thickness))
 			return;
 		this.thickness = MathUtil.clamp(thickness, 0, radius);
@@ -95,44 +72,47 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
-	@Override
-	public double getAngleOffset() {
-		return this.angleOffsetRad;
+	
+	public double getRadialDirection() {
+		return radialDirection;
 	}
 	
-	@Override
-	public void setAngleOffset(double newAngleRadians) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setAngleOffset(newAngleRadians);
-			}
-		}
-
-		double clamped_rad = MathUtil.clamp( newAngleRadians, -Math.PI, Math.PI);
-		if (MathUtil.equals(this.angleOffsetRad, clamped_rad))
+	public void setRadialDirection(double direction) {
+		direction = MathUtil.reduce180(direction);
+		if (MathUtil.equals(this.radialDirection, direction))
 			return;
-		this.angleOffsetRad = clamped_rad;
+		this.radialDirection = direction;
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
+	
+	
 	public void setLength(double length) {
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setLength(length);
-			}
-		}
-
 		if (MathUtil.equals(this.length, length))
 			return;
 		this.length = length;
 		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
 	
+	
+	
+	
+	
 	@Override
-	public boolean isAfter() {
-		return false;
+	public void setRelativePosition(RocketComponent.Position position) {
+		super.setRelativePosition(position);
+		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
 	}
-
+	
+	
+	@Override
+	public void setPositionValue(double value) {
+		super.setPositionValue(value);
+		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
+	}
+	
+	
+	
 	@Override
 	protected void loadFromPreset(ComponentPreset preset) {
 		if (preset.has(ComponentPreset.OUTER_DIAMETER)) {
@@ -155,31 +135,17 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 		return ComponentPreset.Type.LAUNCH_LUG;
 	}
 	
+	
 	@Override
-	public Coordinate[] getInstanceOffsets(){
-		Coordinate[] toReturn = new Coordinate[this.getInstanceCount()];
+	public Coordinate[] shiftCoordinates(Coordinate[] array) {
+		array = super.shiftCoordinates(array);
 		
-		final double yOffset = Math.cos(angleOffsetRad) * (radialOffset);
-		final double zOffset = Math.sin(angleOffsetRad) * (radialOffset);
-		
-		for ( int index=0; index < this.getInstanceCount(); index++){
-			toReturn[index] = new Coordinate(index*this.instanceSeparation, yOffset, zOffset);
+		for (int i = 0; i < array.length; i++) {
+			array[i] = array[i].add(0, shiftY, shiftZ);
 		}
 		
-		return toReturn;
+		return array;
 	}
-	
-//	@Override
-//	protected Coordinate[] shiftCoordinates(Coordinate[] array) {
-//		array = super.shiftCoordinates(array);
-//		
-//		for (int i = 0; i < array.length; i++) {
-//			array[i] = new Coordinate(xOffset + index*this.instanceSeparation, yOffset, zOffset);
-//			array[i] = array[i].add(0, shiftY, shiftZ);
-//		}
-//		
-//		return array;
-//	}
 	
 	
 	@Override
@@ -210,12 +176,18 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 			parentRadius = Math.max(s.getRadius(x1), s.getRadius(x2));
 		}
 		
-		this.radialOffset = parentRadius + radius;
+		shiftY = Math.cos(radialDirection) * (parentRadius + radius);
+		shiftZ = Math.sin(radialDirection) * (parentRadius + radius);
+		
+		//		System.out.println("Computed shift: y="+shiftY+" z="+shiftZ);
 	}
+	
+	
+	
 	
 	@Override
 	public double getComponentVolume() {
-		return length * Math.PI * (MathUtil.pow2(radius) - MathUtil.pow2(radius - thickness)) * getInstanceCount();
+		return length * Math.PI * (MathUtil.pow2(radius) - MathUtil.pow2(radius - thickness));
 	}
 	
 	@Override
@@ -228,13 +200,7 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 	
 	@Override
 	public Coordinate getComponentCG() {
-		final double parentRadius = parent instanceof SymmetricComponent ?
-				((SymmetricComponent) parent).getRadius(getAxialOffset()) : 0;
-
-		final double CMx = length / 2 + (instanceSeparation * (instanceCount-1)) / 2;
-		final double CMy = Math.cos(this.angleOffsetRad) * (parentRadius + getOuterRadius());
-		final double CMz = Math.sin(this.angleOffsetRad) * (parentRadius + getOuterRadius());
-		return new Coordinate(CMx, CMy, CMz, getComponentMass());
+		return new Coordinate(length / 2, 0, 0, getComponentMass());
 	}
 	
 	@Override
@@ -266,85 +232,4 @@ public class LaunchLug extends Tube implements AnglePositionable, BoxBounded, Li
 		return false;
 	}
 	
-
-	
-	@Override
-	public double getInstanceSeparation(){
-		return this.instanceSeparation;
-	}
-	
-	@Override
-	public void setInstanceSeparation(final double _separation){
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setInstanceSeparation(_separation);
-			}
-		}
-
-		if (MathUtil.equals(this.instanceSeparation, _separation)) {
-			return;
-		}
-		this.instanceSeparation = _separation;
-		fireComponentChangeEvent(ComponentChangeEvent.AERODYNAMIC_CHANGE);
-	}
-	
-	@Override
-	public void setInstanceCount( final int newCount ){
-		for (RocketComponent listener : configListeners) {
-			if (listener instanceof LaunchLug) {
-				((LaunchLug) listener).setInstanceCount(newCount);
-			}
-		}
-
-		if (newCount == this.instanceCount || newCount <= 0) {
-			return;
-		}
-		this.instanceCount = newCount;
-		fireComponentChangeEvent(ComponentChangeEvent.BOTH_CHANGE);
-	}
-	
-	@Override
-	public int getInstanceCount(){
-		return this.instanceCount;
-	}
-	
-	@Override
-	public BoundingBox getInstanceBoundingBox() {
-		BoundingBox instanceBounds = new BoundingBox();
-		
-		instanceBounds.update(new Coordinate(this.getLength(), 0,0));
-		
-		final double r = getOuterRadius();
-		instanceBounds.update(new Coordinate(0,r,r));
-		instanceBounds.update(new Coordinate(0,-r,-r));
-		
-		return instanceBounds;
-	}
-	
-	@Override
-	public String getPatternName(){
-		return (this.getInstanceCount() + "-Line");
-	}
-
-
-	@Override
-	public AngleMethod getAngleMethod() {
-		return AngleMethod.RELATIVE;
-	}
-
-
-	@Override
-	public void setAngleMethod(AngleMethod newMethod) {
-		// no-op
-	}
-
-	@Override
-	public InsideColorComponentHandler getInsideColorComponentHandler() {
-		return this.insideColorComponentHandler;
-	}
-
-	@Override
-	public void setInsideColorComponentHandler(InsideColorComponentHandler handler) {
-		this.insideColorComponentHandler = handler;
-	}
 }

@@ -9,10 +9,8 @@ public class BuildProperties {
 
 	private static final Properties PROPERTIES;
 	private static final String BUILD_VERSION;
-	private static final String BUILD_COPYRIGHT;
 	private static final String BUILD_SOURCE;
 	private static final boolean DEFAULT_CHECK_UPDATES;
-	private static final boolean DEFAULT_CHECK_BETA_UPDATES;
 	
 	/**
 	 * Return the OpenRocket version number.
@@ -30,14 +28,6 @@ public class BuildProperties {
 	
 	public static boolean getDefaultCheckUpdates() {
 		return DEFAULT_CHECK_UPDATES;
-	}
-
-	public static boolean getDefaultCheckBetaUpdates() {
-		return DEFAULT_CHECK_BETA_UPDATES;
-	}
-	
-	public static String getCopyrightYear() {
-		return BUILD_COPYRIGHT;
 	}
 	
 	static {
@@ -74,14 +64,6 @@ public class BuildProperties {
 				DEFAULT_CHECK_UPDATES = Boolean.parseBoolean(value);
 			else
 				DEFAULT_CHECK_UPDATES = true;
-
-			value = PROPERTIES.getProperty("build.checkbetaupdates");
-			if (value != null)
-				DEFAULT_CHECK_BETA_UPDATES = Boolean.parseBoolean(value);
-			else
-				DEFAULT_CHECK_BETA_UPDATES = true;
-			
-			BUILD_COPYRIGHT = PROPERTIES.getProperty("build.copyright", "2021");
 			
 		} catch (IOException e) {
 			throw new MissingResourceException(

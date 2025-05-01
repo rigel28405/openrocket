@@ -26,12 +26,10 @@ import net.sf.openrocket.gui.util.GUIUtil;
 import net.sf.openrocket.l10n.Translator;
 import net.sf.openrocket.logging.Markers;
 import net.sf.openrocket.startup.Application;
-import net.sf.openrocket.gui.widgets.SelectColorButton;
 
 /**
  * This class is a dialog for displaying advanced settings for printing rocket related info.
  */
-@SuppressWarnings("serial")
 public class PrintSettingsDialog extends JDialog {
 	private static final Logger log = LoggerFactory.getLogger(PrintSettingsDialog.class);
 	private static final Translator trans = Application.getTranslator();
@@ -77,22 +75,22 @@ public class PrintSettingsDialog extends JDialog {
 		
 
 
-		final JComboBox<PaperSize> sizeCombo = new JComboBox<PaperSize>(new EnumModel<PaperSize>(settings, "PaperSize"));
+		JComboBox combo = new JComboBox(new EnumModel<PaperSize>(settings, "PaperSize"));
 		////Paper size:
 		panel.add(new JLabel(trans.get("lbl.Papersize")));
-		panel.add( sizeCombo, "growx, wrap para");
+		panel.add(combo, "growx, wrap para");
 		
 
-		final JComboBox<PaperOrientation> orientCombo = new JComboBox<PaperOrientation>(new EnumModel<PaperOrientation>(settings, "PaperOrientation"));
+		combo = new JComboBox(new EnumModel<PaperOrientation>(settings, "PaperOrientation"));
 		//// Paper orientation:
 		panel.add(new JLabel(trans.get("lbl.Paperorientation")));
-		panel.add( orientCombo, "growx, wrap para*2");
+		panel.add(combo, "growx, wrap para*2");
 		
 
 
 
 		//// Reset
-		JButton button = new SelectColorButton(trans.get("but.Reset"));
+		JButton button = new JButton(trans.get("but.Reset"));
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -106,7 +104,7 @@ public class PrintSettingsDialog extends JDialog {
 		panel.add(button, "spanx, split, right");
 		
 		//// Close
-		JButton closeButton = new SelectColorButton(trans.get("but.Close"));
+		JButton closeButton = new JButton(trans.get("but.Close"));
 		closeButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {

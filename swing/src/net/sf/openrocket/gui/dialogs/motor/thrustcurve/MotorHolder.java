@@ -22,7 +22,7 @@ class MotorHolder {
 	
 	@Override
 	public String toString() {
-		return motor.getMotorName();
+		return motor.getDesignation();
 	}
 	
 	@Override
